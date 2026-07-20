@@ -1,9 +1,9 @@
-import { Controller, Get, Post, Body, Query, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Req, Query, UseGuards } from '@nestjs/common';
+import type { Request } from 'express';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { InventoryService } from './inventory.service';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
 import { TransferStockDto } from './dto/transfer-stock.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import type { Request } from 'express';
 
 @UseGuards(JwtAuthGuard)
 @Controller('inventory')
@@ -11,8 +11,12 @@ export class InventoryController {
   constructor(private readonly service: InventoryService) {}
 
   @Get()
-  getStock(@Req() req: Request, @Query() query: any) {
-    return this.service.getStock((req.user as any).companyId, query);
+  getStock(
+    @Req() req: Request,
+    @Query('warehouse_id') warehouseId?: string,
+    @Query('variant_id') variantId?: string,
+  ) {
+    return this.service.getStock((req.user as any).companyId, warehouseId, variantId);
   }
 
   @Get('summary')
@@ -26,8 +30,12 @@ export class InventoryController {
   }
 
   @Get('movements')
-  getMovements(@Req() req: Request, @Query() query: any) {
-    return this.service.getMovements((req.user as any).companyId, query);
+  getMovements(
+    @Req() req: Request,
+    @Query('warehouse_id') warehouseId?: string,
+    @Query('variant_id') variantId?: string,
+  ) {
+    return this.service.getMovements((req.user as any).companyId, warehouseId, variantId);
   }
 
   @Post('adjust')

@@ -13,7 +13,7 @@ export class InventoryService {
     let idx = 2;
     if (warehouseId) { conditions.push(`i.warehouse_id = $${idx++}`); params.push(warehouseId); }
     if (variantId)   { conditions.push(`i.variant_id = $${idx++}`);   params.push(variantId); }
-    return this.db.query(
+    const result = await this.db.query(
       `SELECT i.id, i.warehouse_id, w.name as warehouse_name,
               i.variant_id, pv.sku, p.name as product_name,
               i.quantity, i.reserved_quantity,
@@ -27,6 +27,7 @@ export class InventoryService {
        ORDER BY p.name, pv.sku`,
       params,
     );
+    return result.rows;
   }
 
   async getSummary(companyId: string) {
@@ -55,10 +56,8 @@ export class InventoryService {
        WHERE i.warehouse_id = $1 AND i.variant_id = $2 AND p.company_id = $3`,
       [dto.warehouse_id, dto.variant_id, companyId],
     );
-
     const before = current.rows[0]?.quantity ?? 0;
     const after = before + dto.quantity;
-
     if (current.rows[0]) {
       await this.db.query(
         `UPDATE inventory SET quantity = $1, updated_at = NOW()
@@ -67,19 +66,16 @@ export class InventoryService {
       );
     } else {
       await this.db.query(
-        `INSERT INTO inventory (warehouse_id, variant_id, quantity)
-         VALUES ($1, $2, $3)`,
+        `INSERT INTO inventory (warehouse_id, variant_id, quantity) VALUES ($1,$2,$3)`,
         [dto.warehouse_id, dto.variant_id, Math.max(0, after)],
       );
     }
-
     await this.db.query(
       `INSERT INTO stock_movements
          (warehouse_id, variant_id, movement_type, quantity, quantity_before, quantity_after, reason, notes, created_by)
        VALUES ($1,$2,'adjustment',$3,$4,$5,$6,$7,$8)`,
       [dto.warehouse_id, dto.variant_id, dto.quantity, before, after, dto.reason, dto.notes ?? null, userId],
     );
-
     return { success: true, quantity_before: before, quantity_after: after };
   }
 
@@ -93,19 +89,16 @@ export class InventoryService {
     );
     const fromBefore = fromRow.rows[0]?.quantity ?? 0;
     if (fromBefore < dto.quantity) throw new Error('Insufficient stock');
-
     const toRow = await this.db.query(
       `SELECT quantity FROM inventory WHERE warehouse_id = $1 AND variant_id = $2`,
       [dto.to_warehouse_id, dto.variant_id],
     );
     const toBefore = toRow.rows[0]?.quantity ?? 0;
-
     await this.db.query(
       `UPDATE inventory SET quantity = quantity - $1, updated_at = NOW()
        WHERE warehouse_id = $2 AND variant_id = $3`,
       [dto.quantity, dto.from_warehouse_id, dto.variant_id],
     );
-
     if (toRow.rows[0]) {
       await this.db.query(
         `UPDATE inventory SET quantity = quantity + $1, updated_at = NOW()
@@ -118,7 +111,6 @@ export class InventoryService {
         [dto.to_warehouse_id, dto.variant_id, dto.quantity],
       );
     }
-
     await this.db.query(
       `INSERT INTO stock_movements
          (warehouse_id, variant_id, movement_type, quantity, quantity_before, quantity_after, notes, created_by)
@@ -128,7 +120,6 @@ export class InventoryService {
        fromBefore, fromBefore - dto.quantity, dto.notes ?? null, userId,
        dto.to_warehouse_id, toBefore, toBefore + dto.quantity],
     );
-
     return { success: true, transferred: dto.quantity };
   }
 
@@ -138,7 +129,7 @@ export class InventoryService {
     let idx = 2;
     if (warehouseId) { conditions.push(`sm.warehouse_id = $${idx++}`); params.push(warehouseId); }
     if (variantId)   { conditions.push(`sm.variant_id = $${idx++}`);   params.push(variantId); }
-    return this.db.query(
+    const result = await this.db.query(
       `SELECT sm.id, sm.movement_type, sm.quantity, sm.quantity_before, sm.quantity_after,
               sm.reason, sm.notes, sm.created_at,
               w.name as warehouse_name, pv.sku, p.name as product_name
@@ -151,10 +142,11 @@ export class InventoryService {
        LIMIT 200`,
       params,
     );
+    return result.rows;
   }
 
   async getLowStock(companyId: string) {
-    return this.db.query(
+    const result = await this.db.query(
       `SELECT i.warehouse_id, w.name as warehouse_name,
               i.variant_id, pv.sku, p.name as product_name,
               i.quantity, i.reorder_point, i.reorder_quantity
@@ -166,5 +158,6 @@ export class InventoryService {
        ORDER BY i.quantity ASC`,
       [companyId],
     );
+    return result.rows;
   }
 }
