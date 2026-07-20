@@ -19,6 +19,9 @@ async function bootstrap() {
     .build();
   SwaggerModule.setup('api/docs', app, SwaggerModule.createDocument(app, config));
   const port = process.env.PORT || 3000;
+  app.getHttpAdapter().get('/', (req, res) => {
+    res.json({ status: 'ok', api: '/api/v1', version: '1.0.0' });
+  });
   await app.listen(port);
   console.log(`NuxFashion API running on port ${port}`);
   console.log(`API docs: http://localhost:${port}/api/docs`);
