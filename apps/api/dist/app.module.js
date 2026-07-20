@@ -11,6 +11,7 @@ const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const database_module_1 = require("./database/database.module");
 const auth_module_1 = require("./auth/auth.module");
+const catalog_module_1 = require("./catalog/catalog.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -20,6 +21,7 @@ exports.AppModule = AppModule = __decorate([
             config_1.ConfigModule.forRoot({ isGlobal: true }),
             database_module_1.DatabaseModule,
             auth_module_1.AuthModule,
+            catalog_module_1.CatalogModule,
         ],
     })
 ], AppModule);
