@@ -8,7 +8,6 @@ const monthStart = today.slice(0, 7) + '-01';
 // ── tiny helpers ──────────────────────────────────────────────────────────────
 const fmt  = (n: any) => 'SAR ' + parseFloat(n || 0).toLocaleString('en-SA', { maximumFractionDigits: 2 });
 const fmtN = (n: any) => parseFloat(n || 0).toLocaleString('en-SA', { maximumFractionDigits: 2 });
-const pct  = (a: number, b: number) => b ? ((a / b) * 100).toFixed(1) + '%' : '0%';
 
 const STATUS_CLS: Record<string, string> = { paid: 'g', pending: 'a', returned: 'r', cancelled: 'r' };
 
