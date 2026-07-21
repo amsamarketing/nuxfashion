@@ -35,14 +35,6 @@ function KPICard({ label, value, sub, color, icon }: { label: string; value: str
   );
 }
 
-function SectionTitle({ title, sub }: { title: string; sub?: string }) {
-  return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: 13, fontWeight: 700 }}>{title}</div>
-      {sub && <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{sub}</div>}
-    </div>
-  );
-}
 
 // ── Mini bar chart (pure CSS) ─────────────────────────────────────────────────
 function BarChart({ rows, valueKey = 'revenue', labelKey = 'period', color = 'var(--fill-accent)' }:
