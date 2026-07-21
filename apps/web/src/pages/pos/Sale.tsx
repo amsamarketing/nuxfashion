@@ -3,13 +3,10 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
 import { useToast } from '../../components/Toast';
+import { getErr } from '../../lib/err';
 
-interface CartItem { id:string; sku:string; name:string; price:number; qty:number; discount:number; }
-
-const METHODS = [
-  ['Cash','ti-cash'],['Card','ti-credit-card'],['Tabby','ti-device-mobile'],
-  ['Tamara','ti-device-mobile'],['Apple Pay','ti-brand-apple'],['Mada','ti-credit-card'],
-];
+interface CartItem { id:string; sku:string; name:string; price:number; qty:number; }
+const METHODS = [['Cash','ti-cash'],['Card','ti-credit-card'],['Tabby','ti-device-mobile'],['Tamara','ti-device-mobile'],['Apple Pay','ti-brand-apple'],['Mada','ti-credit-card']];
 
 export default function POSSale() {
   const { toast } = useToast();
@@ -17,89 +14,81 @@ export default function POSSale() {
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [method, setMethod] = useState('Cash');
-  const [customer, setCustomer] = useState<any>(null);
-  const [discount, setDiscount] = useState(0);
+  const [custId, setCustId] = useState('');
+  const [discType, setDiscType] = useState<'flat'|'pct'>('pct');
+  const [discVal, setDiscVal] = useState('');
+  const [showDisc, setShowDisc] = useState(false);
   const [receipt, setReceipt] = useState<any>(null);
-  const [showDiscount, setShowDiscount] = useState(false);
 
-  const { data: products=[] } = useQuery({
-    queryKey:['products'],
-    queryFn:()=>api.get('/catalog/products').then(r=>r.data)
-  });
-  const { data: customers=[] } = useQuery({
-    queryKey:['customers'],
-    queryFn:()=>api.get('/customers').then(r=>r.data)
-  });
+  const { data: products=[] } = useQuery({ queryKey:['products'], queryFn:()=>api.get('/catalog/products').then(r=>r.data) });
+  const { data: customers=[] } = useQuery({ queryKey:['customers'], queryFn:()=>api.get('/customers').then(r=>r.data) });
+
+  const sub = cart.reduce((s,i)=>s+i.price*i.qty, 0);
+  const discAmt = (() => {
+    const v = parseFloat(discVal||'0');
+    if (discType==='pct') return Math.min(sub * v/100, sub);
+    return Math.min(v, sub);
+  })();
+  const taxable = sub - discAmt;
+  const tax = taxable * 0.15;
+  const total = taxable + tax;
+
+  const filtered = products.filter((p:any) =>
+    !search || p.name.toLowerCase().includes(search.toLowerCase()) ||
+    p.variants?.some((v:any)=>v.sku?.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const addItem = (v:any, pname:string) => {
+    setCart(prev => {
+      const ex = prev.find(i=>i.id===v.id);
+      if (ex) return prev.map(i=>i.id===v.id ? {...i,qty:i.qty+1} : i);
+      return [...prev, { id:v.id, sku:v.sku||'', name:`${pname} (${v.name})`, price:parseFloat(v.selling_price||0), qty:1 }];
+    });
+    toast(`Added: ${pname}`, 'success');
+  };
 
   const chargeMut = useMutation({
     mutationFn: async () => {
-      const sub = cart.reduce((s,i)=>s+i.price*i.qty,0);
-      const discAmt = discount;
-      const taxable = sub - discAmt;
-      const tax = taxable * 0.15;
-      const total = taxable + tax;
-      const lines = cart.map(i=>({ variant_id:i.id, quantity:i.qty, unit_price:i.price, discount_amount:i.discount }));
-      const order = await api.post('/sales/orders', {
-        customer_id: customer?.id || null,
-        lines, subtotal:sub, tax_amount:tax, discount_amount:discAmt, total
-      });
+      const body = {
+        customer_id: custId || null,
+        lines: cart.map(i=>({ variant_id:i.id, quantity:i.qty, unit_price:i.price, discount_amount:0 })),
+        subtotal: sub, tax_amount: tax, discount_amount: discAmt, total
+      };
+      const order = await api.post('/sales/orders', body);
       await api.post('/sales/payments', {
-        order_id:order.data.id,
-        method:method.toLowerCase().replace(/ /g,'_'),
-        amount:total
+        order_id: order.data.id,
+        method: method.toLowerCase().replace(/ /g,'_'),
+        amount: total
       });
       return order.data;
     },
     onSuccess: d => {
-      toast(`Order #${d.order_number} completed — SAR ${parseFloat(d.total).toFixed(2)}`, 'success');
+      toast(`✅ Order #${d.order_number} — SAR ${parseFloat(d.total).toFixed(2)}`, 'success');
       qc.invalidateQueries({ queryKey:['dashboard'] });
-      qc.invalidateQueries({ queryKey:['orders-recent'] });
-      setReceipt(d);
-      setCart([]);
-      setDiscount(0);
-      setCustomer(null);
+      qc.invalidateQueries({ queryKey:['orders'] });
+      setReceipt(d); setCart([]); setDiscVal(''); setCustId('');
     },
-    onError: () => toast('Payment failed — check connection and try again', 'error')
+    onError: e => toast(getErr(e), 'error')
   });
 
-  const addToCart = (v:any, pname:string) => {
-    setCart(prev => {
-      const ex = prev.find(i=>i.id===v.id);
-      if (ex) return prev.map(i=>i.id===v.id ? {...i,qty:i.qty+1} : i);
-      return [...prev, { id:v.id, sku:v.sku, name:`${pname} — ${v.name}`, price:parseFloat(v.selling_price), qty:1, discount:0 }];
-    });
-    setSearch('');
-    toast(`${pname} added to cart`, 'success');
-  };
-
-  const sub = cart.reduce((s,i)=>s+i.price*i.qty,0);
-  const discAmt = discount;
-  const tax = (sub-discAmt)*0.15;
-  const total = sub - discAmt + tax;
-
-  const filtered = products.filter((p:any) =>
-    search && p.name.toLowerCase().includes(search.toLowerCase())
-  );
-
   if (receipt) return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:500 }}>
-      <div className="card" style={{ maxWidth:380, width:'100%', padding:32, textAlign:'center' }}>
-        <div style={{ fontSize:48, marginBottom:12 }}>✅</div>
-        <div style={{ fontSize:18, fontWeight:700, marginBottom:4 }}>Payment Successful!</div>
-        <div style={{ color:'var(--text-secondary)', fontSize:12, marginBottom:4 }}>Order #{receipt.order_number}</div>
-        <div style={{ fontSize:11, color:'var(--text-secondary)', marginBottom:16 }}>
-          {method} · {customer?.name||'Walk-in'} · ZATCA e-invoice generated
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:480 }}>
+      <div className="card" style={{ maxWidth:380, width:'100%', padding:36, textAlign:'center' }}>
+        <div style={{ fontSize:52, marginBottom:12 }}>✅</div>
+        <div style={{ fontSize:20, fontWeight:800, marginBottom:6 }}>Payment Complete</div>
+        <div style={{ fontSize:12, color:'var(--text-secondary)', marginBottom:4 }}>Order #{receipt.order_number}</div>
+        <div style={{ fontSize:11, color:'var(--text-muted-custom)', marginBottom:20 }}>
+          {method} · ZATCA e-invoice generated
         </div>
-        <div style={{ fontSize:32, fontWeight:800, color:'var(--fill-accent)', marginBottom:8 }}>
+        <div style={{ fontSize:36, fontWeight:800, color:'var(--fill-accent)', marginBottom:4 }}>
           SAR {parseFloat(receipt.total).toFixed(2)}
         </div>
-        <div style={{ fontSize:12, color:'var(--text-secondary)', marginBottom:20 }}>
-          Incl. VAT SAR {parseFloat(receipt.tax_amount||0).toFixed(2)}
+        <div style={{ fontSize:12, color:'var(--text-secondary)', marginBottom:24 }}>
+          Incl. VAT 15%: SAR {parseFloat(receipt.tax_amount||0).toFixed(2)}
+          {discAmt > 0 && ` · Discount: SAR ${discAmt.toFixed(2)}`}
         </div>
         <div style={{ display:'flex', gap:8 }}>
-          <button className="bt" style={{ flex:1, justifyContent:'center' }} onClick={()=>window.print()}>
-            <i className="ti ti-printer" /> Print receipt
-          </button>
+          <button className="bt" style={{ flex:1, justifyContent:'center' }}><i className="ti ti-printer" /> Print</button>
           <button className="bt bt-p" style={{ flex:1, justifyContent:'center' }} onClick={()=>setReceipt(null)}>
             <i className="ti ti-plus" /> New sale
           </button>
@@ -109,127 +98,132 @@ export default function POSSale() {
   );
 
   return (
-    <div style={{ display:'grid', gridTemplateColumns:'1fr 270px', height:'calc(100vh - 140px)', gap:0 }}>
-      {/* ── Left: product search + cart ──────────────────────────── */}
+    <div style={{ display:'grid', gridTemplateColumns:'1fr 270px', height:'calc(100vh - 145px)' }}>
+
+      {/* LEFT — products + cart */}
       <div style={{ display:'flex', flexDirection:'column', borderRight:'1px solid var(--border-color)', overflow:'hidden' }}>
+
         {/* Search bar */}
-        <div style={{ padding:'10px 14px', borderBottom:'1px solid var(--border-color)', background:'var(--surface-2)' }}>
+        <div style={{ padding:'10px 12px', borderBottom:'1px solid var(--border-color)', background:'var(--surface-2)' }}>
           <div style={{ display:'flex', gap:8 }}>
             <div style={{ flex:1, display:'flex', alignItems:'center', gap:8, padding:'8px 12px', background:'var(--surface-1)', border:'1px solid var(--border-color)', borderRadius:'var(--radius)' }}>
               <i className="ti ti-barcode" style={{ fontSize:18, color:'var(--text-secondary)' }} />
-              <input type="text" placeholder="Scan barcode or type product name…" value={search}
-                onChange={e=>setSearch(e.target.value)} autoFocus
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Scan barcode or type product name…" autoFocus
                 style={{ border:'none', background:'transparent', outline:'none', flex:1, fontSize:13, padding:0 }} />
-              {search && <span style={{ cursor:'pointer', color:'var(--text-secondary)' }} onClick={()=>setSearch('')}>×</span>}
+              {search && <span style={{ cursor:'pointer', color:'var(--text-secondary)', fontSize:16 }} onClick={()=>setSearch('')}>×</span>}
             </div>
-            {/* Customer search */}
-            <select value={customer?.id||''} onChange={e=>{
-              const c = customers.find((x:any)=>x.id===e.target.value);
-              setCustomer(c||null);
-              if(c) toast(`Customer: ${c.name} — ${c.loyalty_points} pts`, 'info');
-            }} style={{ padding:'8px 10px', border:'1px solid var(--border-color)', borderRadius:'var(--radius)', background:'var(--surface-2)', fontSize:12, color:'var(--text-primary)', maxWidth:160 }}>
+            <select value={custId} onChange={e=>setCustId(e.target.value)}
+              style={{ padding:'8px 10px', border:'1px solid var(--border-color)', borderRadius:'var(--radius)', background:'var(--surface-2)', fontSize:12, color:'var(--text-primary)', maxWidth:170 }}>
               <option value="">Walk-in customer</option>
-              {customers.map((c:any)=>(
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
+              {customers.map((c:any)=><option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
         </div>
 
-        {/* Search results */}
-        {search && (
-          <div style={{ background:'var(--surface-2)', borderBottom:'1px solid var(--border-color)', maxHeight:200, overflowY:'auto' }}>
-            {filtered.length === 0 && (
-              <div style={{ padding:'16px', textAlign:'center', color:'var(--text-muted-custom)', fontSize:12 }}>No products match "{search}"</div>
-            )}
-            {filtered.map((p:any) => p.variants?.map((v:any) => (
-              <div key={v.id} onClick={()=>addToCart(v,p.name)}
+        {/* Product grid */}
+        {filtered.length > 0 && (
+          <div style={{ borderBottom:'1px solid var(--border-color)', maxHeight:220, overflowY:'auto', background:'var(--surface-2)' }}>
+            {filtered.slice(0,20).map((p:any) => p.variants?.map((v:any) => (
+              <div key={v.id} onClick={()=>addItem(v,p.name)}
                 style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 14px', cursor:'pointer', borderBottom:'1px solid var(--border-color)' }}
                 onMouseEnter={e=>(e.currentTarget.style.background='var(--bg-accent)')}
                 onMouseLeave={e=>(e.currentTarget.style.background='')}>
-                <div style={{ width:36, height:36, background:'var(--surface-1)', borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                  <i className="ti ti-shirt" style={{ fontSize:18 }} />
+                <div style={{ width:34, height:34, background:'var(--surface-1)', borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  <i className="ti ti-shirt" style={{ fontSize:17 }} />
                 </div>
                 <div style={{ flex:1 }}>
-                  <div style={{ fontWeight:600 }}>{p.name}</div>
-                  <div style={{ fontSize:11, color:'var(--text-secondary)' }}>{v.sku} · {v.name}</div>
+                  <div style={{ fontWeight:600, fontSize:12 }}>{p.name}</div>
+                  <div style={{ fontSize:10, color:'var(--text-secondary)' }}>{v.sku} · {v.name}</div>
                 </div>
-                <div style={{ fontWeight:700, color:'var(--fill-accent)' }}>SAR {parseFloat(v.selling_price).toFixed(2)}</div>
-                <span className="bx g">+Add</span>
+                <div style={{ fontWeight:700, color:'var(--fill-accent)', fontSize:13 }}>SAR {parseFloat(v.selling_price||0).toFixed(2)}</div>
+                <span className="bx g" style={{ fontSize:9 }}>+ Add</span>
               </div>
             )))}
           </div>
         )}
 
-        {/* Cart items */}
+        {/* Cart */}
         <div style={{ flex:1, overflowY:'auto', padding:'10px 14px' }}>
           {cart.length === 0 ? (
-            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:300, color:'var(--text-muted-custom)', gap:12 }}>
-              <i className="ti ti-shopping-cart" style={{ fontSize:48 }} />
+            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100%', color:'var(--text-muted-custom)', gap:10 }}>
+              <i className="ti ti-shopping-cart" style={{ fontSize:44 }} />
               <div style={{ fontSize:14, fontWeight:600 }}>Cart is empty</div>
-              <div style={{ fontSize:12 }}>Search or scan a product above to add it</div>
+              <div style={{ fontSize:12 }}>Click any product above to add it</div>
             </div>
           ) : (
             <>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-                <span style={{ fontSize:11, fontWeight:700, color:'var(--text-secondary)', letterSpacing:'.5px' }}>{cart.length} ITEMS IN CART</span>
-                <button className="bt bt-d" onClick={()=>{ setCart([]); toast('Cart cleared','info'); }}>
-                  <i className="ti ti-trash" /> Clear all
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                <span style={{ fontSize:11, fontWeight:700, color:'var(--text-secondary)', letterSpacing:'.5px' }}>
+                  {cart.reduce((s,i)=>s+i.qty,0)} ITEMS IN CART
+                </span>
+                <button className="bt bt-d" style={{ fontSize:10 }} onClick={()=>setCart([])}>
+                  <i className="ti ti-trash" /> Clear
                 </button>
               </div>
-              {cart.map(item=>(
-                <div key={item.id} style={{ display:'grid', gridTemplateColumns:'1fr auto auto auto', gap:10, alignItems:'center', padding:'10px 0', borderBottom:'1px solid var(--border-color)' }}>
-                  <div>
-                    <div style={{ fontWeight:600, fontSize:13 }}>{item.name}</div>
-                    <div style={{ fontSize:11, color:'var(--text-muted-custom)' }}>{item.sku} · SAR {item.price.toFixed(2)} each</div>
+              {cart.map(item => (
+                <div key={item.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 0', borderBottom:'1px solid var(--border-color)' }}>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontWeight:600, fontSize:12 }}>{item.name}</div>
+                    <div style={{ fontSize:10, color:'var(--text-muted-custom)' }}>{item.sku} · SAR {item.price.toFixed(2)} each</div>
                   </div>
-                  <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                    <button onClick={()=>setCart(p=>p.map(i=>i.id===item.id&&i.qty>1?{...i,qty:i.qty-1}:i))}
-                      style={{ width:28, height:28, border:'1px solid var(--border-color)', borderRadius:6, background:'var(--surface-1)', cursor:'pointer', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center' }}>−</button>
-                    <span style={{ fontWeight:700, minWidth:24, textAlign:'center' }}>{item.qty}</span>
+                  <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+                    <button onClick={()=>setCart(p=>p.map(i=>i.id===item.id&&i.qty>1?{...i,qty:i.qty-1}:i).filter(i=>i.qty>0))}
+                      style={{ width:26, height:26, border:'1px solid var(--border-color)', borderRadius:5, background:'var(--surface-1)', cursor:'pointer', fontSize:15, display:'flex', alignItems:'center', justifyContent:'center' }}>−</button>
+                    <span style={{ fontWeight:700, minWidth:22, textAlign:'center', fontSize:13 }}>{item.qty}</span>
                     <button onClick={()=>setCart(p=>p.map(i=>i.id===item.id?{...i,qty:i.qty+1}:i))}
-                      style={{ width:28, height:28, border:'1px solid var(--border-color)', borderRadius:6, background:'var(--surface-1)', cursor:'pointer', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center' }}>+</button>
+                      style={{ width:26, height:26, border:'1px solid var(--border-color)', borderRadius:5, background:'var(--surface-1)', cursor:'pointer', fontSize:15, display:'flex', alignItems:'center', justifyContent:'center' }}>+</button>
                   </div>
-                  <div style={{ fontWeight:700, minWidth:80, textAlign:'right' }}>
-                    SAR {(item.price*item.qty).toFixed(2)}
-                  </div>
+                  <div style={{ fontWeight:700, minWidth:75, textAlign:'right', fontSize:13 }}>SAR {(item.price*item.qty).toFixed(2)}</div>
                   <button onClick={()=>setCart(p=>p.filter(i=>i.id!==item.id))}
-                    style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-danger-custom)', fontSize:18, padding:'0 4px' }}>×</button>
+                    style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-danger-custom)', fontSize:18, padding:'0 2px' }}>×</button>
                 </div>
               ))}
+
+              {/* Discount row */}
+              <div style={{ marginTop:10, padding:'10px 12px', background:'var(--surface-1)', borderRadius:'var(--radius)' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:showDisc?10:0 }}>
+                  <span style={{ fontSize:12, fontWeight:600, flex:1 }}>Discount</span>
+                  <button className={'snb'+(showDisc?' on':'')} onClick={()=>setShowDisc(p=>!p)}>
+                    {showDisc?'Remove discount':'+ Add discount'}
+                  </button>
+                </div>
+                {showDisc && (
+                  <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                    <button className={'snb'+(discType==='pct'?' on':'')} onClick={()=>setDiscType('pct')}>% Percent</button>
+                    <button className={'snb'+(discType==='flat'?' on':'')} onClick={()=>setDiscType('flat')}>SAR Flat</button>
+                    <input type="number" value={discVal} onChange={e=>setDiscVal(e.target.value)}
+                      placeholder={discType==='pct'?'e.g. 10':'e.g. 50'} min="0" max={discType==='pct'?'100':undefined}
+                      style={{ width:100, padding:'5px 8px', border:'1px solid var(--border-color)', borderRadius:'var(--radius)', fontSize:12 }} />
+                    {discVal && <span style={{ fontSize:11, color:'var(--text-success-custom)', fontWeight:600 }}>
+                      − SAR {discAmt.toFixed(2)} {discType==='pct'&&`(${discVal}%)`}
+                    </span>}
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>
-
-        {/* Discount bar */}
-        {showDiscount && (
-          <div style={{ padding:'10px 14px', borderTop:'1px solid var(--border-color)', background:'var(--bg-warning-custom)', display:'flex', gap:8, alignItems:'center' }}>
-            <span style={{ fontSize:12, fontWeight:600, color:'var(--text-warning-custom)' }}>Discount (SAR):</span>
-            <input type="number" value={discount||''} onChange={e=>setDiscount(parseFloat(e.target.value)||0)}
-              placeholder="0.00" style={{ width:100, padding:'5px 8px', border:'1px solid var(--border-warning-custom)', borderRadius:'var(--radius)', fontSize:12 }} />
-            <button className="bt" onClick={()=>{setShowDiscount(false);setDiscount(0);}}>Remove</button>
-          </div>
-        )}
       </div>
 
-      {/* ── Right: payment panel ──────────────────────────────────── */}
+      {/* RIGHT — payment panel */}
       <div style={{ display:'flex', flexDirection:'column', gap:10, padding:12, background:'var(--surface-2)', overflow:'auto' }}>
-        {/* Customer indicator */}
-        {customer && (
-          <div style={{ padding:'8px 10px', background:'var(--bg-accent)', borderRadius:'var(--radius)', fontSize:11 }}>
-            <div style={{ fontWeight:600, color:'var(--text-accent)' }}><i className="ti ti-user-check" /> {customer.name}</div>
-            <div style={{ color:'var(--text-accent)' }}>{customer.loyalty_points} loyalty pts · {customer.loyalty_tier}</div>
-          </div>
-        )}
+        {custId && customers.find((c:any)=>c.id===custId) && (() => {
+          const c = customers.find((x:any)=>x.id===custId);
+          return <div style={{ padding:'8px 10px', background:'var(--bg-accent)', borderRadius:'var(--radius)', fontSize:11 }}>
+            <i className="ti ti-user-check" style={{ marginRight:5 }} />
+            <strong>{c.name}</strong> · {c.loyalty_points} pts · <span style={{ textTransform:'capitalize' }}>{c.loyalty_tier}</span>
+          </div>;
+        })()}
 
-        {/* Order total */}
         <div className="card">
           <div style={{ fontSize:11, fontWeight:700, color:'var(--text-secondary)', marginBottom:8, letterSpacing:'.5px' }}>ORDER TOTAL</div>
-          {[['Subtotal ('+cart.reduce((s,i)=>s+i.qty,0)+' items)', 'SAR '+sub.toFixed(2)],
-            ['Discount', discount>0?'− SAR '+discAmt.toFixed(2):'—'],
-            ['VAT 15%', '+ SAR '+tax.toFixed(2)]].map(([l,v])=>(
-            <div key={l} style={{ display:'flex', justifyContent:'space-between', color:'var(--text-secondary)', marginBottom:5, fontSize:12 }}>
-              <span>{l}</span><span>{v}</span>
+          {[
+            ['Items ('+cart.reduce((s,i)=>s+i.qty,0)+')', 'SAR '+sub.toFixed(2)],
+            discAmt>0 ? ['Discount '+(discType==='pct'?discVal+'%':'SAR'), '− SAR '+discAmt.toFixed(2)] : null,
+            ['VAT 15%', '+ SAR '+tax.toFixed(2)],
+          ].filter(Boolean).map((row:any) => (
+            <div key={row[0]} style={{ display:'flex', justifyContent:'space-between', color:'var(--text-secondary)', marginBottom:5, fontSize:12 }}>
+              <span>{row[0]}</span><span style={{ color: row[0].startsWith('Disc')?'var(--text-success-custom)':'' }}>{row[1]}</span>
             </div>
           ))}
           <div style={{ borderTop:'1px solid var(--border-color)', paddingTop:8, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -238,7 +232,6 @@ export default function POSSale() {
           </div>
         </div>
 
-        {/* Payment method */}
         <div>
           <div style={{ fontSize:11, fontWeight:700, color:'var(--text-secondary)', marginBottom:6, letterSpacing:'.5px' }}>PAYMENT METHOD</div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:5 }}>
@@ -251,28 +244,16 @@ export default function POSSale() {
           </div>
         </div>
 
-        {/* Quick actions */}
-        <div style={{ display:'flex', gap:5 }}>
-          <button className="bt" style={{ flex:1, justifyContent:'center' }} onClick={()=>setShowDiscount(p=>!p)}>
-            <i className="ti ti-percentage" /> Discount
-          </button>
-          <button className="bt" style={{ flex:1, justifyContent:'center' }}>
-            <i className="ti ti-player-pause" /> Hold
-          </button>
-        </div>
-
-        {/* Charge button */}
-        <button className="charge-btn" disabled={cart.length===0||chargeMut.isPending}
-          onClick={()=>chargeMut.mutate()} style={{ marginTop:'auto' }}>
+        <button className="charge-btn" disabled={cart.length===0||chargeMut.isPending} onClick={()=>chargeMut.mutate()}
+          style={{ marginTop:'auto' }}>
           {chargeMut.isPending
             ? <><div className="spinner-border spinner-border-sm me-2" />Processing…</>
-            : <><i className="ti ti-check" style={{ fontSize:18 }} /> &nbsp;Charge SAR {total.toFixed(2)}</>}
+            : <><i className="ti ti-check" style={{ fontSize:18 }} /> Charge SAR {total.toFixed(2)}</>}
         </button>
 
-        {/* ZATCA notice */}
-        <div style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 10px', background:'var(--surface-1)', borderRadius:'var(--radius)' }}>
-          <i className="ti ti-shield-check" style={{ fontSize:13, color:'var(--text-success-custom)' }} />
-          <span style={{ fontSize:10, color:'var(--text-secondary)' }}>ZATCA e-invoice generated automatically on charge</span>
+        <div style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 9px', background:'var(--surface-1)', borderRadius:'var(--radius)' }}>
+          <i className="ti ti-shield-check" style={{ fontSize:12, color:'var(--text-success-custom)' }} />
+          <span style={{ fontSize:10, color:'var(--text-secondary)' }}>ZATCA e-invoice auto-generated on charge</span>
         </div>
       </div>
     </div>
