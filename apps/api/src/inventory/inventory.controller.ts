@@ -43,6 +43,11 @@ export class InventoryController {
     return this.service.adjustStock((req.user as any).companyId, (req.user as any).sub, dto);
   }
 
+  @Get('warehouses')
+  getWarehouses(@Req() req: Request) {
+    return this.service.getWarehouses((req.user as any).companyId);
+  }
+
   @Post('transfer')
   transferStock(@Body() dto: TransferStockDto, @Req() req: Request) {
     return this.service.transferStock((req.user as any).companyId, (req.user as any).sub, dto);
