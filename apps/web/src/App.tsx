@@ -9,6 +9,7 @@ import POSHeld from './pages/pos/Held';
 import ZReport from './pages/pos/ZReport';
 import Dashboard from './pages/admin/Dashboard';
 import Orders from './pages/admin/Orders';
+import Warehouses from './pages/admin/Warehouses';
 import Inventory from './pages/admin/Inventory';
 import Products from './pages/admin/Products';
 import Purchasing from './pages/admin/Purchasing';
