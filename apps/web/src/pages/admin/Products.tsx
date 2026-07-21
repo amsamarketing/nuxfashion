@@ -79,7 +79,7 @@ export default function Products() {
     } else {
       await api.post('/catalog/products/'+productId+'/variants', {
         name: form.color||'Default',
-        sku: form.sku||undefined, barcode: form.barcode||undefined,
+        sku: form.sku||'', barcode: form.barcode||'',
         selling_price: sell, cost_price: cost, is_active: true,
         ...(form.color?{attributes:{color:form.color}}:{}),
       }).catch(()=>{});
@@ -112,12 +112,12 @@ export default function Products() {
         await api.patch('/catalog/variants/'+v.id, {
           selling_price:parseFloat(form.selling_price)||0,
           cost_price:parseFloat(form.cost_price)||0,
-          sku:form.sku||undefined, barcode:form.barcode||undefined,
+          sku:form.sku||'', barcode:form.barcode||'',
         }).catch(()=>{});
       } else {
         // No variant yet — create one
         await api.post('/catalog/products/'+editItem.id+'/variants', {
-          name:'Default', sku:form.sku||undefined, barcode:form.barcode||undefined,
+          name:'Default', sku:form.sku||'', barcode:form.barcode||'',
           selling_price:parseFloat(form.selling_price)||0,
           cost_price:parseFloat(form.cost_price)||0, is_active:true,
         }).catch(()=>{});
@@ -187,7 +187,7 @@ export default function Products() {
       try {
         const prod=await api.post('/catalog/products',{name,is_active:true});
         if(prod.data?.id) await api.post('/catalog/products/'+prod.data.id+'/variants',{
-          name:'Default',sku:si>=0?c[si]:undefined,selling_price:pi>=0?parseFloat(c[pi])||0:0,
+          name:'Default',sku:si>=0&&c[si]?c[si]:'',selling_price:pi>=0?parseFloat(c[pi])||0:0,
           cost_price:ci>=0?parseFloat(c[ci])||0:0,is_active:true}).catch(()=>{});
         ok++;
       } catch { fail++; }
