@@ -1,4 +1,3 @@
-
 import axios from 'axios';
 const API_URL = 'https://api-production-a2d2.up.railway.app/api/v1';
 export const api = axios.create({ baseURL: API_URL });

@@ -1,23 +1,18 @@
-
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState } from 'react';
 import type { ReactNode } from 'react';
 import api from '../lib/api';
-interface User { id: string; name: string; email: string; role: string; companyId: string; }
-interface AuthCtx { user: User | null; login: (e: string, p: string) => Promise<void>; logout: () => void; }
+interface User { id:string; name:string; email:string; role:string; companyId:string; }
+interface AuthCtx { user:User|null; login:(e:string,p:string)=>Promise<void>; logout:()=>void; }
 const Ctx = createContext<AuthCtx>({} as AuthCtx);
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    try { const s = localStorage.getItem('user'); return s ? JSON.parse(s) : null; } catch { return null; }
+export function AuthProvider({ children }:{ children:ReactNode }) {
+  const [user, setUser] = useState<User|null>(() => {
+    try { const s=localStorage.getItem('user'); return s?JSON.parse(s):null; } catch { return null; }
   });
-  useEffect(() => {
-    const t = localStorage.getItem('accessToken');
-    if (!t) setUser(null);
-  }, []);
-  const login = async (email: string, password: string) => {
+  const login = async (email:string, password:string) => {
     const r = await api.post('/auth/login', { email, password });
-    const { accessToken, user: u } = r.data;
+    const { accessToken, user:u } = r.data;
     localStorage.setItem('accessToken', accessToken);
-    const obj = { id: u.id, email: u.email, role: u.role, companyId: u.companyId, name: u.email.split('@')[0] };
+    const obj = { id:u.id, email:u.email, role:u.role, companyId:u.companyId, name:u.email.split('@')[0] };
     localStorage.setItem('user', JSON.stringify(obj));
     setUser(obj);
   };
