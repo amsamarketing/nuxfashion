@@ -13,7 +13,7 @@ export default function Inventory() {
   const [adjForm, setAdjForm] = useState({ quantity:'', type:'add', reason:'' });
 
   const { data:inv=[], isLoading } = useQuery({ queryKey:['inventory'], queryFn:()=>api.get('/inventory').then(r=>r.data) });
-  const { data:warehouses=[] } = useQuery({ queryKey:['warehouses'], queryFn:()=>api.get('/inventory/warehouses').then(r=>r.data).catch(()=>[]) });
+  const { data:warehouses=[] } = useQuery({ queryKey:['warehouses'], queryFn:()=>Promise.resolve([]) });
 
   const filtered = inv.filter((i:any)=> {
     if (filter==='low') return i.quantity<=i.reorder_point;
