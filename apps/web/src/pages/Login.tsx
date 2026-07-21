@@ -1,54 +1,46 @@
+
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useLang } from '../context/LangContext';
 
-export default function Login() {
+export default function Login({ onLogin }: { onLogin: () => void }) {
   const { login } = useAuth();
-  const { t, toggle, lang } = useLang();
-  const navigate = useNavigate();
   const [email, setEmail] = useState('mian.salik@gmail.com');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault(); setError(''); setLoading(true);
-    try { await login(email, password); navigate('/'); }
-    catch { setError('Invalid credentials'); }
+    try { await login(email, password); onLogin(); }
+    catch { setError('Invalid email or password'); }
     finally { setLoading(false); }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 to-purple-700 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">NuxFashion</h1>
-            <p className="text-gray-500 text-sm mt-1">{t('welcome')}</p>
-          </div>
-          <button onClick={toggle} className="text-xs text-gray-400 hover:text-purple-600 border rounded px-2 py-1">
-            {lang === 'en' ? 'ع' : 'EN'}
-          </button>
+    <div style={{ minHeight:'100vh', background:'var(--bg-primary)', display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+      <div className="card" style={{ width:360, padding:32 }}>
+        <div style={{ marginBottom:24 }}>
+          <div style={{ fontSize:20, fontWeight:700, color:'var(--text-primary)' }}>NuxFashion ERP</div>
+          <div style={{ fontSize:12, color:'var(--text-secondary)', marginTop:4 }}>Fashion Retail · Saudi Arabia · Sign in to continue</div>
         </div>
-        {error && <div className="bg-red-50 text-red-600 text-sm rounded-lg p-3 mb-4">{error}</div>}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {error && <div style={{ background:'var(--bg-danger)', color:'var(--text-danger)', border:'0.5px solid var(--border-danger)', borderRadius:'var(--radius)', padding:'8px 12px', marginBottom:12, fontSize:12 }}>{error}</div>}
+        <form onSubmit={submit} style={{ display:'flex', flexDirection:'column', gap:12 }}>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t('email')}</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" required />
+            <div style={{ fontSize:11, fontWeight:500, color:'var(--text-secondary)', marginBottom:4 }}>Email address</div>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t('password')}</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" required />
+            <div style={{ fontSize:11, fontWeight:500, color:'var(--text-secondary)', marginBottom:4 }}>Password</div>
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required />
           </div>
-          <button type="submit" disabled={loading}
-            className="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-lg py-2.5 text-sm font-medium transition-colors disabled:opacity-50">
-            {loading ? t('loading') : t('login')}
+          <button type="submit" className="bt bt-p" disabled={loading} style={{ width:'100%', justifyContent:'center', padding:'9px', fontSize:13, marginTop:4 }}>
+            {loading ? 'Signing in…' : <><i className="ti ti-login" /> Sign in</>}
           </button>
         </form>
+        <div style={{ marginTop:16, padding:10, background:'var(--surface-1)', borderRadius:'var(--radius)', fontSize:11, color:'var(--text-muted)' }}>
+          <i className="ti ti-shield-check" style={{ marginRight:4 }} />ZATCA Phase 2 · Multi-branch · KSA Fashion Retail
+        </div>
       </div>
     </div>
   );
