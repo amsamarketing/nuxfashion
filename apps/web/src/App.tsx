@@ -1,3 +1,4 @@
+import { ToastProvider } from './components/Toast';
 import { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -148,9 +149,11 @@ function App() {
 export default function Root() {
   return (
     <QueryClientProvider client={qc}>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </ToastProvider>
     </QueryClientProvider>
   );
 }
