@@ -19,74 +19,138 @@ import HR from './pages/admin/HR';
 import Reports from './pages/admin/Reports';
 import Settings from './pages/admin/Settings';
 
-const qc = new QueryClient({ defaultOptions:{ queries:{ retry:1, staleTime:30000 } } });
+const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30000 } } });
 
-const POS_NAV=[{id:'pos-sale',l:'New sale',i:'ti-shopping-cart'},{id:'pos-return',l:'Returns',i:'ti-arrow-back'},{id:'pos-held',l:'Held orders',i:'ti-player-pause'},{id:'pos-zreport',l:'Z-report',i:'ti-report'}];
-const ADMIN_NAV=[{id:'ad-dash',l:'Dashboard',i:'ti-layout-dashboard'},{id:'ad-orders',l:'Orders',i:'ti-shopping-cart'},{id:'ad-inv',l:'Inventory',i:'ti-package'},{id:'ad-prod',l:'Products',i:'ti-tag'},{id:'ad-purch',l:'Purchasing',i:'ti-truck'},{id:'ad-acct',l:'Accounting',i:'ti-report-money'},{id:'ad-zatca',l:'ZATCA invoices',i:'ti-file-check'},{id:'ad-crm',l:'Customers',i:'ti-users'},{id:'ad-loyal',l:'Loyalty & promos',i:'ti-star'},{id:'ad-hr',l:'HR & payroll',i:'ti-id'},{id:'ad-rep',l:'Reports',i:'ti-chart-bar'},{id:'ad-set',l:'Settings',i:'ti-settings'}];
-const SCREENS: Record<string, React.ComponentType> = {'pos-sale':POSSale,'pos-return':POSReturn,'pos-held':POSHeld,'pos-zreport':ZReport,'ad-dash':Dashboard,'ad-orders':Orders,'ad-inv':Inventory,'ad-prod':Products,'ad-purch':Purchasing,'ad-acct':Accounting,'ad-zatca':ZATCA,'ad-crm':Customers,'ad-loyal':Loyalty,'ad-hr':HR,'ad-rep':Reports,'ad-set':Settings};
+const POS_NAV = [
+  { id: 'pos-sale',    l: 'New sale',     i: 'ti-shopping-cart' },
+  { id: 'pos-return',  l: 'Returns',      i: 'ti-arrow-back' },
+  { id: 'pos-held',    l: 'Held orders',  i: 'ti-player-pause' },
+  { id: 'pos-zreport', l: 'Z-report',     i: 'ti-report' },
+];
+const ADMIN_NAV = [
+  { id: 'ad-dash',   l: 'Dashboard',       i: 'ti-layout-dashboard',  group: 'MAIN' },
+  { id: 'ad-orders', l: 'Orders',           i: 'ti-shopping-cart',    group: 'MAIN' },
+  { id: 'ad-inv',    l: 'Inventory',        i: 'ti-package',           group: 'MAIN' },
+  { id: 'ad-prod',   l: 'Products',         i: 'ti-tag',               group: 'MAIN' },
+  { id: 'ad-purch',  l: 'Purchasing',       i: 'ti-truck',             group: 'MAIN' },
+  { id: 'ad-acct',   l: 'Accounting',       i: 'ti-report-money',      group: 'FINANCE' },
+  { id: 'ad-zatca',  l: 'ZATCA invoices',   i: 'ti-file-check',        group: 'FINANCE' },
+  { id: 'ad-crm',    l: 'Customers',        i: 'ti-users',             group: 'PEOPLE' },
+  { id: 'ad-loyal',  l: 'Loyalty & promos', i: 'ti-star',              group: 'PEOPLE' },
+  { id: 'ad-hr',     l: 'HR & payroll',     i: 'ti-id',                group: 'PEOPLE' },
+  { id: 'ad-rep',    l: 'Reports',          i: 'ti-chart-bar',         group: 'SYSTEM' },
+  { id: 'ad-set',    l: 'Settings',         i: 'ti-settings',          group: 'SYSTEM' },
+];
+
+const SCREENS: Record<string, React.ComponentType> = {
+  'pos-sale': POSSale, 'pos-return': POSReturn, 'pos-held': POSHeld, 'pos-zreport': ZReport,
+  'ad-dash': Dashboard, 'ad-orders': Orders, 'ad-inv': Inventory, 'ad-prod': Products,
+  'ad-purch': Purchasing, 'ad-acct': Accounting, 'ad-zatca': ZATCA, 'ad-crm': Customers,
+  'ad-loyal': Loyalty, 'ad-hr': HR, 'ad-rep': Reports, 'ad-set': Settings,
+};
 
 function App() {
   const { user, logout } = useAuth();
-  const [mode, setMode] = useState<'pos'|'admin'>('pos');
+  const [mode, setMode] = useState<'pos' | 'admin'>('pos');
   const [screen, setScreen] = useState('pos-sale');
-  const switchMode = (m:'pos'|'admin') => { setMode(m); setScreen(m==='pos'?'pos-sale':'ad-dash'); };
-  if (!user) return <Login onLogin={()=>setScreen('pos-sale')} />;
-  const nav = mode==='pos'?POS_NAV:ADMIN_NAV;
-  const Screen = SCREENS[screen]||Dashboard;
+
+  const switchMode = (m: 'pos' | 'admin') => {
+    setMode(m);
+    setScreen(m === 'pos' ? 'pos-sale' : 'ad-dash');
+  };
+
+  if (!user) return <Login onLogin={() => setScreen('pos-sale')} />;
+
+  const Screen = SCREENS[screen] || Dashboard;
+  const groups = ['MAIN', 'FINANCE', 'PEOPLE', 'SYSTEM'];
+
   return (
-    <div style={{ minHeight:'100vh', background:'var(--bg-primary)', padding:16 }}>
-      <div style={{ maxWidth:1100, margin:'0 auto' }}>
-        <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',padding:'9px 16px',background:'var(--surface-2)',borderBottom:'0.5px solid var(--border)',borderRadius:'14px 14px 0 0' }}>
-          {mode==='pos'
-            ? <div style={{ display:'flex',alignItems:'center',gap:10 }}><span style={{ fontSize:14,fontWeight:600 }}>NuxFashion</span><span style={{ color:'var(--text-secondary)' }}>Riyadh Mall · Terminal 1</span><span className="bx n"><i className="ti ti-clock" style={{ fontSize:11 }} /> Morning shift</span></div>
-            : <div style={{ display:'flex',alignItems:'center',gap:10 }}><span style={{ fontSize:14,fontWeight:600 }}>NuxFashion ERP</span><span className="bx n">Multi-branch · KSA</span></div>
-          }
-          <div style={{ display:'flex',alignItems:'center',gap:8 }}>
-            <span style={{ fontSize:11,color:'var(--text-secondary)' }}>{user.email}</span>
-            <span className="bx g"><i className="ti ti-wifi" style={{ fontSize:11 }} /> Online</span>
-            <span className="bx g">ZATCA Active</span>
-            <button className="bt" onClick={logout} style={{ fontSize:11 }}><i className="ti ti-logout" /> Logout</button>
-          </div>
+    <div className="app-root">
+
+      {/* ── Top bar ───────────────────────────────── */}
+      <div className="app-topbar">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <i className="ti ti-hanger" style={{ fontSize: 22, color: 'var(--fill-accent)' }} />
+          <span style={{ fontSize: 15, fontWeight: 700 }}>NuxFashion</span>
+          <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+            {mode === 'pos' ? 'POS · Riyadh Mall · Terminal 1' : 'ERP · Multi-branch · KSA'}
+          </span>
         </div>
-        <div style={{ display:'flex',background:'var(--surface-1)',borderBottom:'0.5px solid var(--border)' }}>
-          {([['pos','ti-device-desktop','POS terminal'],['admin','ti-layout-dashboard','Admin portal']] as [string,string,string][]).map(([m,ic,label])=>(
-            <button key={m} onClick={()=>switchMode(m as 'pos'|'admin')}
-              style={{ flex:1,padding:'9px',fontSize:13,fontWeight:500,cursor:'pointer',border:'none',background:'transparent',color:mode===m?'var(--text-accent)':'var(--text-secondary)',borderBottom:mode===m?'2px solid var(--fill-accent)':'2px solid transparent',display:'flex',alignItems:'center',justifyContent:'center',gap:6 }}>
-              <i className={'ti '+ic} style={{ fontSize:14 }} />{label}
+
+        {/* Mode toggle */}
+        <div style={{ display: 'flex', gap: 4, marginLeft: 12, background: 'var(--surface-1)', borderRadius: 'var(--radius)', padding: 3 }}>
+          {(['pos', 'admin'] as const).map(m => (
+            <button key={m} onClick={() => switchMode(m)}
+              style={{ padding: '5px 14px', fontSize: 12, fontWeight: 500, border: 'none', borderRadius: 'calc(var(--radius) - 2px)', cursor: 'pointer', background: mode === m ? 'var(--fill-accent)' : 'transparent', color: mode === m ? '#fff' : 'var(--text-secondary)', transition: 'all .15s' }}>
+              <i className={`ti ${m === 'pos' ? 'ti-device-desktop' : 'ti-layout-dashboard'}`} style={{ marginRight: 5 }} />
+              {m === 'pos' ? 'POS Terminal' : 'Admin Portal'}
             </button>
           ))}
         </div>
-        <div style={{ display:'flex',gap:5,padding:'8px 12px',background:'var(--surface-2)',borderBottom:'0.5px solid var(--border)',overflowX:'auto',flexWrap:'nowrap' }}>
-          {nav.map(n=>(
-            <button key={n.id} className={'snb'+(screen===n.id?' on':'')} onClick={()=>setScreen(n.id)}>
-              <i className={'ti '+n.i} style={{ fontSize:11,marginRight:3 }} />{n.l}
-            </button>
-          ))}
-        </div>
-        <div style={{ display:'grid',gridTemplateColumns:mode==='admin'?'150px 1fr':'1fr' }}>
-          {mode==='admin' && (
-            <div style={{ padding:'8px 6px',borderRight:'0.5px solid var(--border)',background:'var(--surface-2)',minHeight:520 }}>
-              <div className="sep">MAIN</div>
-              {ADMIN_NAV.slice(0,5).map(n=><div key={n.id} className={'ni'+(screen===n.id?' on':'')} onClick={()=>setScreen(n.id)}><i className={'ti '+n.i} style={{ fontSize:14 }} />{n.l}</div>)}
-              <div className="sep">FINANCE</div>
-              {ADMIN_NAV.slice(5,8).map(n=><div key={n.id} className={'ni'+(screen===n.id?' on':'')} onClick={()=>setScreen(n.id)}><i className={'ti '+n.i} style={{ fontSize:14 }} />{n.l}</div>)}
-              <div className="sep">PEOPLE</div>
-              {ADMIN_NAV.slice(8,10).map(n=><div key={n.id} className={'ni'+(screen===n.id?' on':'')} onClick={()=>setScreen(n.id)}><i className={'ti '+n.i} style={{ fontSize:14 }} />{n.l}</div>)}
-              <div className="sep">SYSTEM</div>
-              {ADMIN_NAV.slice(10).map(n=><div key={n.id} className={'ni'+(screen===n.id?' on':'')} onClick={()=>setScreen(n.id)}><i className={'ti '+n.i} style={{ fontSize:14 }} />{n.l}</div>)}
-            </div>
-          )}
-          <div style={{ padding:'12px 14px',background:'var(--surface-0)',minHeight:520,overflow:'auto' }}>
-            <Screen />
-          </div>
-        </div>
-        <div style={{ borderTop:'0.5px solid var(--border)',background:'var(--surface-2)',borderRadius:'0 0 14px 14px',padding:'6px 16px',fontSize:10,color:'var(--text-muted)',textAlign:'center' }}>
-          NuxFashion ERP + POS · Saudi Fashion Retail · ZATCA Phase 2 · Tabby & Tamara · Multi-branch
+
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="bx g"><i className="ti ti-wifi" style={{ fontSize: 11 }} /> Online</span>
+          <span className="bx g"><i className="ti ti-file-check" style={{ fontSize: 11 }} /> ZATCA Active</span>
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{user.email}</span>
+          <button className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" onClick={logout}>
+            <i className="ti ti-logout" /> Logout
+          </button>
         </div>
       </div>
+
+      {/* ── Body ──────────────────────────────────── */}
+      <div className="app-body">
+
+        {/* ── Sidebar ───────────────────────────────── */}
+        <div className="app-sidebar">
+          {mode === 'pos' ? (
+            <>
+              <div className="sep">POS TERMINAL</div>
+              {POS_NAV.map(n => (
+                <div key={n.id} className={`ni ${screen === n.id ? 'on' : ''}`} onClick={() => setScreen(n.id)}>
+                  <i className={`ti ${n.i}`} /> {n.l}
+                </div>
+              ))}
+              <div className="sep" style={{ marginTop: 'auto' }}>QUICK ACTIONS</div>
+              <div className="ni"><i className="ti ti-user-plus" /> Add customer</div>
+              <div className="ni"><i className="ti ti-gift" /> Gift card</div>
+              <div className="ni"><i className="ti ti-percentage" /> Discount</div>
+            </>
+          ) : (
+            <>
+              {groups.map(group => {
+                const items = ADMIN_NAV.filter(n => n.group === group);
+                return (
+                  <div key={group}>
+                    <div className="sep">{group}</div>
+                    {items.map(n => (
+                      <div key={n.id} className={`ni ${screen === n.id ? 'on' : ''}`} onClick={() => setScreen(n.id)}>
+                        <i className={`ti ${n.i}`} /> {n.l}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </div>
+
+        {/* ── Main content ──────────────────────────── */}
+        <div className="app-main">
+          <Screen />
+        </div>
+      </div>
+
     </div>
   );
 }
+
 export default function Root() {
-  return <QueryClientProvider client={qc}><AuthProvider><App /></AuthProvider></QueryClientProvider>;
+  return (
+    <QueryClientProvider client={qc}>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </QueryClientProvider>
+  );
 }
