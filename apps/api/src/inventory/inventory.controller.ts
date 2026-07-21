@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Req, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Req, Query, Param, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { InventoryService } from './inventory.service';
@@ -46,6 +46,16 @@ export class InventoryController {
   @Get('warehouses')
   getWarehouses(@Req() req: Request) {
     return this.service.getWarehouses((req.user as any).companyId);
+  }
+
+  @Post('warehouses')
+  createWarehouse(@Body() body: any, @Req() req: Request) {
+    return this.service.createWarehouse((req.user as any).companyId, body);
+  }
+
+  @Get('warehouses/:id/stock')
+  getWarehouseStock(@Req() req: Request, @Param('id') id: string) {
+    return this.service.getWarehouseStock((req.user as any).companyId, id);
   }
 
   @Post('transfer')

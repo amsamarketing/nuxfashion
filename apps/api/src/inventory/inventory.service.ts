@@ -178,3 +178,34 @@ export class InventoryService {
     );
     return fallback.rows;
   }
+
+  async createWarehouse(companyId: string, dto: { name: string; location?: string; type?: string }) {
+    try {
+      const result = await this.db.query(
+        `INSERT INTO warehouses (company_id, name, location) VALUES ($1,$2,$3) RETURNING *`,
+        [companyId, dto.name, dto.location || null],
+      );
+      return result.rows[0];
+    } catch {
+      const result = await this.db.query(
+        `INSERT INTO warehouses (company_id, name) VALUES ($1,$2) RETURNING *`,
+        [companyId, dto.name],
+      );
+      return result.rows[0];
+    }
+  }
+
+  async getWarehouseStock(companyId: string, warehouseId: string) {
+    const result = await this.db.query(
+      `SELECT i.id, i.variant_id, i.quantity, i.reorder_point,
+              pv.sku, pv.name as variant_name,
+              p.id as product_id, p.name as product_name
+       FROM inventory i
+       JOIN product_variants pv ON pv.id = i.variant_id
+       JOIN products p ON p.id = pv.product_id
+       WHERE i.warehouse_id = $1 AND p.company_id = $2
+       ORDER BY p.name, pv.sku`,
+      [warehouseId, companyId],
+    );
+    return result.rows;
+  }
