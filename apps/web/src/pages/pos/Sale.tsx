@@ -15,8 +15,8 @@ export default function POSSale() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [method, setMethod] = useState('Cash');
   const [custId, setCustId] = useState('');
-  const [discType, setDiscType] = useState<'flat'|'pct'>('pct');
-  const [discVal, setDiscVal] = useState('');
+  const [discPct, setDiscPct] = useState('');
+  const [discFlat, setDiscFlat] = useState('');
   const [showDisc, setShowDisc] = useState(false);
   const [receipt, setReceipt] = useState<any>(null);
 
@@ -24,11 +24,9 @@ export default function POSSale() {
   const { data: customers=[] } = useQuery({ queryKey:['customers'], queryFn:()=>api.get('/customers').then(r=>r.data) });
 
   const sub = cart.reduce((s,i)=>s+i.price*i.qty, 0);
-  const discAmt = (() => {
-    const v = parseFloat(discVal||'0');
-    if (discType==='pct') return Math.min(sub * v/100, sub);
-    return Math.min(v, sub);
-  })();
+  const pctAmt = Math.min(sub * (parseFloat(discPct||'0')/100), sub);
+  const flatAmt = Math.min(parseFloat(discFlat||'0'), sub - pctAmt);
+  const discAmt = pctAmt + flatAmt;
   const taxable = sub - discAmt;
   const tax = taxable * 0.15;
   const total = taxable + tax;
@@ -66,7 +64,7 @@ export default function POSSale() {
       toast(`✅ Order #${d.order_number} — SAR ${parseFloat(d.total).toFixed(2)}`, 'success');
       qc.invalidateQueries({ queryKey:['dashboard'] });
       qc.invalidateQueries({ queryKey:['orders'] });
-      setReceipt(d); setCart([]); setDiscVal(''); setCustId('');
+      setReceipt(d); setCart([]); setDiscPct(''); setDiscFlat(''); setShowDisc(false); setCustId('');
     },
     onError: e => toast(getErr(e), 'error')
   });
@@ -85,7 +83,7 @@ export default function POSSale() {
         </div>
         <div style={{ fontSize:12, color:'var(--text-secondary)', marginBottom:24 }}>
           Incl. VAT 15%: SAR {parseFloat(receipt.tax_amount||0).toFixed(2)}
-          {discAmt > 0 && ` · Discount: SAR ${discAmt.toFixed(2)}`}
+          {discAmt > 0 && ` · Discount: SAR ${discAmt.toFixed(2)}`}{discPct && discAmt>0 && ` (${discPct}%${flatAmt>0?' + SAR '+flatAmt.toFixed(2):''})`}
         </div>
         <div style={{ display:'flex', gap:8 }}>
           <button className="bt" style={{ flex:1, justifyContent:'center' }}><i className="ti ti-printer" /> Print</button>
@@ -183,20 +181,39 @@ export default function POSSale() {
               <div style={{ marginTop:10, padding:'10px 12px', background:'var(--surface-1)', borderRadius:'var(--radius)' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:showDisc?10:0 }}>
                   <span style={{ fontSize:12, fontWeight:600, flex:1 }}>Discount</span>
-                  <button className={'snb'+(showDisc?' on':'')} onClick={()=>setShowDisc(p=>!p)}>
-                    {showDisc?'Remove discount':'+ Add discount'}
+                  {discAmt>0 && <span style={{ fontSize:11, fontWeight:700, color:'var(--text-success-custom)' }}>− SAR {discAmt.toFixed(2)}</span>}
+                  <button className={'snb'+(showDisc?' on':'')} onClick={()=>{ setShowDisc(p=>!p); if(showDisc){setDiscPct('');setDiscFlat('');} }}>
+                    {showDisc?'Remove':'+ Add discount'}
                   </button>
                 </div>
                 {showDisc && (
-                  <div style={{ display:'flex', gap:6, alignItems:'center' }}>
-                    <button className={'snb'+(discType==='pct'?' on':'')} onClick={()=>setDiscType('pct')}>% Percent</button>
-                    <button className={'snb'+(discType==='flat'?' on':'')} onClick={()=>setDiscType('flat')}>SAR Flat</button>
-                    <input type="number" value={discVal} onChange={e=>setDiscVal(e.target.value)}
-                      placeholder={discType==='pct'?'e.g. 10':'e.g. 50'} min="0" max={discType==='pct'?'100':undefined}
-                      style={{ width:100, padding:'5px 8px', border:'1px solid var(--border-color)', borderRadius:'var(--radius)', fontSize:12 }} />
-                    {discVal && <span style={{ fontSize:11, color:'var(--text-success-custom)', fontWeight:600 }}>
-                      − SAR {discAmt.toFixed(2)} {discType==='pct'&&`(${discVal}%)`}
-                    </span>}
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                    <div>
+                      <div style={{ fontSize:10, fontWeight:600, color:'var(--text-secondary)', marginBottom:4 }}>% PERCENTAGE</div>
+                      <div style={{ display:'flex', alignItems:'center', gap:5, border:'1px solid var(--border-color)', borderRadius:'var(--radius)', overflow:'hidden', background:'var(--surface-2)' }}>
+                        <input type="number" value={discPct} onChange={e=>setDiscPct(e.target.value)}
+                          placeholder="0" min="0" max="100"
+                          style={{ flex:1, border:'none', outline:'none', padding:'6px 8px', fontSize:13, fontWeight:600, background:'transparent', width:0 }} />
+                        <span style={{ padding:'0 10px', fontSize:13, fontWeight:700, color:'var(--fill-accent)', borderLeft:'1px solid var(--border-color)', background:'var(--surface-1)' }}>%</span>
+                      </div>
+                      {discPct && <div style={{ fontSize:10, color:'var(--text-success-custom)', marginTop:3 }}>= SAR {pctAmt.toFixed(2)} off</div>}
+                    </div>
+                    <div>
+                      <div style={{ fontSize:10, fontWeight:600, color:'var(--text-secondary)', marginBottom:4 }}>SAR FLAT AMOUNT</div>
+                      <div style={{ display:'flex', alignItems:'center', gap:5, border:'1px solid var(--border-color)', borderRadius:'var(--radius)', overflow:'hidden', background:'var(--surface-2)' }}>
+                        <span style={{ padding:'0 8px', fontSize:11, fontWeight:700, color:'var(--text-secondary)', borderRight:'1px solid var(--border-color)', background:'var(--surface-1)' }}>SAR</span>
+                        <input type="number" value={discFlat} onChange={e=>setDiscFlat(e.target.value)}
+                          placeholder="0.00" min="0"
+                          style={{ flex:1, border:'none', outline:'none', padding:'6px 8px', fontSize:13, fontWeight:600, background:'transparent', width:0 }} />
+                      </div>
+                      {discFlat && <div style={{ fontSize:10, color:'var(--text-success-custom)', marginTop:3 }}>= SAR {flatAmt.toFixed(2)} off</div>}
+                    </div>
+                    {discAmt>0 && (
+                      <div style={{ gridColumn:'1/-1', padding:'7px 10px', background:'var(--bg-success-custom)', borderRadius:'var(--radius)', display:'flex', justifyContent:'space-between', fontSize:12 }}>
+                        <span style={{ color:'var(--text-success-custom)', fontWeight:600 }}>Total discount</span>
+                        <span style={{ fontWeight:800, color:'var(--text-success-custom)' }}>− SAR {discAmt.toFixed(2)}</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -219,7 +236,7 @@ export default function POSSale() {
           <div style={{ fontSize:11, fontWeight:700, color:'var(--text-secondary)', marginBottom:8, letterSpacing:'.5px' }}>ORDER TOTAL</div>
           {[
             ['Items ('+cart.reduce((s,i)=>s+i.qty,0)+')', 'SAR '+sub.toFixed(2)],
-            discAmt>0 ? ['Discount '+(discType==='pct'?discVal+'%':'SAR'), '− SAR '+discAmt.toFixed(2)] : null,
+            (pctAmt>0||flatAmt>0) ? ['Discount'+(discPct?' '+discPct+'%':'')+(discFlat?' + SAR '+parseFloat(discFlat).toFixed(2):''), '− SAR '+discAmt.toFixed(2)] : null,
             ['VAT 15%', '+ SAR '+tax.toFixed(2)],
           ].filter(Boolean).map((row:any) => (
             <div key={row[0]} style={{ display:'flex', justifyContent:'space-between', color:'var(--text-secondary)', marginBottom:5, fontSize:12 }}>
