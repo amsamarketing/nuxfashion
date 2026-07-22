@@ -105,7 +105,7 @@ function App() {
       <div className="app-body">
 
         {/* ── Sidebar ───────────────────────────────── */}
-        <div className="app-sidebar" style={mode==='pos'?{width:'64px',minWidth:'64px',padding:'8px 4px',alignItems:'center'}:{}}>
+        <div className="app-sidebar" style={mode==='pos'?{display:'none'}:{}}>
           {mode === 'pos' ? (
             <>
               {POS_NAV.map(n => (
