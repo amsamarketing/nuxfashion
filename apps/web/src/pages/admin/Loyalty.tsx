@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
 import { useToast } from '../../components/Toast';
@@ -209,14 +209,7 @@ export default function Loyalty() {
         </div>
       )}
 
-      {tab===2&&(
-        <div className="card" style={{padding:40,textAlign:'center'}}>
-          <i className="ti ti-ticket" style={{fontSize:48,color:'var(--text-secondary)',display:'block',marginBottom:12}}/>
-          <div style={{fontSize:13,fontWeight:600,marginBottom:6}}>Coupons</div>
-          <div style={{fontSize:12,color:'var(--text-secondary)',marginBottom:16}}>Create single-use or multi-use coupon codes for customers</div>
-          <button className="bt bt-p" onClick={()=>setShowAdd(true)}><i className="ti ti-plus"/> Create coupon</button>
-        </div>
-      )}
+      {tab===2&&<CouponsTab/>}
 
       {tab===3&&(
         <div className="card" style={{padding:40,textAlign:'center'}}>
@@ -314,6 +307,142 @@ export default function Loyalty() {
             <SaveBtn label="Create promotion" loading={addMut.isPending} disabled={!form.name||(form.discount_type!=='bogo'&&!form.discount_value)} onClick={()=>addMut.mutate()}/>
           </div>
         </Modal>
+      )}
+    </div>
+  );
+}
+
+const COUPON_SEED = [
+  {id:'c1',code:'SUMMER20',type:'percentage',value:20,min_purchase:100,usage_limit:500,used:142,expires:'2026-08-31',is_active:true},
+  {id:'c2',code:'GOLD10',type:'percentage',value:10,min_purchase:0,usage_limit:null,used:89,expires:null,is_active:true},
+  {id:'c3',code:'WELCOME50',type:'fixed',value:50,min_purchase:200,usage_limit:1000,used:317,expires:'2026-12-31',is_active:true},
+  {id:'c4',code:'VIP100',type:'fixed',value:100,min_purchase:500,usage_limit:100,used:100,expires:'2026-07-01',is_active:false},
+  {id:'c5',code:'FLASH15',type:'percentage',value:15,min_purchase:0,usage_limit:200,used:56,expires:'2026-07-25',is_active:true},
+];
+const CPN_EMPTY={code:'',type:'percentage',value:'',min_purchase:'',usage_limit:'',expires:'',is_active:true};
+
+function CouponsTab(){
+  const [coupons,setCoupons]=React.useState<any[]>(()=>{try{const s=sessionStorage.getItem('coupons');return s?JSON.parse(s):COUPON_SEED;}catch{return COUPON_SEED;}});
+  const [showCreate,setShowCreate]=React.useState(false);
+  const [form,setForm]=React.useState({...CPN_EMPTY});
+  const [copied,setCopied]=React.useState('');
+  const save=(list:any[])=>{setCoupons(list);try{sessionStorage.setItem('coupons',JSON.stringify(list));}catch{}};
+  const set=(k:string,v:any)=>setForm(p=>({...p,[k]:v}));
+  const generate=()=>set('code',Math.random().toString(36).slice(2,8).toUpperCase());
+  const copy=(code:string)=>{navigator.clipboard.writeText(code).catch(()=>{});setCopied(code);setTimeout(()=>setCopied(''),1500);};
+  const toggle=(id:string)=>save(coupons.map(c=>c.id===id?{...c,is_active:!c.is_active}:c));
+  const del=(id:string)=>{if(confirm('Delete coupon?'))save(coupons.filter(c=>c.id!==id));};
+  const create=()=>{
+    if(!form.code||!form.value)return;
+    const nc={id:'c'+Date.now(),code:form.code.toUpperCase(),type:form.type,value:parseFloat(form.value),
+      min_purchase:parseFloat(form.min_purchase)||0,usage_limit:form.usage_limit?parseInt(form.usage_limit):null,
+      used:0,expires:form.expires||null,is_active:form.is_active};
+    save([nc,...coupons]);setShowCreate(false);setForm({...CPN_EMPTY});
+  };
+  const active=coupons.filter(c=>c.is_active).length;
+  return(
+    <div>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+        <div>
+          <div style={{fontSize:13,fontWeight:700}}>Coupons</div>
+          <div style={{fontSize:11,color:'var(--text-secondary)'}}>{active} active · {coupons.length} total</div>
+        </div>
+        <button className="bt bt-p" onClick={()=>setShowCreate(true)}><i className="ti ti-plus"/> Create coupon</button>
+      </div>
+      <div className="card" style={{padding:0,overflow:'hidden'}}>
+        <div className="tr th" style={{gridTemplateColumns:'130px 80px 80px 110px 100px 110px 80px 120px'}}>
+          {['Code','Type','Value','Min purchase','Usage','Expires','Status','Actions'].map(h=><span key={h}>{h}</span>)}
+        </div>
+        {coupons.map(cp=>{
+          const expired=cp.expires&&new Date(cp.expires)<new Date();
+          const full=cp.usage_limit&&cp.used>=cp.usage_limit;
+          const status=!cp.is_active?{l:'Inactive',c:'n'}:expired?{l:'Expired',c:'r'}:full?{l:'Maxed out',c:'r'}:{l:'Active',c:'g'};
+          const pct=cp.usage_limit?Math.round(cp.used/cp.usage_limit*100):null;
+          return(
+            <div key={cp.id} className="tr" style={{gridTemplateColumns:'130px 80px 80px 110px 100px 110px 80px 120px',opacity:cp.is_active&&!expired?1:.6}}>
+              <span>
+                <div style={{display:'flex',alignItems:'center',gap:6}}>
+                  <span style={{fontFamily:'monospace',fontWeight:700,fontSize:12,color:'var(--fill-accent)'}}>{cp.code}</span>
+                  <button onClick={()=>copy(cp.code)} style={{background:'none',border:'none',cursor:'pointer',padding:2,color:'var(--text-secondary)',fontSize:12}}>
+                    <i className={'ti '+(copied===cp.code?'ti-check':'ti-copy')} style={{color:copied===cp.code?'#27ae60':undefined}}/>
+                  </button>
+                </div>
+              </span>
+              <span><span className="bx n" style={{fontSize:10,textTransform:'capitalize'}}>{cp.type==='percentage'?'%':'SAR'}</span></span>
+              <span style={{fontWeight:700}}>{cp.type==='percentage'?cp.value+'%':'SAR '+cp.value}</span>
+              <span style={{fontSize:11,color:'var(--text-secondary)'}}>{cp.min_purchase>0?'SAR '+cp.min_purchase:'No min'}</span>
+              <span style={{fontSize:11}}>
+                <div>{cp.used}{cp.usage_limit?' / '+cp.usage_limit:' used'}</div>
+                {pct!==null&&<div style={{marginTop:3,height:3,background:'var(--border-color)',borderRadius:2}}>
+                  <div style={{height:3,background:pct>=90?'#e74c3c':pct>=60?'#f59e0b':'#27ae60',borderRadius:2,width:pct+'%'}}/>
+                </div>}
+              </span>
+              <span style={{fontSize:11,color:expired?'#e74c3c':'var(--text-secondary)'}}>{cp.expires?new Date(cp.expires).toLocaleDateString('en-SA',{day:'numeric',month:'short',year:'numeric'}):'No expiry'}</span>
+              <span><span className={'bx '+status.c} style={{fontSize:10}}>{status.l}</span></span>
+              <span style={{display:'flex',gap:4}}>
+                <button className="bt" style={{fontSize:10,padding:'3px 8px'}} onClick={()=>toggle(cp.id)}>{cp.is_active?'Pause':'Activate'}</button>
+                <button className="bt bt-d" style={{fontSize:10,padding:'3px 7px'}} onClick={()=>del(cp.id)}><i className="ti ti-trash"/></button>
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      {showCreate&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.4)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}} onClick={e=>{if(e.target===e.currentTarget)setShowCreate(false);}}>
+          <div style={{background:'var(--surface-2)',borderRadius:'var(--radius)',padding:24,width:460,maxHeight:'90vh',overflowY:'auto'}}>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:16}}>
+              <span style={{fontSize:14,fontWeight:700}}>Create coupon</span>
+              <button onClick={()=>setShowCreate(false)} style={{background:'none',border:'none',cursor:'pointer',fontSize:18,color:'var(--text-secondary)'}}>×</button>
+            </div>
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:600,marginBottom:6}}>Coupon code *</div>
+              <div style={{display:'flex',gap:6}}>
+                <input value={form.code} onChange={e=>set('code',e.target.value.toUpperCase())} placeholder="e.g. SAVE20"
+                  style={{flex:1,padding:'7px 10px',border:'1px solid var(--border-color)',borderRadius:'var(--radius)',fontSize:13,fontFamily:'monospace',fontWeight:700,background:'var(--surface-1)',color:'var(--text-primary)',letterSpacing:1}}/>
+                <button className="bt" onClick={generate}>Generate</button>
+              </div>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+              <div>
+                <div style={{fontSize:11,fontWeight:600,marginBottom:6}}>Discount type *</div>
+                <select value={form.type} onChange={e=>set('type',e.target.value)}
+                  style={{width:'100%',padding:'7px 10px',border:'1px solid var(--border-color)',borderRadius:'var(--radius)',fontSize:12,background:'var(--surface-1)',color:'var(--text-primary)'}}>
+                  <option value="percentage">Percentage (%)</option>
+                  <option value="fixed">Fixed (SAR)</option>
+                </select>
+              </div>
+              <div>
+                <div style={{fontSize:11,fontWeight:600,marginBottom:6}}>{form.type==='percentage'?'Discount %':'Discount SAR'} *</div>
+                <input type="number" value={form.value} onChange={e=>set('value',e.target.value)} placeholder={form.type==='percentage'?'20':'50'}
+                  style={{width:'100%',padding:'7px 10px',border:'1px solid var(--border-color)',borderRadius:'var(--radius)',fontSize:12,background:'var(--surface-1)',color:'var(--text-primary)',boxSizing:'border-box'}}/>
+              </div>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+              <div>
+                <div style={{fontSize:11,fontWeight:600,marginBottom:6}}>Min purchase (SAR)</div>
+                <input type="number" value={form.min_purchase} onChange={e=>set('min_purchase',e.target.value)} placeholder="0 = no min"
+                  style={{width:'100%',padding:'7px 10px',border:'1px solid var(--border-color)',borderRadius:'var(--radius)',fontSize:12,background:'var(--surface-1)',color:'var(--text-primary)',boxSizing:'border-box'}}/>
+              </div>
+              <div>
+                <div style={{fontSize:11,fontWeight:600,marginBottom:6}}>Usage limit</div>
+                <input type="number" value={form.usage_limit} onChange={e=>set('usage_limit',e.target.value)} placeholder="Unlimited"
+                  style={{width:'100%',padding:'7px 10px',border:'1px solid var(--border-color)',borderRadius:'var(--radius)',fontSize:12,background:'var(--surface-1)',color:'var(--text-primary)',boxSizing:'border-box'}}/>
+              </div>
+            </div>
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:600,marginBottom:6}}>Expiry date</div>
+              <input type="date" value={form.expires} onChange={e=>set('expires',e.target.value)}
+                style={{width:'100%',padding:'7px 10px',border:'1px solid var(--border-color)',borderRadius:'var(--radius)',fontSize:12,background:'var(--surface-1)',color:'var(--text-primary)',boxSizing:'border-box'}}/>
+            </div>
+            {form.code&&form.value&&<div style={{padding:'10px 12px',background:'var(--bg-accent)',borderRadius:'var(--radius)',fontSize:12,color:'var(--fill-accent)',fontWeight:600,marginBottom:14}}>
+              Code <span style={{fontFamily:'monospace'}}>{form.code}</span> gives {form.type==='percentage'?form.value+'%':'SAR '+form.value} off{parseFloat(form.min_purchase)>0?' on orders over SAR '+form.min_purchase:''}
+            </div>}
+            <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+              <button className="bt" onClick={()=>setShowCreate(false)}>Cancel</button>
+              <button className="bt bt-p" disabled={!form.code||!form.value} onClick={create}>Create coupon</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
