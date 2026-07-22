@@ -15,7 +15,7 @@ export default function ZReport() {
     queryKey: ['z-report-orders', today],
     queryFn: async () => {
       const res = await api.get('/sales/orders?limit=500');
-      return (Array.isArray(res) ? res : res.data ?? res.orders ?? [])
+      return (Array.isArray(res) ? res : (res as any).data ?? (res as any).orders ?? [])
         .filter((o: any) => o.created_at?.slice(0, 10) === today);
     },
   });
@@ -24,7 +24,7 @@ export default function ZReport() {
     queryKey: ['z-report-returns', today],
     queryFn: async () => {
       const res = await api.get('/sales/returns?limit=500').catch(() => []);
-      return (Array.isArray(res) ? res : res.data ?? res.returns ?? [])
+      return (Array.isArray(res) ? res : (res as any).data ?? (res as any).returns ?? [])
         .filter((r: any) => r.created_at?.slice(0, 10) === today);
     },
   });
