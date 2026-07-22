@@ -1,0 +1,16 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { DatabaseService } from '../database/database.service';
+import { CreateEmployeeDto, UpdateEmployeeDto } from './employee.dto';
+@Injectable()
+export class EmployeesService {
+  constructor(private db: DatabaseService) {}
+  async generateId() { const r = await this.db.query('SELECT COUNT(*) FROM employees'); return 'EMP-'+String(Number(r.rows[0].count)+1).padStart(4,'0'); }
+  async findAll(search?: string) {
+    const q = search ? 'SELECT e.*,d.name as department_name,des.name as designation_name FROM employees e LEFT JOIN departments d ON d.id=e.department_id LEFT JOIN designations des ON des.id=e.designation_id WHERE e.first_name ILIKE $1 OR e.last_name ILIKE $1 OR e.email ILIKE $1 ORDER BY e.created_at DESC' : 'SELECT e.*,d.name as department_name,des.name as designation_name FROM employees e LEFT JOIN departments d ON d.id=e.department_id LEFT JOIN designations des ON des.id=e.designation_id ORDER BY e.created_at DESC';
+    return (await this.db.query(q, search ? [`%${search}%`] : [])).rows;
+  }
+  async findOne(id: string) { const r = await this.db.query('SELECT e.*,d.name as department_name,des.name as designation_name FROM employees e LEFT JOIN departments d ON d.id=e.department_id LEFT JOIN designations des ON des.id=e.designation_id WHERE e.id=$1',[id]); if (!r.rows[0]) throw new NotFoundException('Not found'); return r.rows[0]; }
+  async create(dto: CreateEmployeeDto) { const eid = await this.generateId(); return (await this.db.query('INSERT INTO employees(employee_id,first_name,last_name,email,phone,address,gender,date_of_birth,joining_date,basic_salary,department_id,designation_id,status,national_id,bank_account,bank_name,avatar_url) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *',[eid,dto.firstName,dto.lastName,dto.email,dto.phone??null,dto.address??null,dto.gender??null,dto.dateOfBirth??null,dto.joiningDate,dto.basicSalary,dto.departmentId??null,dto.designationId??null,dto.status??'active',dto.nationalId??null,dto.bankAccount??null,dto.bankName??null,dto.avatarUrl??null])).rows[0]; }
+  async update(id: string, dto: UpdateEmployeeDto) { await this.findOne(id); return (await this.db.query('UPDATE employees SET first_name=COALESCE($1,first_name),last_name=COALESCE($2,last_name),email=COALESCE($3,email),phone=COALESCE($4,phone),address=COALESCE($5,address),gender=COALESCE($6,gender),joining_date=COALESCE($7,joining_date),basic_salary=COALESCE($8,basic_salary),department_id=COALESCE($9,department_id),designation_id=COALESCE($10,designation_id),status=COALESCE($11,status),national_id=COALESCE($12,national_id),bank_account=COALESCE($13,bank_account),bank_name=COALESCE($14,bank_name),updated_at=NOW() WHERE id=$15 RETURNING *',[dto.firstName??null,dto.lastName??null,dto.email??null,dto.phone??null,dto.address??null,dto.gender??null,dto.joiningDate??null,dto.basicSalary??null,dto.departmentId??null,dto.designationId??null,dto.status??null,dto.nationalId??null,dto.bankAccount??null,dto.bankName??null,id])).rows[0]; }
+  async remove(id: string) { await this.findOne(id); await this.db.query('DELETE FROM employees WHERE id=$1',[id]); return {message:'Deleted'}; }
+}

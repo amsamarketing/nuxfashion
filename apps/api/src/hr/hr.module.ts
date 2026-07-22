@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
-import { HrController } from './hr.controller';
-import { HrService } from './hr.service';
-import { DatabaseModule } from '../database/database.module';
-
+import { DepartmentsModule } from './departments.module';
+import { DesignationsModule } from './designations.module';
+import { EmployeesModule } from './employees.module';
+import { AttendanceModule } from './attendance.module';
+import { LeaveModule } from './leave.module';
+import { PayrollModule } from './payroll.module';
 @Module({
-  imports: [DatabaseModule],
-  controllers: [HrController],
-  providers: [HrService],
+  imports: [DepartmentsModule, DesignationsModule, EmployeesModule, AttendanceModule, LeaveModule, PayrollModule],
+  exports: [DepartmentsModule, DesignationsModule, EmployeesModule, AttendanceModule, LeaveModule, PayrollModule],
 })
 export class HrModule {}
