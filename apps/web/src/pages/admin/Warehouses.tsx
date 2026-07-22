@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
 import { useToast } from '../../components/Toast';
 import { getErr } from '../../lib/err';
-import Modal, { Field, Row2, Inp, SaveBtn } from '../../components/Modal';
+import Modal, { Field, Inp, SaveBtn } from '../../components/Modal';
 
 export default function Warehouses() {
   const { toast } = useToast();
