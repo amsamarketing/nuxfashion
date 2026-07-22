@@ -34,13 +34,18 @@ export default function Purchasing() {
   const [recLines, setRecLines] = useState<Record<string,number>>({});
   const [recInvoice, setRecInvoice] = useState('');
 
-  const { data:pos=[] } = useQuery<PO[]>({ queryKey:['pos',statusFilter], queryFn:async():Promise<PO[]>=>{ try{ return await api.get('/purchasing/orders'+(statusFilter?`?status=${statusFilter}`:'')); }catch{ return []; } } });
-  const { data:sups=[] } = useQuery<Sup[]>({ queryKey:['suppliers'], queryFn:async():Promise<Sup[]>=>{ try{ return await api.get('/purchasing/suppliers'); }catch{ return []; } } });
-  const { data:grns=[] } = useQuery<GRN[]>({ queryKey:['grns'], queryFn:async():Promise<GRN[]>=>{ try{ return await api.get('/purchasing/receipts'); }catch{ return []; } } });
-  const { data:warehouses=[] } = useQuery<{id:string;name:string}[]>({ queryKey:['warehouses'], queryFn:async():Promise<{id:string;name:string}[]>=>{ try{ return await api.get('/inventory/warehouses'); }catch{ return []; } } });
-  const { data:variants=[] } = useQuery<Variant[]>({ queryKey:['variants-all'], queryFn:async():Promise<Variant[]>=>{ try{ return await api.get('/inventory/variants'); }catch{ return []; } } });
+  const { data:_posRaw } = useQuery<PO[]>({ queryKey:['pos',statusFilter], queryFn:async():Promise<PO[]>=>{ try{ return await api.get('/purchasing/orders'+(statusFilter?`?status=${statusFilter}`:'')); }catch{ return []; } } });
+  const { data:_supsRaw } = useQuery<Sup[]>({ queryKey:['suppliers'], queryFn:async():Promise<Sup[]>=>{ try{ return await api.get('/purchasing/suppliers'); }catch{ return []; } } });
+  const { data:_grnsRaw } = useQuery<GRN[]>({ queryKey:['grns'], queryFn:async():Promise<GRN[]>=>{ try{ return await api.get('/purchasing/receipts'); }catch{ return []; } } });
+  const { data:_whRaw } = useQuery<{id:string;name:string}[]>({ queryKey:['warehouses'], queryFn:async():Promise<{id:string;name:string}[]>=>{ try{ return await api.get('/inventory/warehouses'); }catch{ return []; } } });
+  const { data:_varRaw } = useQuery<Variant[]>({ queryKey:['variants-all'], queryFn:async():Promise<Variant[]>=>{ try{ return await api.get('/inventory/variants'); }catch{ return []; } } });
   const { data:_selectedPOraw } = useQuery<PO|null>({ queryKey:['po',selectedId], queryFn:async():Promise<PO|null>=>{ try{ return (await api.get('/purchasing/orders/'+selectedId)) as PO; }catch{ return null; } }, enabled:!!selectedId });
   const selectedPO = _selectedPOraw as PO|undefined;
+  const pos:PO[] = Array.isArray(_posRaw) ? _posRaw : [];
+  const sups:Sup[] = Array.isArray(_supsRaw) ? _supsRaw : [];
+  const grns:GRN[] = Array.isArray(_grnsRaw) ? _grnsRaw : [];
+  const warehouses:{id:string;name:string}[] = Array.isArray(_whRaw) ? _whRaw : [];
+  const variants:Variant[] = Array.isArray(_varRaw) ? _varRaw : [];
 
   const filteredVars = useMemo(()=>
     varSearch.length>1 ? variants.filter(v=>(v.sku+v.product_name).toLowerCase().includes(varSearch.toLowerCase())).slice(0,8) : []
