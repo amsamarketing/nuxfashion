@@ -179,7 +179,7 @@ export default function POSSale(){
   );
 
   return (
-    <div style={{display:'flex',flexDirection:'column',height:'calc(100vh - 56px)',background:'#f3f4f6',overflow:'hidden'}}>
+    <div style={{display:'flex',flexDirection:'column',height:'100%',background:'#f3f4f6',overflow:'hidden'}}>
 
       {showCustModal&&(
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.5)',zIndex:2000,display:'flex',alignItems:'flex-start',justifyContent:'center',paddingTop:80}} onClick={()=>{setShowCustModal(false);setCustSearch('');}}>

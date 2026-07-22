@@ -139,7 +139,7 @@ function App() {
         </div>
 
         {/* ── Main content ──────────────────────────── */}
-        <div className="app-main">
+        <div className="app-main" style={mode === 'pos' ? {padding:0, overflow:'hidden', display:'flex', flexDirection:'column'} : {}}>
           <Screen />
         </div>
       </div>
