@@ -38,7 +38,7 @@ export default function Purchasing() {
   const { data:_supsRaw } = useQuery<Sup[]>({ queryKey:['suppliers'], queryFn:async():Promise<Sup[]>=>{ try{ const r=await api.get('/purchasing/suppliers'); return (r as any).data??r; }catch{ return []; } } });
   const { data:_grnsRaw } = useQuery<GRN[]>({ queryKey:['grns'], queryFn:async():Promise<GRN[]>=>{ try{ const r=await api.get('/purchasing/receipts'); return (r as any).data??r; }catch{ return []; } } });
   const { data:_whRaw } = useQuery<{id:string;name:string}[]>({ queryKey:['warehouses'], queryFn:async():Promise<{id:string;name:string}[]>=>{ try{ const r=await api.get('/inventory/warehouses'); return (r as any).data??r; }catch{ return []; } } });
-  const { data:_varRaw } = useQuery<Variant[]>({ queryKey:['variants-all'], queryFn:async():Promise<Variant[]>=>{ try{ return await api.get('/inventory/variants'); }catch{ return []; } } });
+  const { data:_varRaw } = useQuery<Variant[]>({ queryKey:['variants-all'], queryFn:async():Promise<Variant[]>=>{ try{ const r=await api.get('/inventory/variants'); return (r as any).data??r; }catch{ return []; } } });
   const { data:_selectedPOraw } = useQuery<PO|null>({ queryKey:['po',selectedId], queryFn:async():Promise<PO|null>=>{ try{ const r=await api.get('/purchasing/orders/'+selectedId); return ((r as any).data??r) as PO; }catch{ return null; } }, enabled:!!selectedId });
   const selectedPO = _selectedPOraw as PO|undefined;
   const pos:PO[] = Array.isArray(_posRaw) ? _posRaw : [];
