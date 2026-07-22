@@ -21,14 +21,14 @@ export class ProductsService {
                     'id', v.id, 'name', v.name, 'sku', v.sku,
                     'barcode', v.barcode, 'color', v.color, 'size', v.size,
                     'selling_price', v.selling_price, 'cost_price', v.cost_price,
-                    'stock_quantity', v.stock_quantity, 'is_active', v.is_active
-                  ) ORDER BY v.created_at
+                    'stock_quantity', v.stock_quantity
+                  )
                 ) FILTER (WHERE v.id IS NOT NULL), '[]'
               ) as variants
        FROM products p
        LEFT JOIN categories c ON c.id = p.category_id
        LEFT JOIN brands b ON b.id = p.brand_id
-       LEFT JOIN product_variants v ON v.product_id = p.id AND v.deleted_at IS NULL
+       LEFT JOIN product_variants v ON v.product_id = p.id
        WHERE ${conditions.join(' AND ')}
        GROUP BY p.id, c.name, b.name
        ORDER BY p.created_at DESC
