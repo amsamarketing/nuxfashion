@@ -207,7 +207,8 @@ export class SalesService {
     const params: any[] = [companyId];
     if (status) { conditions.push(`o.status=$2`); params.push(status); }
     const result = await this.db.query(
-      `SELECT o.*, u.name as cashier_name, c.name as customer_name
+      `SELECT o.*, u.name as cashier_name, c.name as customer_name,
+         (SELECT p.method FROM payments p WHERE p.order_id=o.id LIMIT 1) as payment_method
        FROM sales_orders o
        JOIN users u ON u.id=o.cashier_id
        LEFT JOIN customers c ON c.id=o.customer_id
