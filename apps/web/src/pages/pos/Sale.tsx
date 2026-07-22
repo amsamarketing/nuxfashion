@@ -286,6 +286,18 @@ export default function POSSale() {
           </div>
         </div>
 
+        <button className="bt" style={{ marginBottom:4,justifyContent:'center',width:'100%' }}
+          disabled={cart.length===0}
+          onClick={()=>{
+            const held=JSON.parse(localStorage.getItem('held_orders')||'[]');
+            const note=prompt('Note for this held order (optional):');
+            held.push({id:'Hold-'+Date.now(),cart,custId,discPct,discFlat,note:note||'',time:new Date().toLocaleTimeString()});
+            localStorage.setItem('held_orders',JSON.stringify(held));
+            setCart([]); setDiscPct(''); setDiscFlat(''); setCustId('');
+            alert('Order held successfully');
+          }}>
+          <i className="ti ti-player-pause" /> Hold sale
+        </button>
         <button className="charge-btn" disabled={cart.length===0||chargeMut.isPending} onClick={()=>chargeMut.mutate()}
           style={{ marginTop:'auto' }}>
           {chargeMut.isPending
