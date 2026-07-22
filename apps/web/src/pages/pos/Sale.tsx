@@ -291,7 +291,7 @@ export default function POSSale() {
           onClick={()=>{
             const held=JSON.parse(localStorage.getItem('held_orders')||'[]');
             const note=prompt('Note for this held order (optional):');
-            held.push({id:'Hold-'+Date.now(),cart,custId,discPct,discFlat,note:note||'',time:new Date().toLocaleTimeString()});
+            held.push({id:'Hold-'+Date.now(),cart,custId,discPct,discFlat,note:note||'',time:new Date().toLocaleTimeString(),heldAt:Date.now()});
             localStorage.setItem('held_orders',JSON.stringify(held));
             setCart([]); setDiscPct(''); setDiscFlat(''); setCustId('');
             alert('Order held successfully');
