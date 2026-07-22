@@ -84,7 +84,7 @@ export default function POSSale() {
           SAR {parseFloat(receipt.total).toFixed(2)}
         </div>
         <div style={{ fontSize:12, color:'var(--text-secondary)', marginBottom:24 }}>
-          Incl. VAT 15%: SAR {parseFloat(receipt.tax_amount||0).toFixed(2)}
+          Incl. VAT 15%: SAR {(parseFloat(receipt.tax_amount)||parseFloat(receipt.total)*15/115).toFixed(2)}
           {discAmt > 0 && ` · Discount: SAR ${discAmt.toFixed(2)}`}{discPct && discAmt>0 && ` (${discPct}%${flatAmt>0?' + SAR '+flatAmt.toFixed(2):''})`}
         </div>
         <div style={{ display:'flex', gap:8 }}>
