@@ -160,26 +160,36 @@ export class InventoryService {
     );
     return result.rows;
   }
-}
 
   async getWarehouses(companyId: string) {
-    const result = await this.db.query(
-      `SELECT DISTINCT w.id, w.name FROM warehouses w
+    try {
+      const result = await this.db.query(
+        `SELECT w.id, w.name,
+           COALESCE(w.location, '') as location,
+           COUNT(DISTINCT i.variant_id) as sku_count,
+           COALESCE(SUM(i.quantity), 0) as total_units
+         FROM warehouses w
+         LEFT JOIN inventory i ON i.warehouse_id = w.id
+         WHERE w.company_id = $1
+         GROUP BY w.id, w.name, w.location
+         ORDER BY w.name`,
+        [companyId],
+      );
+      if (result.rows.length > 0) return result.rows;
+    } catch {}
+    const fallback = await this.db.query(
+      `SELECT DISTINCT w.id, w.name, '' as location, 0 as sku_count, 0 as total_units
+       FROM warehouses w
        JOIN inventory i ON i.warehouse_id = w.id
        JOIN product_variants pv ON pv.id = i.variant_id
        JOIN products p ON p.id = pv.product_id
-       WHERE p.company_id = $1 ORDER BY w.name`,
-      [companyId],
-    );
-    if (result.rows.length > 0) return result.rows;
-    const fallback = await this.db.query(
-      `SELECT id, name FROM warehouses WHERE company_id = $1 ORDER BY name LIMIT 10`,
+       WHERE p.company_id = $1`,
       [companyId],
     );
     return fallback.rows;
   }
 
-  async createWarehouse(companyId: string, dto: { name: string; location?: string; type?: string }) {
+  async createWarehouse(companyId: string, dto: { name: string; location?: string }) {
     try {
       const result = await this.db.query(
         `INSERT INTO warehouses (company_id, name, location) VALUES ($1,$2,$3) RETURNING *`,
@@ -209,3 +219,5 @@ export class InventoryService {
     );
     return result.rows;
   }
+
+}
