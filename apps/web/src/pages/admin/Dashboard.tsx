@@ -1,5 +1,3 @@
-#!/bin/bash
-cat > src/pages/admin/Dashboard.tsx << 'DASHEOF'
 import { useQuery } from '@tanstack/react-query';
 import { useState, useMemo } from 'react';
 import api from '../../lib/api';
@@ -557,5 +555,3 @@ export default function Dashboard(){
     </div>
   );
 }
-DASHEOF
-npm run build
