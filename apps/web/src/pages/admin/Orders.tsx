@@ -1,31 +1,33 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '../../lib/api';
-
 export default function Orders() {
   const [selectedId, setSelectedId] = useState<string|null>(null);
   const [filter, setFilter] = useState('all');
-
+  const [search, setSearch] = useState('');
   const { data:orders=[], isLoading } = useQuery<any[]>({
     queryKey:['orders'],
     queryFn:()=>api.get('/sales/orders').then(r=>Array.isArray(r.data)?r.data:[])
   });
-
   const { data:detail } = useQuery<any>({
     queryKey:['order',selectedId],
     queryFn:()=>api.get('/sales/orders/'+selectedId).then(r=>r.data),
     enabled:!!selectedId
   });
-
-  const filtered = filter==='all' ? orders : orders.filter((o:any)=>o.status===filter);
-  const sc:Record<string,string>={paid:'g',pending:'a',refunded:'n',cancelled:'r'};
-
+  const filtered = orders.filter((o:any)=>{
+    if(filter!=='all'&&o.status!==filter) return false;
+    if(search){
+      const q=search.toLowerCase();
+      return (o.order_number||'').toLowerCase().includes(q)||(o.customer_name||'').toLowerCase().includes(q)||(o.cashier_name||'').toLowerCase().includes(q);
+    }
+    return true;
+  });
+  const sc:Record<string,string>={paid:'g',pending:'a',refunded:'n',cancelled:'r',confirmed:'a',partial_return:'a'};
   const exportCSV = () => {
     const rows = [['Order#','Date','Customer','Total','Status'],...orders.map((o:any)=>[o.order_number,o.created_at,o.customer_name||'Walk-in',o.total,o.status])];
     const csv = rows.map(r=>r.join(',')).join('\n');
     const a = document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv); a.download='orders.csv'; a.click();
   };
-
   const printOrder = (o:any) => {
     if(!o) return;
     const lines = (o.lines||[]).map((l:any)=>`<tr><td>${l.product_name||'Item'}</td><td>${l.variant_name||''}</td><td>${l.quantity}</td><td>SAR ${parseFloat(l.unit_price||0).toFixed(2)}</td><td>SAR ${(parseFloat(l.unit_price||0)*l.quantity).toFixed(2)}</td></tr>`).join('');
@@ -46,24 +48,32 @@ export default function Orders() {
     </body></html>`);
     w.document.close(); w.focus(); w.print(); w.close();
   };
-
   return (
     <div style={{ display:'grid', gridTemplateColumns:selectedId?'1fr 340px':'1fr', gap:12 }}>
       <div>
         <div className="d-flex align-items-center justify-content-between mb-3">
           <div>
             <div style={{ fontSize:14,fontWeight:700 }}>Orders</div>
-            <div style={{ fontSize:11,color:'var(--text-secondary)' }}>{orders.length} total orders</div>
+            <div style={{ fontSize:11,color:'var(--text-secondary)' }}>{filtered.length} of {orders.length} orders</div>
           </div>
-          <button className="bt" onClick={exportCSV}><i className="ti ti-download" /> Export CSV</button>
+          <div className="d-flex gap-2 align-items-center">
+            <div style={{ position:'relative' }}>
+              <i className="ti ti-search" style={{ position:'absolute',left:8,top:'50%',transform:'translateY(-50%)',fontSize:13,color:'var(--text-secondary)',pointerEvents:'none' }}/>
+              <input
+                value={search} onChange={e=>setSearch(e.target.value)}
+                placeholder="Search order #, customer…"
+                style={{ padding:'6px 10px 6px 28px',border:'1px solid var(--border-color)',borderRadius:'var(--radius)',fontSize:12,background:'var(--surface-2)',color:'var(--text-primary)',width:220 }}
+              />
+              {search&&<button onClick={()=>setSearch('')} style={{ position:'absolute',right:6,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',cursor:'pointer',fontSize:14,color:'var(--text-secondary)',padding:0 }}>×</button>}
+            </div>
+            <button className="bt" onClick={exportCSV}><i className="ti ti-download" /> Export CSV</button>
+          </div>
         </div>
-
         <div className="d-flex gap-2 mb-3">
           {[['all','All'],['paid','Paid'],['pending','Pending'],['refunded','Refunded'],['cancelled','Cancelled']].map(([v,l])=>(
             <button key={v} className={'snb'+(filter===v?' on':'')} onClick={()=>setFilter(v)}>{l}</button>
           ))}
         </div>
-
         {isLoading ? <div className="d-flex justify-content-center py-5"><div className="spinner-border text-primary"/></div> : (
           <div className="card" style={{ padding:0,overflow:'hidden' }}>
             <div className="tr th" style={{ gridTemplateColumns:'120px 130px 1fr 90px 100px 90px' }}>
@@ -79,23 +89,22 @@ export default function Orders() {
                 <span style={{ fontWeight:500 }}>{o.customer_name||'Walk-in'}</span>
                 <span style={{ fontSize:11,color:'var(--text-secondary)' }}>{o.cashier_name||'—'}</span>
                 <span style={{ fontWeight:700 }}>SAR {parseFloat(o.total||0).toFixed(2)}</span>
-                <span><span className={'bx '+(sc[o.status]||'n')} style={{ textTransform:'capitalize' }}>{o.status}</span></span>
+                <span><span className={'bx '+(sc[o.status]||'n')} style={{ textTransform:'capitalize',fontSize:10 }}>{o.status}</span></span>
               </div>
             ))}
-            {filtered.length===0&&<div style={{ padding:32,textAlign:'center',color:'var(--text-secondary)' }}>No orders found</div>}
+            {filtered.length===0&&<div style={{ padding:32,textAlign:'center',color:'var(--text-secondary)' }}>
+              {search?`No orders matching "${search}"`:'No orders found'}
+            </div>}
           </div>
         )}
       </div>
-
       {selectedId && (
         <div className="card" style={{ alignSelf:'start',position:'sticky',top:0,maxHeight:'90vh',overflowY:'auto' }}>
           <div className="d-flex justify-content-between align-items-center mb-2">
             <div style={{ fontSize:13,fontWeight:700 }}>#{detail?.order_number||'...'}</div>
             <button onClick={()=>setSelectedId(null)} style={{ background:'none',border:'none',cursor:'pointer',fontSize:18,color:'var(--text-secondary)' }}>×</button>
           </div>
-
           {!detail ? <div className="d-flex justify-content-center py-3"><div className="spinner-border spinner-border-sm"/></div> : (<>
-            {/* Return window */}
             {(()=>{
               const days=Math.floor((Date.now()-new Date(detail.created_at).getTime())/(86400000));
               const canReturn=days<=7;
@@ -104,12 +113,9 @@ export default function Orders() {
               </div>;
             })()}
             <span className={'bx '+(sc[detail.status]||'n')} style={{ marginBottom:10,display:'inline-block',textTransform:'capitalize' }}>{detail.status}</span>
-
             <div style={{ fontSize:11,color:'var(--text-secondary)',marginBottom:10 }}>
               {new Date(detail.created_at).toLocaleString()} · {detail.cashier_name}
             </div>
-
-            {/* Calc returned qty per line */}
             {(()=>{
               const retQty:Record<string,number>={};
               (detail.returns||[]).forEach((r:any)=>{
@@ -161,8 +167,6 @@ export default function Orders() {
                 )}
               </>);
             })()}
-
-            {/* Totals */}
             <div style={{ marginTop:10 }}>
               {(()=>{
                 const totalReturned=(detail.returns||[]).reduce((s:number,r:any)=>s+parseFloat(r.refund_amount||0),0);
@@ -178,7 +182,6 @@ export default function Orders() {
                 </div>
               ))}
             </div>
-
             <div className="d-flex gap-2 mt-3">
               <button className="bt" style={{ flex:1,justifyContent:'center' }} onClick={()=>printOrder(detail)}>
                 <i className="ti ti-printer" /> Print
