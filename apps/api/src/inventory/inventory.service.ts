@@ -189,20 +189,24 @@ export class InventoryService {
     return fallback.rows;
   }
 
-  async createWarehouse(companyId: string, dto: { name: string; location?: string }) {
-    try {
-      const result = await this.db.query(
-        `INSERT INTO warehouses (company_id, name, location) VALUES ($1,$2,$3) RETURNING *`,
-        [companyId, dto.name, dto.location || null],
-      );
-      return result.rows[0];
-    } catch {
-      const result = await this.db.query(
-        `INSERT INTO warehouses (company_id, name) VALUES ($1,$2) RETURNING *`,
-        [companyId, dto.name],
-      );
-      return result.rows[0];
-    }
+  async createWarehouse(companyId: string, dto: { name: string; location?: string; address?: string; city?: string; code?: string }) {
+    // Get actual columns from DB first
+    const cols = await this.db.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_name='warehouses'`
+    );
+    const colNames = cols.rows.map((r: any) => r.column_name);
+    const fields: string[] = ['company_id', 'name'];
+    const vals: any[] = [companyId, dto.name];
+    if (dto.location && colNames.includes('location')) { fields.push('location'); vals.push(dto.location); }
+    if (dto.address && colNames.includes('address')) { fields.push('address'); vals.push(dto.address); }
+    if (dto.city && colNames.includes('city')) { fields.push('city'); vals.push(dto.city); }
+    if (dto.code && colNames.includes('code')) { fields.push('code'); vals.push(dto.code); }
+    const placeholders = vals.map((_,i) => `$${i+1}`).join(',');
+    const result = await this.db.query(
+      `INSERT INTO warehouses (${fields.join(',')}) VALUES (${placeholders}) RETURNING *`,
+      vals,
+    );
+    return result.rows[0];
   }
 
   async getWarehouseStock(companyId: string, warehouseId: string) {
