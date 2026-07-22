@@ -13,7 +13,7 @@ type Variant = { id:string;sku:string;product_name:string };
 
 const SC:Record<string,string>={draft:'n',approved:'b',sent:'a',received:'g',partially_received:'a',cancelled:'r'};
 const SAR=(n:number|string)=>`SAR ${parseFloat((n??'0') as string).toLocaleString('en-SA',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
-const EMPTY_SUP={name:'',email:'',phone:'',contact_person:'',city:'Riyadh',vat_number:'',payment_terms:'30'};
+const EMPTY_SUP={name:'',email:'',phone:'',contact_person:'',city:'Riyadh',tax_number:'',payment_terms:'30'};
 
 export default function Purchasing() {
   const { toast } = useToast();
@@ -423,7 +423,7 @@ export default function Purchasing() {
           </Row2>
           <Row2>
             <Field label="City"><Inp value={sup.city} onChange={v=>setSup(p=>({...p,city:v}))} placeholder="Riyadh"/></Field>
-            <Field label="VAT number"><Inp value={sup.vat_number} onChange={v=>setSup(p=>({...p,vat_number:v}))} placeholder="3100xxxxxxxxxxxxx"/></Field>
+            <Field label="VAT number"><Inp value={sup.tax_number} onChange={v=>setSup(p=>({...p,vat_number:v}))} placeholder="3100xxxxxxxxxxxxx"/></Field>
           </Row2>
           <Field label="Payment terms">
             <Sel value={sup.payment_terms} onChange={(v:string)=>setSup(p=>({...p,payment_terms:v}))}>
