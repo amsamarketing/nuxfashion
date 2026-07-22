@@ -21,8 +21,8 @@ export default function POSSale() {
   const [receipt, setReceipt] = useState<any>(null);
 
   const { data: products=[] } = useQuery({ queryKey:['products'], queryFn:()=>api.get('/catalog/products').then(r=>r.data) });
-  const { data: warehouses=[] } = useQuery({ queryKey:['warehouses'], queryFn:()=>api.get('/inventory/warehouses').then(r=>r.data).catch(()=>[]) });
-  const defaultWarehouseId = warehouses[0]?.id || null;
+  const { data: warehouses } = useQuery<{id:string;name:string}[]>({ queryKey:['warehouses'], queryFn:()=>api.get('/inventory/warehouses').then(r=>Array.isArray(r.data)?r.data:[]).catch(()=>[]) });
+  const defaultWarehouseId: string|null = (warehouses && warehouses.length > 0) ? warehouses[0].id : null;
   const { data: customers=[] } = useQuery({ queryKey:['customers'], queryFn:()=>api.get('/customers').then(r=>r.data) });
 
   const sub = cart.reduce((s,i)=>s+i.price*i.qty, 0);
