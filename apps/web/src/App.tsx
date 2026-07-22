@@ -142,8 +142,21 @@ function App() {
           )}
         </div>
 
+        {/* ── POS top nav strip ─────────────────────── */}
+        {mode === 'pos' && (
+          <div style={{position:'absolute',top:'var(--topbar-height)',left:0,right:0,display:'flex',alignItems:'center',gap:4,padding:'6px 16px',background:'#1e1b4b',zIndex:50,borderBottom:'1px solid rgba(255,255,255,.1)'}}>
+            {POS_NAV.map(n=>(
+              <button key={n.id} onClick={()=>setScreen(n.id)} style={{display:'flex',alignItems:'center',gap:7,padding:'8px 18px',borderRadius:10,border:'none',cursor:'pointer',fontSize:13,fontWeight:600,background:screen===n.id?'rgba(255,255,255,.18)':'transparent',color:screen===n.id?'#fff':'rgba(255,255,255,.55)',transition:'all .15s'}}>
+                <i className={`ti ${n.i}`} style={{fontSize:15}}/>{n.l}
+              </button>
+            ))}
+            <div style={{marginLeft:'auto',display:'flex',gap:8}}>
+              <button onClick={()=>setScreen('ad-crm')} style={{display:'flex',alignItems:'center',gap:6,padding:'7px 14px',borderRadius:10,border:'1px solid rgba(255,255,255,.2)',background:'transparent',color:'rgba(255,255,255,.7)',cursor:'pointer',fontSize:12,fontWeight:600}}><i className="ti ti-user-plus" style={{fontSize:14}}/>New Customer</button>
+            </div>
+          </div>
+        )}
         {/* ── Main content ──────────────────────────── */}
-        <div className="app-main" style={mode === 'pos' ? {padding:0, overflow:'hidden', display:'flex', flexDirection:'column'} : {}}>
+        <div className="app-main" style={mode === 'pos' ? {padding:0,overflow:'hidden',display:'flex',flexDirection:'column',marginTop:'var(--topbar-height)'} : {}}>
           <Screen />
         </div>
       </div>
