@@ -34,12 +34,12 @@ export default function Purchasing() {
   const [recLines, setRecLines] = useState<Record<string,number>>({});
   const [recInvoice, setRecInvoice] = useState('');
 
-  const { data:pos=[] } = useQuery<PO[]>({ queryKey:['pos',statusFilter], queryFn:()=>api.get('/purchasing/orders'+(statusFilter?`?status=${statusFilter}`:'')) });
-  const { data:sups=[] } = useQuery<Sup[]>({ queryKey:['suppliers'], queryFn:()=>api.get('/purchasing/suppliers') });
-  const { data:grns=[] } = useQuery<GRN[]>({ queryKey:['grns'], queryFn:()=>api.get('/purchasing/receipts') });
-  const { data:warehouses=[] } = useQuery<{id:string;name:string}[]>({ queryKey:['warehouses'], queryFn:()=>api.get('/inventory/warehouses') });
+  const { data:pos=[] } = useQuery<PO[]>({ queryKey:['pos',statusFilter], queryFn:async()=>{ try{ return await api.get('/purchasing/orders'+(statusFilter?`?status=${statusFilter}`:'')); }catch{ return []; } } });
+  const { data:sups=[] } = useQuery<Sup[]>({ queryKey:['suppliers'], queryFn:async():Promise<Sup[]>=>{ try{ return await api.get('/purchasing/suppliers'); }catch{ return []; } } });
+  const { data:grns=[] } = useQuery<GRN[]>({ queryKey:['grns'], queryFn:async():Promise<GRN[]>=>{ try{ return await api.get('/purchasing/receipts'); }catch{ return []; } } });
+  const { data:warehouses=[] } = useQuery<{id:string;name:string}[]>({ queryKey:['warehouses'], queryFn:async():Promise<{id:string;name:string}[]>=>{ try{ return await api.get('/inventory/warehouses'); }catch{ return []; } } });
   const { data:variants=[] } = useQuery<Variant[]>({ queryKey:['variants-all'], queryFn:async():Promise<Variant[]>=>{ try{ return await api.get('/inventory/variants'); }catch{ return []; } } });
-  const { data:selectedPO } = useQuery<PO>({ queryKey:['po',selectedId], queryFn:()=>api.get('/purchasing/orders/'+selectedId), enabled:!!selectedId });
+  const { data:selectedPO } = useQuery<PO>({ queryKey:['po',selectedId], queryFn:async()=>{ try{ return await api.get('/purchasing/orders/'+selectedId); }catch{ return null; } }, enabled:!!selectedId });
 
   const filteredVars = useMemo(()=>
     varSearch.length>1 ? variants.filter(v=>(v.sku+v.product_name).toLowerCase().includes(varSearch.toLowerCase())).slice(0,8) : []
