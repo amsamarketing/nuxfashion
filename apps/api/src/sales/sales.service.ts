@@ -286,6 +286,7 @@ export class SalesService {
   // ─── Returns ─────────────────────────────────────────────────────────────────
 
   async createReturn(companyId: string, userId: string, dto: CreateReturnDto) {
+    try {
     const order = await this.db.query(
       `SELECT * FROM sales_orders WHERE id=$1 AND company_id=$2 AND status='paid'`,
       [dto.original_order_id, companyId],
