@@ -219,31 +219,28 @@ export class SalesService {
   }
 
   async getOrder(companyId: string, orderId: string) {
-    try {
     const order = await this.db.query(
       `SELECT o.*, u.name as cashier_name, c.name as customer_name
        FROM sales_orders o
-       JOIN users u ON u.id=o.cashier_id
+       LEFT JOIN users u ON u.id=o.cashier_id
        LEFT JOIN customers c ON c.id=o.customer_id
-       WHERE (o.id=$1 OR o.order_number=$1) AND o.company_id=$2`,
+       WHERE (o.id::text=$1 OR o.order_number=$1) AND o.company_id=$2`,
       [orderId, companyId],
     );
     if (!order.rows[0]) throw new NotFoundException('Order not found');
+    const oid = order.rows[0].id;
     const lines = await this.db.query(
-      `SELECT l.*, pv.sku, p.name as product_name
+      `SELECT l.*, pv.sku, pv.name as variant_name, p.name as product_name
        FROM sales_order_lines l
-       JOIN product_variants pv ON pv.id=l.variant_id
-       JOIN products p ON p.id=pv.product_id
+       LEFT JOIN product_variants pv ON pv.id=l.variant_id
+       LEFT JOIN products p ON p.id=pv.product_id
        WHERE l.order_id=$1`,
-      [orderId],
-    );
-    const discounts = await this.db.query(
-      `SELECT * FROM order_discounts WHERE order_id=$1`, [orderId],
+      [oid],
     );
     const payments = await this.db.query(
-      `SELECT * FROM payments WHERE order_id=$1`, [orderId],
-    );
-    return { ...order.rows[0], lines: lines.rows, discounts: discounts.rows, payments: payments.rows };
+      `SELECT * FROM payments WHERE order_id=$1`, [oid],
+    ).catch(()=>({ rows:[] as any[] }));
+    return { ...order.rows[0], lines: lines.rows, payments: payments.rows };
   }
 
   // ─── Payments ────────────────────────────────────────────────────────────────
