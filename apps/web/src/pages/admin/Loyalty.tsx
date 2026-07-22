@@ -211,14 +211,7 @@ export default function Loyalty() {
 
       {tab===2&&<CouponsTab/>}
 
-      {tab===3&&(
-        <div className="card" style={{padding:40,textAlign:'center'}}>
-          <i className="ti ti-gift" style={{fontSize:48,color:'var(--text-secondary)',display:'block',marginBottom:12}}/>
-          <div style={{fontSize:13,fontWeight:600,marginBottom:6}}>Gift cards — SAR 18,400 active</div>
-          <div style={{fontSize:12,color:'var(--text-secondary)',marginBottom:16}}>Issue and track digital gift cards for your customers</div>
-          <button className="bt bt-p"><i className="ti ti-plus"/> Issue gift card</button>
-        </div>
-      )}
+      {tab===3&&<GiftCardsTab/>}
 
       {tab===4&&(
         <div className="card" style={{padding:40,textAlign:'center'}}>
@@ -440,6 +433,142 @@ function CouponsTab(){
             <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
               <button className="bt" onClick={()=>setShowCreate(false)}>Cancel</button>
               <button className="bt bt-p" disabled={!form.code||!form.value} onClick={create}>Create coupon</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const GC_SEED = [
+  {id:'g1',code:'GC-8F2K-9XL3',recipient:'Sara Abdullah',phone:'+966 50 123 4567',amount:500,balance:320,issued:'2026-06-15',expires:'2027-06-15',is_active:true},
+  {id:'g2',code:'GC-3M7P-2QR8',recipient:'Khalid Al-Saud',phone:'+966 55 987 6543',amount:1000,balance:1000,issued:'2026-07-01',expires:'2027-07-01',is_active:true},
+  {id:'g3',code:'GC-5T1N-6WJ4',recipient:'Fatima Hassan',phone:'+966 58 234 5678',amount:250,balance:0,issued:'2026-05-10',expires:'2027-05-10',is_active:true},
+  {id:'g4',code:'GC-9A4D-1KX7',recipient:'Walk-in customer',phone:'',amount:200,balance:200,issued:'2026-07-20',expires:'2027-07-20',is_active:true},
+  {id:'g5',code:'GC-2C6H-8YM5',recipient:'Mohammed Ali',phone:'+966 50 345 6789',amount:750,balance:0,issued:'2025-07-10',expires:'2026-07-10',is_active:false},
+];
+const GC_EMPTY={recipient:'',phone:'',amount:'',expires:'',note:''};
+
+function GiftCardsTab(){
+  const [cards,setCards]=React.useState<any[]>(()=>{try{const s=sessionStorage.getItem('giftcards');return s?JSON.parse(s):GC_SEED;}catch{return GC_SEED;}});
+  const [showCreate,setShowCreate]=React.useState(false);
+  const [form,setForm]=React.useState({...GC_EMPTY});
+  const [copied,setCopied]=React.useState('');
+  const save=(list:any[])=>{setCards(list);try{sessionStorage.setItem('giftcards',JSON.stringify(list));}catch{}};
+  const set=(k:string,v:any)=>setForm(p=>({...p,[k]:v}));
+  const copy=(code:string)=>{navigator.clipboard.writeText(code).catch(()=>{});setCopied(code);setTimeout(()=>setCopied(''),1500);};
+  const toggle=(id:string)=>save(cards.map(g=>g.id===id?{...g,is_active:!g.is_active}:g));
+  const del=(id:string)=>{if(confirm('Delete gift card?'))save(cards.filter(g=>g.id!==id));};
+  const genCode=()=>'GC-'+Math.random().toString(36).slice(2,6).toUpperCase()+'-'+Math.random().toString(36).slice(2,6).toUpperCase();
+  const issue=()=>{
+    if(!form.amount)return;
+    const ng={id:'g'+Date.now(),code:genCode(),recipient:form.recipient||'Walk-in customer',phone:form.phone,
+      amount:parseFloat(form.amount),balance:parseFloat(form.amount),
+      issued:new Date().toISOString().slice(0,10),
+      expires:form.expires||(new Date(Date.now()+365*86400000).toISOString().slice(0,10)),
+      note:form.note,is_active:true};
+    save([ng,...cards]);setShowCreate(false);setForm({...GC_EMPTY});
+  };
+
+  const totalActive=cards.filter(g=>g.is_active&&g.balance>0).reduce((s:number,g:any)=>s+g.balance,0);
+  const totalIssued=cards.reduce((s:number,g:any)=>s+g.amount,0);
+
+  return(
+    <div>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+        <div>
+          <div style={{fontSize:13,fontWeight:700}}>Gift cards</div>
+          <div style={{fontSize:11,color:'var(--text-secondary)'}}>
+            SAR {totalActive.toLocaleString()} active balance &nbsp;·&nbsp; {cards.length} cards issued &nbsp;·&nbsp; SAR {totalIssued.toLocaleString()} total
+          </div>
+        </div>
+        <button className="bt bt-p" onClick={()=>setShowCreate(true)}><i className="ti ti-plus"/> Issue gift card</button>
+      </div>
+
+      {/* Summary cards */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:12}}>
+        {[
+          {l:'Active balance',v:'SAR '+totalActive.toLocaleString()},
+          {l:'Cards issued',v:cards.length},
+          {l:'Fully redeemed',v:cards.filter(g=>g.balance===0).length},
+          {l:'Expired / inactive',v:cards.filter(g=>!g.is_active||new Date(g.expires)<new Date()).length},
+        ].map(s=>(
+          <div key={s.l} style={{background:'var(--surface-1)',border:'1px solid var(--border-color)',borderRadius:'var(--radius)',padding:'12px 14px'}}>
+            <div style={{fontSize:10,color:'var(--text-secondary)',marginBottom:4}}>{s.l}</div>
+            <div style={{fontSize:16,fontWeight:700}}>{s.v}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="card" style={{padding:0,overflow:'hidden'}}>
+        <div className="tr th" style={{gridTemplateColumns:'160px 1fr 120px 100px 100px 90px 80px 130px'}}>
+          {['Card code','Recipient','Amount','Balance','Issued','Expires','Status','Actions'].map(h=><span key={h}>{h}</span>)}
+        </div>
+        {cards.map(g=>{
+          const expired=new Date(g.expires)<new Date();
+          const used=g.balance===0;
+          const pctLeft=Math.round(g.balance/g.amount*100);
+          const status=!g.is_active?{l:'Inactive',c:'n'}:expired?{l:'Expired',c:'r'}:used?{l:'Used',c:'n'}:{l:'Active',c:'g'};
+          return(
+            <div key={g.id} className="tr" style={{gridTemplateColumns:'160px 1fr 120px 100px 100px 90px 80px 130px',opacity:g.is_active&&!expired?1:.6}}>
+              <span>
+                <div style={{display:'flex',alignItems:'center',gap:5}}>
+                  <span style={{fontFamily:'monospace',fontSize:11,fontWeight:700,color:'var(--fill-accent)'}}>{g.code}</span>
+                  <button onClick={()=>copy(g.code)} style={{background:'none',border:'none',cursor:'pointer',padding:2,color:'var(--text-secondary)',fontSize:11}}>
+                    <i className={'ti '+(copied===g.code?'ti-check':'ti-copy')} style={{color:copied===g.code?'#27ae60':undefined}}/>
+                  </button>
+                </div>
+              </span>
+              <span>
+                <div style={{fontWeight:600,fontSize:12}}>{g.recipient}</div>
+                {g.phone&&<div style={{fontSize:10,color:'var(--text-secondary)'}}>{g.phone}</div>}
+              </span>
+              <span style={{fontWeight:700}}>SAR {g.amount.toLocaleString()}</span>
+              <span>
+                <div style={{fontWeight:700,color:g.balance>0?'var(--fill-accent)':'var(--text-secondary)',fontSize:12}}>SAR {g.balance.toLocaleString()}</div>
+                <div style={{marginTop:3,height:3,background:'var(--border-color)',borderRadius:2}}>
+                  <div style={{height:3,background:pctLeft>50?'#27ae60':pctLeft>20?'#f59e0b':'#e74c3c',borderRadius:2,width:pctLeft+'%'}}/>
+                </div>
+              </span>
+              <span style={{fontSize:11,color:'var(--text-secondary)'}}>{new Date(g.issued).toLocaleDateString('en-SA',{day:'numeric',month:'short',year:'numeric'})}</span>
+              <span style={{fontSize:11,color:expired?'#e74c3c':'var(--text-secondary)'}}>{new Date(g.expires).toLocaleDateString('en-SA',{day:'numeric',month:'short',year:'2-digit'})}</span>
+              <span><span className={'bx '+status.c} style={{fontSize:10}}>{status.l}</span></span>
+              <span style={{display:'flex',gap:4}}>
+                <button className="bt" style={{fontSize:10,padding:'3px 7px'}} onClick={()=>toggle(g.id)}>{g.is_active?'Pause':'Activate'}</button>
+                <button className="bt bt-d" style={{fontSize:10,padding:'3px 7px'}} onClick={()=>del(g.id)}><i className="ti ti-trash"/></button>
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {showCreate&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.4)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}} onClick={e=>{if(e.target===e.currentTarget)setShowCreate(false);}}>
+          <div style={{background:'var(--surface-2)',borderRadius:'var(--radius)',padding:24,width:440,maxHeight:'90vh',overflowY:'auto'}}>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:16}}>
+              <span style={{fontSize:14,fontWeight:700}}>Issue gift card</span>
+              <button onClick={()=>setShowCreate(false)} style={{background:'none',border:'none',cursor:'pointer',fontSize:18,color:'var(--text-secondary)'}}>×</button>
+            </div>
+            {[
+              {l:'Amount (SAR) *',k:'amount',t:'number',p:'e.g. 500'},
+              {l:'Recipient name',k:'recipient',t:'text',p:'e.g. Sara Abdullah'},
+              {l:'Recipient phone',k:'phone',t:'text',p:'+966 5x xxx xxxx'},
+              {l:'Expires',k:'expires',t:'date',p:''},
+              {l:'Note (optional)',k:'note',t:'text',p:'e.g. Birthday gift'},
+            ].map(f=>(
+              <div key={f.k} style={{marginBottom:12}}>
+                <div style={{fontSize:11,fontWeight:600,marginBottom:6}}>{f.l}</div>
+                <input type={f.t} value={(form as any)[f.k]} onChange={e=>set(f.k,e.target.value)} placeholder={f.p}
+                  style={{width:'100%',padding:'7px 10px',border:'1px solid var(--border-color)',borderRadius:'var(--radius)',fontSize:12,background:'var(--surface-1)',color:'var(--text-primary)',boxSizing:'border-box'}}/>
+              </div>
+            ))}
+            {form.amount&&<div style={{padding:'10px 12px',background:'var(--bg-accent)',borderRadius:'var(--radius)',fontSize:12,color:'var(--fill-accent)',fontWeight:600,marginBottom:14}}>
+              Gift card for SAR {parseFloat(form.amount||'0').toLocaleString()} · {form.recipient||'Walk-in customer'} · valid 1 year
+            </div>}
+            <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+              <button className="bt" onClick={()=>setShowCreate(false)}>Cancel</button>
+              <button className="bt bt-p" disabled={!form.amount} onClick={issue}><i className="ti ti-gift"/> Issue card</button>
             </div>
           </div>
         </div>
