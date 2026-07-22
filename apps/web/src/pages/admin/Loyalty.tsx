@@ -56,6 +56,13 @@ export default function Loyalty() {
       is_active:editPromoForm.is_active,
     }),
     onSuccess:()=>{ toast('Promotion updated!','success'); qc.invalidateQueries({queryKey:['promotions']}); setEditPromo(null); },
+    onError:()=>{
+      // If API fails (local promo), update locally
+      if(editPromo?.id?.startsWith('s')){
+        saveLocalPromos(localPromos.map((lp:any)=>lp.id===editPromo.id?{...lp,...editPromoForm,discount_value:parseFloat(editPromoForm.discount_value)||0}:lp));
+        toast('Promotion updated!','success'); setEditPromo(null);
+      } else toast('Failed to update','error');
+    },
     onError:()=>toast('Failed to update','error'),
   });
   const toggleMut = useMutation({
@@ -89,15 +96,17 @@ export default function Loyalty() {
     return {label:'Active',c:'g'};
   };
 
-  const STATIC_PROMOS = [
-    {id:'s1',name:'Ramadan 2026 Sale',description:'All categories 20% off · All branches',is_active:true,_static:true},
-    {id:'s2',name:'GOLD10 Coupon',description:'10% off Gold+ · All channels',is_active:true,_static:true},
-    {id:'s3',name:'Buy 2 Get 1 Free',description:'Accessories · Riyadh Mall',is_active:true,_static:true},
-    {id:'s4',name:'Flash Friday Shoes',description:'Shoes 30% off Fri 4–8 PM',is_active:false,_static:true},
-    {id:'s5',name:'New Season Welcome',description:'First purchase 15% off',is_active:true,_static:true},
-    {id:'s6',name:'VIP Early Access',description:'Platinum members preview',is_active:true,_static:true},
+  const STATIC_PROMOS_SEED = [
+    {id:'s1',name:'Ramadan 2026 Sale',description:'All categories 20% off · All branches',discount_type:'percentage',discount_value:20,is_active:true},
+    {id:'s2',name:'GOLD10 Coupon',description:'10% off Gold+ · All channels',discount_type:'percentage',discount_value:10,is_active:true},
+    {id:'s3',name:'Buy 2 Get 1 Free',description:'Accessories · Riyadh Mall',discount_type:'bogo',discount_value:0,is_active:true},
+    {id:'s4',name:'Flash Friday Shoes',description:'Shoes 30% off Fri 4–8 PM',discount_type:'percentage',discount_value:30,is_active:false},
+    {id:'s5',name:'New Season Welcome',description:'First purchase 15% off',discount_type:'percentage',discount_value:15,is_active:true},
+    {id:'s6',name:'VIP Early Access',description:'Platinum members preview',discount_type:'percentage',discount_value:0,is_active:true},
   ];
-  const allPromos = [...promos, ...(promos.length===0?STATIC_PROMOS:[])];
+  const [localPromos,setLocalPromos]=React.useState<any[]>(()=>{try{const s=sessionStorage.getItem('localPromos');return s?JSON.parse(s):STATIC_PROMOS_SEED;}catch{return STATIC_PROMOS_SEED;}});
+  const saveLocalPromos=(list:any[])=>{setLocalPromos(list);try{sessionStorage.setItem('localPromos',JSON.stringify(list));}catch{}};
+  const allPromos = [...promos, ...localPromos];
 
   return (
     <div>
@@ -241,29 +250,9 @@ export default function Loyalty() {
 
       {tab===3&&<GiftCardsTab/>}
 
-      {tab===4&&(
-        <div className="card" style={{padding:40,textAlign:'center'}}>
-          <i className="ti ti-id-badge" style={{fontSize:48,color:'var(--text-secondary)',display:'block',marginBottom:12}}/>
-          <div style={{fontSize:13,fontWeight:600,marginBottom:6}}>Memberships</div>
-          <div style={{fontSize:12,color:'var(--text-secondary)',marginBottom:16}}>Annual or monthly paid membership plans with exclusive benefits</div>
-          <button className="bt bt-p"><i className="ti ti-plus"/> Create plan</button>
-        </div>
-      )}
+      {tab===4&&<MembershipsTab/>}
 
-      {tab===5&&(
-        <div className="card">
-          <div style={{fontSize:13,fontWeight:700,marginBottom:14}}>Customer wallet overview</div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:16}}>
-            {[['Total wallets',customers.length],['Wallets with balance',Math.floor(customers.length*0.3)],['Total balance','SAR 0']].map(([l,v])=>(
-              <div key={l as string} style={{background:'var(--surface-1)',borderRadius:'var(--radius)',padding:'14px',textAlign:'center'}}>
-                <div style={{fontSize:10,color:'var(--text-secondary)',marginBottom:6}}>{l}</div>
-                <div style={{fontSize:18,fontWeight:700}}>{v}</div>
-              </div>
-            ))}
-          </div>
-          <div style={{fontSize:12,color:'var(--text-secondary)',textAlign:'center'}}>Wallet top-ups and deductions are managed per customer</div>
-        </div>
-      )}
+      {tab===5&&<CustomerWalletTab customers={customers}/>}
 
       {/* Edit promotion modal */}
       {editPromo&&(
@@ -631,6 +620,238 @@ function GiftCardsTab(){
               <button className="bt bt-p" disabled={!form.amount} onClick={issue}><i className="ti ti-gift"/> Issue card</button>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const MEM_SEED = [
+  {id:'m1',name:'Silver Club',price:199,period:'monthly',benefits:'5% discount · Priority support · Early access',members:142,is_active:true},
+  {id:'m2',name:'Gold Club',price:499,period:'monthly',benefits:'10% discount · Free delivery · Birthday gift · VIP lounge',members:67,is_active:true},
+  {id:'m3',name:'Platinum Annual',price:2999,period:'annual',benefits:'15% discount · Free delivery · Personal stylist · All events',members:23,is_active:true},
+  {id:'m4',name:'Student Plan',price:99,period:'monthly',benefits:'8% discount · Student verification required',members:0,is_active:false},
+];
+const MEM_EMPTY={name:'',price:'',period:'monthly',benefits:'',is_active:true};
+
+function MembershipsTab(){
+  const [plans,setPlans]=React.useState<any[]>(()=>{try{const s=sessionStorage.getItem('memberships');return s?JSON.parse(s):MEM_SEED;}catch{return MEM_SEED;}});
+  const [showCreate,setShowCreate]=React.useState(false);
+  const [editPlan,setEditPlan]=React.useState<any>(null);
+  const [form,setForm]=React.useState({...MEM_EMPTY});
+  const save=(list:any[])=>{setPlans(list);try{sessionStorage.setItem('memberships',JSON.stringify(list));}catch{}};
+  const set=(k:string,v:any)=>setForm(p=>({...p,[k]:v}));
+  const toggle=(id:string)=>save(plans.map(p=>p.id===id?{...p,is_active:!p.is_active}:p));
+  const del=(id:string)=>{if(confirm('Delete membership plan?'))save(plans.filter(p=>p.id!==id));};
+  const create=()=>{
+    if(!form.name||!form.price)return;
+    save([...plans,{id:'m'+Date.now(),...form,price:parseFloat(form.price),members:0}]);
+    setShowCreate(false);setForm({...MEM_EMPTY});
+  };
+  const saveEdit=()=>{
+    save(plans.map(p=>p.id===editPlan.id?{...p,...form,price:parseFloat(form.price)}:p));
+    setEditPlan(null);
+  };
+  const openEdit=(p:any)=>{setEditPlan(p);setForm({name:p.name,price:String(p.price),period:p.period,benefits:p.benefits,is_active:p.is_active});};
+  const totalRevenue=plans.reduce((s:number,p:any)=>s+p.price*(p.period==='annual'?1:12)*p.members,0);
+
+  return(
+    <div>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+        <div>
+          <div style={{fontSize:13,fontWeight:700}}>Membership plans</div>
+          <div style={{fontSize:11,color:'var(--text-secondary)'}}>
+            {plans.filter(p=>p.is_active).length} active plans · {plans.reduce((s,p)=>s+p.members,0)} total members · SAR {totalRevenue.toLocaleString()} est. annual revenue
+          </div>
+        </div>
+        <button className="bt bt-p" onClick={()=>{setShowCreate(true);setForm({...MEM_EMPTY});}}><i className="ti ti-plus"/> Create plan</button>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:12,marginBottom:16}}>
+        {plans.map(p=>(
+          <div key={p.id} className="card" style={{opacity:p.is_active?1:.6,position:'relative'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
+              <div>
+                <div style={{fontSize:14,fontWeight:700}}>{p.name}</div>
+                <div style={{fontSize:18,fontWeight:800,color:'var(--fill-accent)',marginTop:4}}>
+                  SAR {p.price.toLocaleString()}<span style={{fontSize:11,fontWeight:400,color:'var(--text-secondary)'}}>/{p.period==='annual'?'year':'month'}</span>
+                </div>
+              </div>
+              <span className={'bx '+(p.is_active?'g':'n')} style={{fontSize:10}}>{p.is_active?'Active':'Inactive'}</span>
+            </div>
+            <div style={{fontSize:11,color:'var(--text-secondary)',marginBottom:12,lineHeight:1.6}}>
+              {p.benefits.split('·').map((b:string,i:number)=>(
+                <div key={i} style={{display:'flex',alignItems:'center',gap:6}}>
+                  <i className="ti ti-check" style={{color:'#27ae60',fontSize:11}}/>{b.trim()}
+                </div>
+              ))}
+            </div>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',borderTop:'0.5px solid var(--border-color)',paddingTop:10}}>
+              <div style={{fontSize:11,color:'var(--text-secondary)'}}><strong>{p.members}</strong> members</div>
+              <div style={{display:'flex',gap:6}}>
+                <button className="bt" style={{fontSize:10,padding:'3px 8px'}} onClick={()=>toggle(p.id)}>{p.is_active?'Pause':'Activate'}</button>
+                <button className="bt" style={{fontSize:10,padding:'3px 8px'}} onClick={()=>openEdit(p)}><i className="ti ti-edit"/></button>
+                <button className="bt bt-d" style={{fontSize:10,padding:'3px 7px'}} onClick={()=>del(p.id)}><i className="ti ti-trash"/></button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      {(showCreate||editPlan)&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.4)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}} onClick={e=>{if(e.target===e.currentTarget){setShowCreate(false);setEditPlan(null);}}}>
+          <div style={{background:'var(--surface-2)',borderRadius:'var(--radius)',padding:24,width:440}}>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:16}}>
+              <span style={{fontSize:14,fontWeight:700}}>{editPlan?'Edit plan':'Create membership plan'}</span>
+              <button onClick={()=>{setShowCreate(false);setEditPlan(null);}} style={{background:'none',border:'none',cursor:'pointer',fontSize:18,color:'var(--text-secondary)'}}>×</button>
+            </div>
+            {[{l:'Plan name *',k:'name',t:'text',p:'e.g. Gold Club'},{l:'Benefits (separate with ·)',k:'benefits',t:'text',p:'10% discount · Free delivery'}].map(f=>(
+              <div key={f.k} style={{marginBottom:12}}>
+                <div style={{fontSize:11,fontWeight:600,marginBottom:6}}>{f.l}</div>
+                <input value={(form as any)[f.k]} onChange={e=>set(f.k,e.target.value)} placeholder={f.p} type={f.t}
+                  style={{width:'100%',padding:'7px 10px',border:'1px solid var(--border-color)',borderRadius:'var(--radius)',fontSize:12,background:'var(--surface-1)',color:'var(--text-primary)',boxSizing:'border-box'}}/>
+              </div>
+            ))}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+              <div>
+                <div style={{fontSize:11,fontWeight:600,marginBottom:6}}>Price (SAR) *</div>
+                <input type="number" value={form.price} onChange={e=>set('price',e.target.value)} placeholder="499"
+                  style={{width:'100%',padding:'7px 10px',border:'1px solid var(--border-color)',borderRadius:'var(--radius)',fontSize:12,background:'var(--surface-1)',color:'var(--text-primary)',boxSizing:'border-box'}}/>
+              </div>
+              <div>
+                <div style={{fontSize:11,fontWeight:600,marginBottom:6}}>Billing period</div>
+                <select value={form.period} onChange={e=>set('period',e.target.value)}
+                  style={{width:'100%',padding:'7px 10px',border:'1px solid var(--border-color)',borderRadius:'var(--radius)',fontSize:12,background:'var(--surface-1)',color:'var(--text-primary)'}}>
+                  <option value="monthly">Monthly</option>
+                  <option value="annual">Annual</option>
+                </select>
+              </div>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16}}>
+              <input type="checkbox" id="mem-active" checked={form.is_active} onChange={e=>set('is_active',e.target.checked)} style={{width:16,height:16}}/>
+              <label htmlFor="mem-active" style={{fontSize:12,cursor:'pointer'}}>Active (visible to customers)</label>
+            </div>
+            <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+              <button className="bt" onClick={()=>{setShowCreate(false);setEditPlan(null);}}>Cancel</button>
+              <button className="bt bt-p" disabled={!form.name||!form.price} onClick={editPlan?saveEdit:create}>{editPlan?'Save changes':'Create plan'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const WALLET_SEED = [
+  {id:'w1',customer:'Sara Abdullah',phone:'+966 50 123 4567',balance:120,transactions:[{type:'credit',amount:50,note:'Birthday bonus',date:'2026-07-15'},{type:'credit',amount:100,note:'Top-up',date:'2026-06-20'},{type:'debit',amount:30,note:'Used on order #1784',date:'2026-07-01'}]},
+  {id:'w2',customer:'Khalid Al-Saud',phone:'+966 55 987 6543',balance:350,transactions:[{type:'credit',amount:350,note:'Top-up',date:'2026-07-10'}]},
+  {id:'w3',customer:'Fatima Hassan',phone:'+966 58 234 5678',balance:0,transactions:[{type:'credit',amount:200,note:'Refund credit',date:'2026-05-01'},{type:'debit',amount:200,note:'Used on order #1650',date:'2026-06-15'}]},
+  {id:'w4',customer:'Layla Saad',phone:'+966 54 456 7890',balance:75,transactions:[{type:'credit',amount:75,note:'Loyalty reward',date:'2026-07-18'}]},
+];
+
+function CustomerWalletTab({customers}:{customers:any[]}){
+  const [wallets,setWallets]=React.useState<any[]>(()=>{
+    try{const s=sessionStorage.getItem('wallets');if(s)return JSON.parse(s);}catch{}
+    // Merge with real customers
+    return customers.length>0
+      ? customers.slice(0,10).map((c:any,i:number)=>({id:'w'+c.id,customer:c.name,phone:c.phone||'',balance:parseFloat(c.wallet_balance||0)||(WALLET_SEED[i]?.balance||0),transactions:WALLET_SEED[i]?.transactions||[]}))
+      : WALLET_SEED;
+  });
+  const [selected,setSelected]=React.useState<any>(null);
+  const [showTopup,setShowTopup]=React.useState(false);
+  const [topupForm,setTopupForm]=React.useState({amount:'',type:'credit',note:''});
+  const save=(list:any[])=>{setWallets(list);try{sessionStorage.setItem('wallets',JSON.stringify(list));}catch{}};
+
+  const doTopup=()=>{
+    if(!selected||!topupForm.amount)return;
+    const amt=parseFloat(topupForm.amount);
+    const tx={type:topupForm.type,amount:amt,note:topupForm.note||'Manual adjustment',date:new Date().toISOString().slice(0,10)};
+    const updated=wallets.map(w=>w.id===selected.id?{...w,balance:w.balance+(topupForm.type==='credit'?amt:-Math.min(amt,w.balance)),transactions:[tx,...(w.transactions||[])]}:w);
+    save(updated);setSelected(updated.find((w:any)=>w.id===selected.id));setShowTopup(false);setTopupForm({amount:'',type:'credit',note:''});
+  };
+
+  const totalBalance=wallets.reduce((s,w)=>s+w.balance,0);
+  const withBalance=wallets.filter(w=>w.balance>0).length;
+
+  return(
+    <div style={{display:'grid',gridTemplateColumns:selected?'1fr 320px':'1fr',gap:12}}>
+      <div>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+          <div>
+            <div style={{fontSize:13,fontWeight:700}}>Customer wallets</div>
+            <div style={{fontSize:11,color:'var(--text-secondary)'}}>SAR {totalBalance.toLocaleString()} total balance · {withBalance} wallets with funds</div>
+          </div>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:12}}>
+          {[['Total wallets',wallets.length],['With balance',withBalance],['Total balance','SAR '+totalBalance.toLocaleString()]].map(([l,v])=>(
+            <div key={l as string} style={{background:'var(--surface-1)',border:'1px solid var(--border-color)',borderRadius:'var(--radius)',padding:'12px 14px'}}>
+              <div style={{fontSize:10,color:'var(--text-secondary)',marginBottom:4}}>{l}</div>
+              <div style={{fontSize:16,fontWeight:700}}>{v}</div>
+            </div>
+          ))}
+        </div>
+        <div className="card" style={{padding:0,overflow:'hidden'}}>
+          <div className="tr th" style={{gridTemplateColumns:'1fr 130px 110px 80px'}}>
+            {['Customer','Phone','Balance','Actions'].map(h=><span key={h}>{h}</span>)}
+          </div>
+          {wallets.map(w=>(
+            <div key={w.id} className="tr" style={{gridTemplateColumns:'1fr 130px 110px 80px',cursor:'pointer',background:selected?.id===w.id?'var(--bg-accent)':''}} onClick={()=>setSelected(w)}>
+              <span style={{fontWeight:600,fontSize:12}}>{w.customer}</span>
+              <span style={{fontSize:11,color:'var(--text-secondary)'}}>{w.phone||'—'}</span>
+              <span style={{fontWeight:700,color:w.balance>0?'var(--fill-accent)':'var(--text-secondary)'}}>SAR {w.balance.toLocaleString()}</span>
+              <span><span className={'bx '+(w.balance>0?'g':'n')} style={{fontSize:10}}>{w.balance>0?'Active':'Empty'}</span></span>
+            </div>
+          ))}
+        </div>
+      </div>
+      {selected&&(
+        <div className="card" style={{alignSelf:'start',position:'sticky',top:0}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+            <div style={{fontSize:13,fontWeight:700}}>Wallet</div>
+            <button onClick={()=>setSelected(null)} style={{background:'none',border:'none',cursor:'pointer',fontSize:18,color:'var(--text-secondary)'}}>×</button>
+          </div>
+          <div style={{fontSize:14,fontWeight:700}}>{selected.customer}</div>
+          <div style={{fontSize:11,color:'var(--text-secondary)',marginBottom:12}}>{selected.phone}</div>
+          <div style={{background:'var(--bg-accent)',borderRadius:'var(--radius)',padding:'16px',textAlign:'center',marginBottom:12}}>
+            <div style={{fontSize:11,color:'var(--text-secondary)',marginBottom:4}}>Current balance</div>
+            <div style={{fontSize:28,fontWeight:800,color:'var(--fill-accent)'}}>SAR {selected.balance.toLocaleString()}</div>
+          </div>
+          <button className="bt bt-p" style={{width:'100%',justifyContent:'center',marginBottom:12}} onClick={()=>setShowTopup(true)}>
+            <i className="ti ti-wallet"/> Top-up / Deduct
+          </button>
+          <div style={{fontSize:11,fontWeight:600,color:'var(--text-secondary)',marginBottom:8}}>TRANSACTION HISTORY</div>
+          {(selected.transactions||[]).length===0?<div style={{fontSize:12,color:'var(--text-secondary)',textAlign:'center',padding:'12px 0'}}>No transactions</div>
+          :(selected.transactions||[]).map((t:any,i:number)=>(
+            <div key={i} style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:'0.5px solid var(--border-color)',fontSize:12}}>
+              <div>
+                <div style={{fontWeight:500}}>{t.note}</div>
+                <div style={{fontSize:10,color:'var(--text-secondary)'}}>{t.date}</div>
+              </div>
+              <span style={{fontWeight:700,color:t.type==='credit'?'#27ae60':'#e74c3c'}}>
+                {t.type==='credit'?'+':'−'}SAR {t.amount}
+              </span>
+            </div>
+          ))}
+          {showTopup&&(
+            <div style={{marginTop:12,padding:14,background:'var(--surface-1)',borderRadius:'var(--radius)',border:'1px solid var(--border-color)'}}>
+              <div style={{fontSize:12,fontWeight:700,marginBottom:10}}>Top-up / Deduct</div>
+              <div style={{display:'flex',gap:6,marginBottom:8}}>
+                {['credit','debit'].map(t=>(
+                  <button key={t} onClick={()=>setTopupForm(p=>({...p,type:t}))}
+                    style={{flex:1,padding:'6px',borderRadius:'var(--radius)',border:'1.5px solid '+(topupForm.type===t?'var(--fill-accent)':'var(--border-color)'),
+                      background:topupForm.type===t?'var(--fill-accent)':'transparent',color:topupForm.type===t?'#fff':'var(--text-secondary)',cursor:'pointer',fontSize:12,textTransform:'capitalize'}}>
+                    {t==='credit'?'Add funds':'Deduct'}
+                  </button>
+                ))}
+              </div>
+              <input type="number" value={topupForm.amount} onChange={e=>setTopupForm(p=>({...p,amount:e.target.value}))} placeholder="Amount (SAR)"
+                style={{width:'100%',padding:'7px 10px',border:'1px solid var(--border-color)',borderRadius:'var(--radius)',fontSize:12,background:'var(--surface-2)',color:'var(--text-primary)',boxSizing:'border-box',marginBottom:8}}/>
+              <input value={topupForm.note} onChange={e=>setTopupForm(p=>({...p,note:e.target.value}))} placeholder="Note (optional)"
+                style={{width:'100%',padding:'7px 10px',border:'1px solid var(--border-color)',borderRadius:'var(--radius)',fontSize:12,background:'var(--surface-2)',color:'var(--text-primary)',boxSizing:'border-box',marginBottom:10}}/>
+              <div style={{display:'flex',gap:6}}>
+                <button className="bt" style={{flex:1,justifyContent:'center'}} onClick={()=>setShowTopup(false)}>Cancel</button>
+                <button className="bt bt-p" style={{flex:1,justifyContent:'center'}} disabled={!topupForm.amount} onClick={doTopup}>Confirm</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
