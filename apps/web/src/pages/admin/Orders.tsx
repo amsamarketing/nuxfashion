@@ -121,19 +121,23 @@ export default function Orders() {
                 {(detail.lines||[]).map((l:any)=>{
                   const returned=retQty[l.id]||0;
                   const remaining=l.quantity-returned;
+                  const up=parseFloat(l.unit_price||0);
                   return (
                     <div key={l.id} style={{ display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'0.5px solid var(--border)',fontSize:12 }}>
                       <div>
                         <div style={{ fontWeight:500 }}>{l.product_name||'Item'}</div>
                         <div style={{ fontSize:10,color:'var(--text-secondary)' }}>
-                          {l.variant_name||''} {l.sku?`· SKU-${l.sku}`:''} · Ordered ×{l.quantity}
-                          {returned>0&&<span style={{ color:'#e74c3c' }}> · Returned ×{returned}</span>}
-                          {remaining>0&&<span style={{ color:'#27ae60' }}> · Remaining ×{remaining}</span>}
+                          {l.variant_name&&l.variant_name!=='Default'?l.variant_name+' · ':''}{l.sku?`SKU-${l.sku} · `:''}
+                          ×{l.quantity} @ SAR {up.toFixed(2)}
                         </div>
+                        {returned>0&&<div style={{ fontSize:10,marginTop:2 }}>
+                          <span style={{ color:'#e74c3c' }}>Returned ×{returned} (SAR {(up*returned).toFixed(2)})</span>
+                          {remaining>0&&<span style={{ color:'#27ae60' }}> · Remaining ×{remaining}</span>}
+                        </div>}
                       </div>
                       <div style={{ textAlign:'right' }}>
-                        {remaining>0&&<div style={{ fontWeight:600 }}>SAR {(parseFloat(l.unit_price||0)*remaining).toFixed(2)}</div>}
-                        {returned>0&&<div style={{ fontSize:10,color:'#e74c3c',textDecoration:'line-through' }}>SAR {(parseFloat(l.unit_price||0)*returned).toFixed(2)}</div>}
+                        {returned>0&&<div style={{ fontSize:10,color:'#e74c3c',textDecoration:'line-through' }}>SAR {(up*l.quantity).toFixed(2)}</div>}
+                        <div style={{ fontWeight:600,color:returned>0?'#27ae60':'' }}>SAR {(up*(remaining>0?remaining:l.quantity)).toFixed(2)}</div>
                       </div>
                     </div>
                   );
@@ -163,7 +167,9 @@ export default function Orders() {
               {(()=>{
                 const totalReturned=(detail.returns||[]).reduce((s:number,r:any)=>s+parseFloat(r.refund_amount||0),0);
                 const netTotal=parseFloat(detail.total||0)-totalReturned;
-                const rows=[['Customer',detail.customer_name||'Walk-in'],['Subtotal','SAR '+parseFloat(detail.subtotal||0).toFixed(2)],['Discount','SAR '+parseFloat(detail.discount_amount||0).toFixed(2)],['VAT 15%','SAR '+parseFloat(detail.tax_amount||0).toFixed(2)],['Original total','SAR '+parseFloat(detail.total||0).toFixed(2)],...(totalReturned>0?[['Returned','−SAR '+totalReturned.toFixed(2)],['NET TOTAL','SAR '+netTotal.toFixed(2)]]:[ ['TOTAL','SAR '+parseFloat(detail.total||0).toFixed(2)] ])];
+                const vatAmt=parseFloat(detail.tax_amount||0)||parseFloat(detail.total||0)*15/115;
+                const discAmt=parseFloat(detail.discount_amount||0);
+                const rows=[['Customer',detail.customer_name||'Walk-in'],['Subtotal','SAR '+parseFloat(detail.subtotal||0).toFixed(2)],...(discAmt>0?[['Discount','−SAR '+discAmt.toFixed(2)]]:[ ]),['VAT 15%','SAR '+vatAmt.toFixed(2)],['Original total','SAR '+parseFloat(detail.total||0).toFixed(2)],...(totalReturned>0?[['Returned','−SAR '+totalReturned.toFixed(2)],['NET TOTAL','SAR '+netTotal.toFixed(2)]]:[ ['TOTAL','SAR '+parseFloat(detail.total||0).toFixed(2)] ])];
                 return rows;
               })().map(([l,v],i,arr)=>(
                 <div key={l} style={{ display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:'0.5px solid var(--border)',fontSize:12,fontWeight:i===4?700:400 }}>
