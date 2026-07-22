@@ -88,7 +88,30 @@ export default function POSSale() {
           {discAmt > 0 && ` · Discount: SAR ${discAmt.toFixed(2)}`}{discPct && discAmt>0 && ` (${discPct}%${flatAmt>0?' + SAR '+flatAmt.toFixed(2):''})`}
         </div>
         <div style={{ display:'flex', gap:8 }}>
-          <button className="bt" style={{ flex:1, justifyContent:'center' }} onClick={()=>window.print()}><i className="ti ti-printer" /> Print</button>
+          <button className="bt" style={{ flex:1, justifyContent:'center' }} onClick={()=>{
+              const w = window.open('','_blank','width=400,height=600');
+              if(!w) return;
+              w.document.write(`<!DOCTYPE html><html><head><title>Receipt</title><style>
+                body{font-family:monospace;font-size:13px;padding:20px;margin:0}
+                h2{text-align:center;margin:0 0 4px}
+                .center{text-align:center} .line{border-top:1px dashed #000;margin:8px 0}
+                .row{display:flex;justify-content:space-between}
+                .total{font-size:18px;font-weight:bold}
+              </style></head><body>
+                <h2>NuxFashion</h2>
+                <div class="center" style="font-size:11px;margin-bottom:8px">Riyadh · Tel: +966-XX-XXXXXXX</div>
+                <div class="line"></div>
+                <div class="row"><span>Order #</span><span>${receipt.order_number}</span></div>
+                <div class="row"><span>Date</span><span>${new Date().toLocaleString()}</span></div>
+                <div class="line"></div>
+                <div class="row total"><span>Total</span><span>SAR ${parseFloat(receipt.total).toFixed(2)}</span></div>
+                <div class="row"><span>VAT 15%</span><span>SAR ${parseFloat(receipt.tax_amount||0).toFixed(2)}</span></div>
+                <div class="line"></div>
+                <div class="center" style="font-size:11px;margin-top:8px">Thank you for shopping!</div>
+                <div class="center" style="font-size:10px;color:#666">ZATCA e-invoice generated</div>
+              </body></html>`);
+              w.document.close(); w.focus(); w.print(); w.close();
+            }}><i className="ti ti-printer" /> Print</button>
           <button className="bt bt-p" style={{ flex:1, justifyContent:'center' }} onClick={()=>setReceipt(null)}>
             <i className="ti ti-plus" /> New sale
           </button>
