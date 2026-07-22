@@ -55,6 +55,11 @@ const SCREENS: Record<string, React.ComponentType> = {
 function App() {
   const { user, logout } = useAuth();
   const [mode, setMode] = useState<'pos' | 'admin'>('pos');
+  useEffect(() => {
+    const handler = () => { setMode('pos'); setScreen('pos-sale'); };
+    window.addEventListener('resume-held', handler);
+    return () => window.removeEventListener('resume-held', handler);
+  }, []);
   const [screen, setScreen] = useState('pos-sale');
 
   const switchMode = (m: 'pos' | 'admin') => {

@@ -24,6 +24,23 @@ function Clock(){
 
 export default function POSSale(){
   const {toast}=useToast();
+
+  // Resume held order
+  useEffect(()=>{
+    const handler=(e:any)=>{
+      const h=e.detail;
+      if(!h)return;
+      setCart(h.cart||[]);
+      if(h.custId)setCustId(h.custId);
+      toast('Held order resumed — complete payment','info');
+      localStorage.removeItem('resume_cart');
+    };
+    // Also check on mount
+    const stored=localStorage.getItem('resume_cart');
+    if(stored){try{const h=JSON.parse(stored);setCart(h.cart||[]);if(h.custId)setCustId(h.custId);localStorage.removeItem('resume_cart');}catch{}}
+    window.addEventListener('resume-held',handler);
+    return()=>window.removeEventListener('resume-held',handler);
+  },[]);
   const qc=useQueryClient();
   const [search,setSearch]=useState('');
   const [cart,setCart]=useState<CartItem[]>([]);
