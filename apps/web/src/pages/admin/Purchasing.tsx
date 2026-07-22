@@ -34,12 +34,13 @@ export default function Purchasing() {
   const [recLines, setRecLines] = useState<Record<string,number>>({});
   const [recInvoice, setRecInvoice] = useState('');
 
-  const { data:pos=[] } = useQuery<PO[]>({ queryKey:['pos',statusFilter], queryFn:async()=>{ try{ return await api.get('/purchasing/orders'+(statusFilter?`?status=${statusFilter}`:'')); }catch{ return []; } } });
+  const { data:pos=[] } = useQuery<PO[]>({ queryKey:['pos',statusFilter], queryFn:async():Promise<PO[]>=>{ try{ return await api.get('/purchasing/orders'+(statusFilter?`?status=${statusFilter}`:'')); }catch{ return []; } } });
   const { data:sups=[] } = useQuery<Sup[]>({ queryKey:['suppliers'], queryFn:async():Promise<Sup[]>=>{ try{ return await api.get('/purchasing/suppliers'); }catch{ return []; } } });
   const { data:grns=[] } = useQuery<GRN[]>({ queryKey:['grns'], queryFn:async():Promise<GRN[]>=>{ try{ return await api.get('/purchasing/receipts'); }catch{ return []; } } });
   const { data:warehouses=[] } = useQuery<{id:string;name:string}[]>({ queryKey:['warehouses'], queryFn:async():Promise<{id:string;name:string}[]>=>{ try{ return await api.get('/inventory/warehouses'); }catch{ return []; } } });
   const { data:variants=[] } = useQuery<Variant[]>({ queryKey:['variants-all'], queryFn:async():Promise<Variant[]>=>{ try{ return await api.get('/inventory/variants'); }catch{ return []; } } });
-  const { data:selectedPO } = useQuery<PO>({ queryKey:['po',selectedId], queryFn:async()=>{ try{ return await api.get('/purchasing/orders/'+selectedId); }catch{ return null; } }, enabled:!!selectedId });
+  const { data:_selectedPOraw } = useQuery<PO|null>({ queryKey:['po',selectedId], queryFn:async():Promise<PO|null>=>{ try{ return (await api.get('/purchasing/orders/'+selectedId)) as PO; }catch{ return null; } }, enabled:!!selectedId });
+  const selectedPO = _selectedPOraw as PO|undefined;
 
   const filteredVars = useMemo(()=>
     varSearch.length>1 ? variants.filter(v=>(v.sku+v.product_name).toLowerCase().includes(varSearch.toLowerCase())).slice(0,8) : []
@@ -70,8 +71,9 @@ export default function Purchasing() {
   const receiveGoods = useMutation({
     mutationFn:()=>{
       if(!selectedPO) throw new Error('No PO');
-      const rlines=(selectedPO.lines||[]).filter(l=>recLines[l.id]>0).map(l=>({po_line_id:l.id,variant_id:l.variant_id,quantity_received:recLines[l.id],unit_cost:parseFloat(l.unit_cost)}));
-      return api.post('/purchasing/receive',{po_id:selectedPO.id,lines:rlines,supplier_invoice:recInvoice||undefined});
+      const _po=selectedPO as PO;
+      const rlines=(_po.lines||[]).filter((l:POLine)=>recLines[l.id]>0).map((l:POLine)=>({po_line_id:l.id,variant_id:l.variant_id,quantity_received:recLines[l.id],unit_cost:parseFloat(l.unit_cost)}));
+      return api.post('/purchasing/receive',{po_id:(_po as PO).id,lines:rlines,supplier_invoice:recInvoice||undefined});
     },
     onSuccess:()=>{ toast('Goods received & inventory updated!','success'); qc.invalidateQueries({queryKey:['pos']}); qc.invalidateQueries({queryKey:['po',selectedId]}); qc.invalidateQueries({queryKey:['grns']}); setShowReceive(false); setRecLines({}); setRecInvoice(''); },
     onError:e=>toast(getErr(e),'error')
