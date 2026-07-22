@@ -3,7 +3,7 @@ import { Type } from 'class-transformer';
 export class CreateVariantDto {
   @IsString() name: string;
   @IsOptional() @IsString() name_ar?: string;
-  @IsString() sku: string;
+  @IsOptional() @IsString() sku?: string;
   @IsOptional() @IsString() barcode?: string;
   @IsOptional() @IsString() color?: string;
   @IsOptional() @IsString() size?: string;

@@ -15,11 +15,20 @@ export class ProductsService {
     if (query.search) { conditions.push(`(p.name ILIKE $${i} OR p.name_ar ILIKE $${i})`); params.push(`%${query.search}%`); i++; }
     const result = await this.db.query(
       `SELECT p.*, c.name as category_name, b.name as brand_name,
-              COUNT(DISTINCT v.id) as variant_count
+              COALESCE(
+                json_agg(
+                  json_build_object(
+                    'id', v.id, 'name', v.name, 'sku', v.sku,
+                    'barcode', v.barcode, 'color', v.color, 'size', v.size,
+                    'selling_price', v.selling_price, 'cost_price', v.cost_price,
+                    'stock_quantity', v.stock_quantity, 'is_active', v.is_active
+                  ) ORDER BY v.created_at
+                ) FILTER (WHERE v.id IS NOT NULL), '[]'
+              ) as variants
        FROM products p
        LEFT JOIN categories c ON c.id = p.category_id
        LEFT JOIN brands b ON b.id = p.brand_id
-       LEFT JOIN product_variants v ON v.product_id = p.id AND v.is_active = true
+       LEFT JOIN product_variants v ON v.product_id = p.id AND v.deleted_at IS NULL
        WHERE ${conditions.join(' AND ')}
        GROUP BY p.id, c.name, b.name
        ORDER BY p.created_at DESC
@@ -87,7 +96,7 @@ export class ProductsService {
     const result = await this.db.query(
       `INSERT INTO product_variants (product_id, name, name_ar, sku, barcode, color, size, cost_price, selling_price, compare_price, stock_quantity, low_stock_threshold)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
-      [productId, dto.name, dto.name_ar || null, dto.sku, dto.barcode || null,
+      [productId, dto.name, dto.name_ar || null, dto.sku || null, dto.barcode || null,
        dto.color || null, dto.size || null, dto.cost_price || 0, dto.selling_price || 0,
        dto.compare_price || null, dto.stock_quantity || 0, dto.low_stock_threshold || 5],
     );
