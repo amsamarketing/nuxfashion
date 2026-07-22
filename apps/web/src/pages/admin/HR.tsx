@@ -262,7 +262,7 @@ function DepartmentsTab({ toast, qc }: any) {
 // ─── ATTENDANCE TAB ───────────────────────────────────────────────────────────
 function AttendanceTab({ toast, qc, emps }: any) {
   const [date,setDate]=useState(new Date().toISOString().split('T')[0]);
-  const {data:att=[],refetch}=useQuery({queryKey:['att-date',date],queryFn:()=>api.get(`/attendance/date/${date}`).then(r=>r.data)});
+  const {data:att=[]}=useQuery({queryKey:['att-date',date],queryFn:()=>api.get(`/attendance/date/${date}`).then(r=>r.data)});
   const STATUS_OPTS=['present','absent','late','half_day','on_leave','holiday'];
   const [overrides,setOverrides]=useState<Record<string,string>>({});
   const getStatus=(id:string)=>{const r=att.find((a:any)=>a.employee_id===id);return overrides[id]??r?.status??'present';};
@@ -371,7 +371,7 @@ function LeaveTab({ toast, qc, emps }: any) {
 }
 
 // ─── PAYROLL TAB ──────────────────────────────────────────────────────────────
-function PayrollTab({ toast, qc, paySum }: any) {
+function PayrollTab({ toast, qc }: any) {
   const now=new Date();
   const [month,setMonth]=useState(now.getMonth()+1);
   const [year,setYear]=useState(now.getFullYear());
