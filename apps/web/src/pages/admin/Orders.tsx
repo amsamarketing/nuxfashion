@@ -101,18 +101,54 @@ export default function Orders() {
               {new Date(detail.created_at).toLocaleString()} · {detail.cashier_name}
             </div>
 
-            {/* Line items */}
-            <div style={{ fontSize:11,fontWeight:600,color:'var(--text-secondary)',marginBottom:6 }}>ITEMS</div>
-            {(detail.lines||[]).map((l:any)=>(
-              <div key={l.id} style={{ display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'0.5px solid var(--border)',fontSize:12 }}>
-                <div>
-                  <div style={{ fontWeight:500 }}>{l.product_name||'Item'}</div>
-                  <div style={{ fontSize:10,color:'var(--text-secondary)' }}>{l.variant_name||''} {l.sku?`· SKU-${l.sku}`:''} × {l.quantity}</div>
-                </div>
-                <div style={{ fontWeight:600 }}>SAR {(parseFloat(l.unit_price||0)*l.quantity).toFixed(2)}</div>
-              </div>
-            ))}
-            {(detail.lines||[]).length===0&&<div style={{ fontSize:11,color:'var(--text-secondary)',padding:'8px 0' }}>No line items</div>}
+            {/* Calc returned qty per line */}
+            {(()=>{
+              const retQty:Record<string,number>={};
+              (detail.returns||[]).forEach((r:any)=>{
+                (r.lines||[]).forEach((rl:any)=>{ if(rl.order_line_id) retQty[rl.order_line_id]=(retQty[rl.order_line_id]||0)+rl.quantity; });
+              });
+              const hasReturns=(detail.returns||[]).length>0;
+              return (<>
+                <div style={{ fontSize:11,fontWeight:600,color:'var(--text-secondary)',marginBottom:6 }}>ITEMS</div>
+                {(detail.lines||[]).map((l:any)=>{
+                  const returned=retQty[l.id]||0;
+                  const remaining=l.quantity-returned;
+                  return (
+                    <div key={l.id} style={{ display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'0.5px solid var(--border)',fontSize:12 }}>
+                      <div>
+                        <div style={{ fontWeight:500 }}>{l.product_name||'Item'}</div>
+                        <div style={{ fontSize:10,color:'var(--text-secondary)' }}>
+                          {l.variant_name||''} {l.sku?`· SKU-${l.sku}`:''} · Ordered ×{l.quantity}
+                          {returned>0&&<span style={{ color:'#e74c3c' }}> · Returned ×{returned}</span>}
+                          {remaining>0&&<span style={{ color:'#27ae60' }}> · Remaining ×{remaining}</span>}
+                        </div>
+                      </div>
+                      <div style={{ textAlign:'right' }}>
+                        {remaining>0&&<div style={{ fontWeight:600 }}>SAR {(parseFloat(l.unit_price||0)*remaining).toFixed(2)}</div>}
+                        {returned>0&&<div style={{ fontSize:10,color:'#e74c3c',textDecoration:'line-through' }}>SAR {(parseFloat(l.unit_price||0)*returned).toFixed(2)}</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+                {hasReturns&&(
+                  <div style={{ marginTop:10,marginBottom:4 }}>
+                    <div style={{ fontSize:11,fontWeight:600,color:'#e74c3c',marginBottom:6 }}>RETURNS</div>
+                    {(detail.returns||[]).map((r:any)=>(
+                      <div key={r.id} style={{ background:'#fff5f5',borderRadius:6,padding:'8px 10px',marginBottom:6,fontSize:11 }}>
+                        <div style={{ display:'flex',justifyContent:'space-between',marginBottom:4 }}>
+                          <span style={{ fontWeight:600 }}>#{r.return_number}</span>
+                          <span style={{ color:'#e74c3c',fontWeight:600 }}>−SAR {parseFloat(r.refund_amount||0).toFixed(2)}</span>
+                        </div>
+                        <div style={{ color:'var(--text-secondary)' }}>Via {(r.refund_method||'').replace('_',' ')} {r.reason?`· ${r.reason}`:''}</div>
+                        {(r.lines||[]).filter((rl:any)=>rl.quantity).map((rl:any,i:number)=>(
+                          <div key={i} style={{ color:'#e74c3c',marginTop:2 }}>× {rl.quantity} returned · SAR {parseFloat(rl.refund_amount||0).toFixed(2)}</div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>);
+            })()}
 
             {/* Totals */}
             <div style={{ marginTop:10 }}>

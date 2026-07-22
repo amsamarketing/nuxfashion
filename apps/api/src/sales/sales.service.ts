@@ -240,7 +240,16 @@ export class SalesService {
     const payments = await this.db.query(
       `SELECT * FROM payments WHERE order_id=$1`, [oid],
     ).catch(()=>({ rows:[] as any[] }));
-    return { ...order.rows[0], lines: lines.rows, payments: payments.rows };
+    // Fetch returns for this order
+    const returns = await this.db.query(
+      `SELECT r.*, json_agg(json_build_object('order_line_id',rl.order_line_id,'variant_id',rl.variant_id,'quantity',rl.quantity,'refund_amount',rl.refund_amount)) as lines
+       FROM returns r
+       LEFT JOIN return_lines rl ON rl.return_id=r.id
+       WHERE r.original_order_id=$1
+       GROUP BY r.id`,
+      [oid],
+    ).catch(()=>({ rows:[] as any[] }));
+    return { ...order.rows[0], lines: lines.rows, payments: payments.rows, returns: returns.rows };
   }
 
   // ─── Payments ────────────────────────────────────────────────────────────────
