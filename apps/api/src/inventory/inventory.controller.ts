@@ -62,4 +62,9 @@ export class InventoryController {
   transferStock(@Body() dto: TransferStockDto, @Req() req: Request) {
     return this.service.transferStock((req.user as any).companyId, (req.user as any).sub, dto);
   }
+  @Get('variants')
+  getVariants(@Req() req: Request) {
+    return this.service.getVariants((req.user as any).companyId);
+  }
+
 }

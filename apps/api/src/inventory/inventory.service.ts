@@ -224,4 +224,16 @@ export class InventoryService {
     return result.rows;
   }
 
+  async getVariants(companyId: string) {
+    const result = await this.db.query(
+      `SELECT pv.id, pv.sku, p.name as product_name, pv.color, pv.size
+       FROM product_variants pv
+       JOIN products p ON p.id = pv.product_id
+       WHERE p.company_id = $1 AND p.is_active = true
+       ORDER BY p.name, pv.sku`,
+      [companyId],
+    );
+    return result.rows;
+  }
+
 }
