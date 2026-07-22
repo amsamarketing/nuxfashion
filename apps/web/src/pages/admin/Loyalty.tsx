@@ -20,6 +20,8 @@ export default function Loyalty() {
   const qc = useQueryClient();
   const [tab, setTab] = useState(0);
   const [showAdd, setShowAdd] = useState(false);
+  const [editPromo, setEditPromo] = useState<any>(null);
+  const [editPromoForm, setEditPromoForm] = useState({...PROMO_EMPTY});
   const [form, setForm] = useState({...PROMO_EMPTY});
   const set = (k:string,v:any) => setForm(p=>({...p,[k]:v}));
 
@@ -45,6 +47,17 @@ export default function Loyalty() {
     onError:()=>toast('Failed to create promotion','error'),
   });
 
+  const editMut = useMutation({
+    mutationFn:()=>api.patch('/promotions/'+editPromo.id,{
+      name:editPromoForm.name, description:editPromoForm.description||undefined,
+      discount_type:editPromoForm.discount_type, discount_value:parseFloat(editPromoForm.discount_value)||0,
+      min_purchase:parseFloat(editPromoForm.min_purchase)||0,
+      start_date:editPromoForm.start_date||undefined, end_date:editPromoForm.end_date||undefined,
+      is_active:editPromoForm.is_active,
+    }),
+    onSuccess:()=>{ toast('Promotion updated!','success'); qc.invalidateQueries({queryKey:['promotions']}); setEditPromo(null); },
+    onError:()=>toast('Failed to update','error'),
+  });
   const toggleMut = useMutation({
     mutationFn:(p:any)=>api.patch('/promotions/'+p.id,{is_active:!p.is_active}),
     onSuccess:()=>{ qc.invalidateQueries({queryKey:['promotions']}); toast('Updated','success'); },
@@ -177,30 +190,45 @@ export default function Loyalty() {
       {tab===1&&(
         <div className="card">
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
-            <div style={{fontSize:13,fontWeight:700}}>All promotions</div>
+            <div style={{fontSize:13,fontWeight:700}}>All promotions <span style={{fontWeight:400,fontSize:11,color:'var(--text-secondary)',marginLeft:6}}>{allPromos.length} total</span></div>
             <button className="bt bt-p" onClick={()=>setShowAdd(true)}><i className="ti ti-plus"/> New</button>
           </div>
           {allPromos.length===0?<div style={{padding:32,textAlign:'center',color:'var(--text-secondary)'}}>No promotions yet</div>
           :allPromos.map((p:any)=>{
             const st=promoStatus(p);
             return (
-              <div key={p.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 0',borderBottom:'0.5px solid var(--border-color)'}}>
-                <div>
-                  <div style={{fontWeight:600}}>{p.name}</div>
-                  <div style={{fontSize:11,color:'var(--text-secondary)'}}>{p.description}
+              <div key={p.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 0',borderBottom:'0.5px solid var(--border-color)'}}>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:600,fontSize:13}}>{p.name}</div>
+                  <div style={{fontSize:11,color:'var(--text-secondary)',marginTop:2}}>{p.description}
                     {p.discount_value&&<span style={{marginLeft:8,color:'var(--fill-accent)',fontWeight:600}}>
                       {p.discount_type==='percentage'?p.discount_value+'% off':'SAR '+p.discount_value+' off'}
                     </span>}
                   </div>
-                  {(p.start_date||p.end_date)&&<div style={{fontSize:10,color:'var(--text-secondary)',marginTop:2}}>
+                  {(p.start_date||p.end_date)&&<div style={{fontSize:10,color:'var(--text-secondary)',marginTop:3}}>
                     {p.start_date?new Date(p.start_date).toLocaleDateString():''}{p.end_date?' → '+new Date(p.end_date).toLocaleDateString():''}
                   </div>}
                 </div>
-                <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                <div style={{display:'flex',gap:6,alignItems:'center',flexShrink:0,marginLeft:16}}>
                   <span className={'bx '+st.c} style={{fontSize:10}}>{st.label}</span>
                   {!p._static&&<>
-                    <button className="bt" style={{padding:'4px 8px',fontSize:10}} onClick={()=>toggleMut.mutate(p)}>{p.is_active?'Deactivate':'Activate'}</button>
-                    <button className="bt bt-d" style={{padding:'4px 8px',fontSize:10}} onClick={()=>{if(confirm('Delete?'))deleteMut.mutate(p.id);}}>Delete</button>
+                    <button className="bt" style={{padding:'4px 8px',fontSize:11}} onClick={()=>toggleMut.mutate(p)}>
+                      <i className={'ti '+(p.is_active?'ti-eye-off':'ti-eye')}/> {p.is_active?'Pause':'Activate'}
+                    </button>
+                    <button className="bt" style={{padding:'4px 8px',fontSize:11}} onClick={()=>{setEditPromo(p);setEditPromoForm({name:p.name,description:p.description||'',discount_type:p.discount_type||'percentage',discount_value:String(p.discount_value||''),min_purchase:String(p.min_purchase||''),start_date:p.start_date?.slice(0,10)||'',end_date:p.end_date?.slice(0,10)||'',is_active:p.is_active});}}>
+                      <i className="ti ti-edit"/> Edit
+                    </button>
+                    <button className="bt bt-d" style={{padding:'4px 8px',fontSize:11}} onClick={()=>{if(confirm('Delete "'+p.name+'"?'))deleteMut.mutate(p.id);}}>
+                      <i className="ti ti-trash"/> Delete
+                    </button>
+                  </>}
+                  {p._static&&<>
+                    <button className="bt" style={{padding:'4px 8px',fontSize:11,opacity:.5}} title="Sample data — connect promotions API to manage">
+                      <i className="ti ti-edit"/> Edit
+                    </button>
+                    <button className="bt bt-d" style={{padding:'4px 8px',fontSize:11,opacity:.5}} title="Sample data">
+                      <i className="ti ti-trash"/> Delete
+                    </button>
                   </>}
                 </div>
               </div>
@@ -237,6 +265,38 @@ export default function Loyalty() {
         </div>
       )}
 
+      {/* Edit promotion modal */}
+      {editPromo&&(
+        <Modal title={'Edit — '+editPromo.name} onClose={()=>setEditPromo(null)} width={520}>
+          <Field label="Promotion name" required><Inp value={editPromoForm.name} onChange={v=>setEditPromoForm(p=>({...p,name:v}))}/></Field>
+          <Field label="Description"><Inp value={editPromoForm.description} onChange={v=>setEditPromoForm(p=>({...p,description:v}))}/></Field>
+          <Row2>
+            <Field label="Discount type">
+              <Sel value={editPromoForm.discount_type} onChange={v=>setEditPromoForm(p=>({...p,discount_type:v}))}>
+                <option value="percentage">Percentage (%)</option>
+                <option value="fixed">Fixed amount (SAR)</option>
+                <option value="bogo">Buy X Get Y</option>
+              </Sel>
+            </Field>
+            <Field label="Discount value" required>
+              <Inp type="number" value={editPromoForm.discount_value} onChange={v=>setEditPromoForm(p=>({...p,discount_value:v}))} placeholder="20"/>
+            </Field>
+          </Row2>
+          <Field label="Min purchase (SAR)"><Inp type="number" value={editPromoForm.min_purchase} onChange={v=>setEditPromoForm(p=>({...p,min_purchase:v}))} placeholder="0"/></Field>
+          <Row2>
+            <Field label="Start date"><Inp type="date" value={editPromoForm.start_date} onChange={v=>setEditPromoForm(p=>({...p,start_date:v}))}/></Field>
+            <Field label="End date"><Inp type="date" value={editPromoForm.end_date} onChange={v=>setEditPromoForm(p=>({...p,end_date:v}))}/></Field>
+          </Row2>
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14}}>
+            <input type="checkbox" id="ep-active" checked={editPromoForm.is_active} onChange={e=>setEditPromoForm(p=>({...p,is_active:e.target.checked}))} style={{width:16,height:16}}/>
+            <label htmlFor="ep-active" style={{fontSize:12,cursor:'pointer'}}>Active</label>
+          </div>
+          <div className="d-flex gap-2 justify-content-end">
+            <button className="bt" onClick={()=>setEditPromo(null)}>Cancel</button>
+            <SaveBtn label="Save changes" loading={editMut.isPending} disabled={!editPromoForm.name} onClick={()=>editMut.mutate()}/>
+          </div>
+        </Modal>
+      )}
       {/* New promotion modal */}
       {showAdd&&(
         <Modal title="New promotion" onClose={()=>{setShowAdd(false);setForm({...PROMO_EMPTY});}} width={520}>
