@@ -160,7 +160,12 @@ export default function Orders() {
 
             {/* Totals */}
             <div style={{ marginTop:10 }}>
-              {[['Customer',detail.customer_name||'Walk-in'],['Subtotal','SAR '+parseFloat(detail.subtotal||0).toFixed(2)],['Discount','SAR '+parseFloat(detail.discount_amount||0).toFixed(2)],['VAT 15%','SAR '+parseFloat(detail.tax_amount||0).toFixed(2)],['TOTAL','SAR '+parseFloat(detail.total||0).toFixed(2)]].map(([l,v],i)=>(
+              {(()=>{
+                const totalReturned=(detail.returns||[]).reduce((s:number,r:any)=>s+parseFloat(r.refund_amount||0),0);
+                const netTotal=parseFloat(detail.total||0)-totalReturned;
+                const rows:[string,string,boolean?][]=[['Customer',detail.customer_name||'Walk-in'],['Subtotal','SAR '+parseFloat(detail.subtotal||0).toFixed(2)],['Discount','SAR '+parseFloat(detail.discount_amount||0).toFixed(2)],['VAT 15%','SAR '+parseFloat(detail.tax_amount||0).toFixed(2)],['Original total','SAR '+parseFloat(detail.total||0).toFixed(2)],...(totalReturned>0?[['Returned','−SAR '+totalReturned.toFixed(2) as string,false as boolean],['NET TOTAL','SAR '+netTotal.toFixed(2) as string,true as boolean]]:[['TOTAL','SAR '+parseFloat(detail.total||0).toFixed(2) as string,true as boolean]])];
+                return rows;
+              })().map(([l,v,bold],i)=>(
                 <div key={l} style={{ display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:'0.5px solid var(--border)',fontSize:12,fontWeight:i===4?700:400 }}>
                   <span style={{ color:'var(--text-secondary)' }}>{l}</span>
                   <span style={{ color:i===4?'var(--fill-accent)':'' }}>{v}</span>
