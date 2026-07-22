@@ -213,4 +213,28 @@ export class PurchasingService {
     );
     return result.rows;
   }
+  async updateSupplier(companyId: string, id: string, dto: Partial<CreateSupplierDto>) {
+    const fields = Object.entries(dto)
+      .filter(([,v]) => v !== undefined)
+      .map(([k], i) => `${k}=$${i+2}`)
+      .join(', ');
+    const values = Object.values(dto).filter(v => v !== undefined);
+    if (!fields) throw new Error('No fields to update');
+    const result = await this.db.query(
+      `UPDATE suppliers SET ${fields}, updated_at=NOW() WHERE id=$1 AND company_id='${companyId}' RETURNING *`,
+      [id, ...values],
+    );
+    if (!result.rows[0]) throw new NotFoundException('Supplier not found');
+    return result.rows[0];
+  }
+
+  async deleteSupplier(companyId: string, id: string) {
+    const result = await this.db.query(
+      `UPDATE suppliers SET is_active=false, updated_at=NOW() WHERE id=$1 AND company_id=$2 RETURNING id`,
+      [id, companyId],
+    );
+    if (!result.rows[0]) throw new NotFoundException('Supplier not found');
+    return { success: true };
+  }
+
 }

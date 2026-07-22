@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PurchasingService } from './purchasing.service';
@@ -53,4 +53,14 @@ export class PurchasingController {
   getGRNs(@Req() req: Request) {
     return this.service.getGRNs((req.user as any).companyId);
   }
+  @Patch('suppliers/:id')
+  updateSupplier(@Param('id') id: string, @Body() dto: any, @Req() req: Request) {
+    return this.service.updateSupplier((req.user as any).companyId, id, dto);
+  }
+
+  @Delete('suppliers/:id')
+  deleteSupplier(@Param('id') id: string, @Req() req: Request) {
+    return this.service.deleteSupplier((req.user as any).companyId, id);
+  }
+
 }

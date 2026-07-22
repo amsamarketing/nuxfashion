@@ -24,6 +24,7 @@ export default function Purchasing() {
   const [showCreate, setShowCreate] = useState(false);
   const [showSup, setShowSup] = useState(false);
   const [showReceive, setShowReceive] = useState(false);
+  const [editSupData, setEditSupData] = useState<Sup|null>(null);
   const [sup, setSup] = useState({...EMPTY_SUP});
 
   // PO create form state
@@ -96,6 +97,22 @@ export default function Purchasing() {
       payment_terms:parseInt(sup.payment_terms)||30,
     }),
     onSuccess:()=>{ toast('Supplier added','success'); qc.invalidateQueries({queryKey:['suppliers']}); setShowSup(false); setSup({...EMPTY_SUP}); },
+    onError:e=>toast(getErr(e),'error')
+  });
+
+  const updateSup = useMutation({
+    mutationFn:(s:Sup)=>api.patch('/purchasing/suppliers/'+s.id,{
+      name:s.name, contact_person:s.contact_person||undefined, phone:s.phone||undefined,
+      email:s.email||undefined, city:s.city||undefined, tax_number:(s as any).tax_number||undefined,
+      payment_terms:typeof s.payment_terms==='string'?parseInt(s.payment_terms as any)||30:s.payment_terms,
+    }),
+    onSuccess:()=>{ toast('Supplier updated','success'); qc.invalidateQueries({queryKey:['suppliers']}); setEditSupData(null); },
+    onError:e=>toast(getErr(e),'error')
+  });
+
+  const deleteSup = useMutation({
+    mutationFn:(id:string)=>api.delete('/purchasing/suppliers/'+id),
+    onSuccess:()=>{ toast('Supplier removed','success'); qc.invalidateQueries({queryKey:['suppliers']}); },
     onError:e=>toast(getErr(e),'error')
   });
 
@@ -275,17 +292,26 @@ export default function Purchasing() {
       {/* ── Suppliers Tab ── */}
       {tab==='suppliers'&&(
         <div className="card" style={{padding:0,overflow:'hidden'}}>
-          <div className="tr th" style={{gridTemplateColumns:'1fr 130px 150px 80px 60px 80px'}}>
-            {['Supplier','Contact','Email / Phone','City','Terms','VAT'].map(h=><span key={h}>{h}</span>)}
+          <div className="tr th" style={{gridTemplateColumns:'1fr 130px 150px 80px 60px 80px 100px'}}>
+            {['Supplier','Contact','Email / Phone','City','Terms','VAT','Actions'].map(h=><span key={h}>{h}</span>)}
           </div>
           {sups.map(s=>(
-            <div key={s.id} className="tr" style={{gridTemplateColumns:'1fr 130px 150px 80px 60px 80px'}}>
+            <div key={s.id} className="tr" style={{gridTemplateColumns:'1fr 130px 150px 80px 60px 80px 100px'}}>
               <span style={{fontWeight:600,fontSize:12}}>{s.name}</span>
               <span style={{fontSize:11,color:'var(--text-secondary)'}}>{s.contact_person||'—'}</span>
               <span style={{fontSize:11,color:'var(--text-secondary)'}}>{s.email||'—'}<br/>{s.phone||'—'}</span>
               <span style={{fontSize:11,color:'var(--text-secondary)'}}>{s.city||'—'}</span>
               <span style={{fontSize:11,color:'var(--text-secondary)'}}>{s.payment_terms||30}d</span>
-              <span style={{fontSize:11,color:'var(--text-secondary)'}}>{s.vat_number||'—'}</span>
+              <span style={{fontSize:11,color:'var(--text-secondary)'}}>{(s as any).tax_number||'—'}</span>
+              <div style={{display:'flex',gap:6}}>
+                <button className="bt" style={{padding:'2px 8px',fontSize:11}} onClick={()=>setEditSupData(s)}>
+                  <i className="ti ti-edit"/> Edit
+                </button>
+                <button className="bt" style={{padding:'2px 8px',fontSize:11,color:'#dc2626',borderColor:'#dc2626'}}
+                  onClick={()=>{ if(confirm('Remove '+s.name+'?')) deleteSup.mutate(s.id); }}>
+                  <i className="ti ti-trash"/>
+                </button>
+              </div>
             </div>
           ))}
           {sups.length===0&&<div style={{padding:32,textAlign:'center',color:'var(--text-secondary)',fontSize:13}}>No suppliers — add your first supplier</div>}
@@ -415,6 +441,37 @@ export default function Purchasing() {
           <div className="d-flex gap-2 justify-content-end">
             <button className="bt" onClick={()=>setShowCreate(false)}>Cancel</button>
             <SaveBtn label="Create PO" loading={createPO.isPending} disabled={!form.supplier_id||lines.length===0} onClick={()=>createPO.mutate()}/>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Edit Supplier Modal ── */}
+      {editSupData&&(
+        <Modal title="Edit supplier" onClose={()=>setEditSupData(null)}>
+          <Row2>
+            <Field label="Company name" required><Inp value={editSupData.name} onChange={v=>setEditSupData(p=>p?({...p,name:v}):p)} placeholder="Company name"/></Field>
+            <Field label="Contact person"><Inp value={editSupData.contact_person||''} onChange={v=>setEditSupData(p=>p?({...p,contact_person:v}):p)} placeholder="Contact person"/></Field>
+          </Row2>
+          <Row2>
+            <Field label="Phone"><Inp value={editSupData.phone||''} onChange={v=>setEditSupData(p=>p?({...p,phone:v}):p)} placeholder="+966 5x xxx xxxx"/></Field>
+            <Field label="Email"><Inp type="email" value={editSupData.email||''} onChange={v=>setEditSupData(p=>p?({...p,email:v}):p)} placeholder="info@supplier.com"/></Field>
+          </Row2>
+          <Row2>
+            <Field label="City"><Inp value={editSupData.city||''} onChange={v=>setEditSupData(p=>p?({...p,city:v}):p)} placeholder="Riyadh"/></Field>
+            <Field label="VAT number"><Inp value={(editSupData as any).tax_number||''} onChange={v=>setEditSupData(p=>p?({...p,tax_number:v}):p)} placeholder="3100xxxxxxxxxxxxx"/></Field>
+          </Row2>
+          <Field label="Payment terms">
+            <Sel value={String(editSupData.payment_terms||30)} onChange={(v:string)=>setEditSupData(p=>p?({...p,payment_terms:parseInt(v)}):p)}>
+              <option value="0">Cash on delivery</option>
+              <option value="15">Net 15 days</option>
+              <option value="30">Net 30 days</option>
+              <option value="45">Net 45 days</option>
+              <option value="60">Net 60 days</option>
+            </Sel>
+          </Field>
+          <div className="d-flex gap-2 justify-content-end">
+            <button className="bt" onClick={()=>setEditSupData(null)}>Cancel</button>
+            <SaveBtn label="Save changes" loading={updateSup.isPending} disabled={!editSupData.name} onClick={()=>updateSup.mutate(editSupData)}/>
           </div>
         </Modal>
       )}
