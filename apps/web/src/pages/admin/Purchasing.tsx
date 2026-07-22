@@ -85,7 +85,16 @@ export default function Purchasing() {
   });
 
   const createSup = useMutation({
-    mutationFn:()=>api.post('/purchasing/suppliers',{...sup,payment_terms:parseInt(sup.payment_terms)||30}),
+    mutationFn:()=>api.post('/purchasing/suppliers',{
+      name:sup.name,
+      contact_person:sup.contact_person||undefined,
+      phone:sup.phone||undefined,
+      email:sup.email||undefined,
+      address:undefined,
+      city:sup.city||undefined,
+      tax_number:sup.tax_number||undefined,
+      payment_terms:parseInt(sup.payment_terms)||30,
+    }),
     onSuccess:()=>{ toast('Supplier added','success'); qc.invalidateQueries({queryKey:['suppliers']}); setShowSup(false); setSup({...EMPTY_SUP}); },
     onError:e=>toast(getErr(e),'error')
   });
