@@ -11,14 +11,16 @@ const TIERS = [
   { name:'Platinum', range:'20,000+ pts', desc:'1 pt per SAR 2 + free delivery + VIP', min:20000, max:Infinity },
 ];
 
-const PROMO_EMPTY = { name:'', description:'', discount_type:'percentage', discount_value:'', min_purchase:'', start_date:'', end_date:'', is_active:true, buy_qty:'1', get_qty:'1', get_discount:'100' };
+const PROMO_EMPTY = { name:'', description:'', discount_type:'percentage', discount_value:'', min_purchase:'', start_date:'', end_date:'', is_active:true, buy_qty:'1', get_qty:'1', get_discount:'100', branches:['All branches'] };
 
 const TABS = ['Loyalty tiers','Promotions','Coupons','Gift cards','Memberships','Customer wallet'];
+const BRANCHES = ['All branches','Riyadh Mall','Jeddah Corniche','Al-Khobar Park','Riyadh Olaya St.','Online Store'];
 
 export default function Loyalty() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [tab, setTab] = useState(0);
+  const [branchFilter, setBranchFilter] = useState('All branches');
   const [showAdd, setShowAdd] = useState(false);
   const [editPromo, setEditPromo] = useState<any>(null);
   const [editPromoForm, setEditPromoForm] = useState({...PROMO_EMPTY});
@@ -169,7 +171,7 @@ export default function Loyalty() {
           </div>
           <div className="card">
             <div style={{fontSize:13,fontWeight:700,marginBottom:14}}>Active promotions</div>
-            {promosLoading?<div style={{color:'var(--text-secondary)',fontSize:12}}>Loading…</div>:allPromos.map((p:any)=>{
+            {promosLoading?<div style={{color:'var(--text-secondary)',fontSize:12}}>Loading…</div>:(allPromos.filter((p:any)=>branchFilter==='All branches'||(p.branches||['All branches']).includes('All branches')||(p.branches||[]).includes(branchFilter))).map((p:any)=>{
               const st=promoStatus(p);
               return (
                 <div key={p.id} style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',padding:'10px 0',borderBottom:'0.5px solid var(--border-color)'}}>
@@ -197,25 +199,41 @@ export default function Loyalty() {
 
       {tab===1&&(
         <div className="card">
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
             <div style={{fontSize:13,fontWeight:700}}>All promotions <span style={{fontWeight:400,fontSize:11,color:'var(--text-secondary)',marginLeft:6}}>{allPromos.length} total</span></div>
             <button className="bt bt-p" onClick={()=>setShowAdd(true)}><i className="ti ti-plus"/> New</button>
           </div>
-          {allPromos.length===0?<div style={{padding:32,textAlign:'center',color:'var(--text-secondary)'}}>No promotions yet</div>
-          :allPromos.map((p:any)=>{
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:14}}>
+            {BRANCHES.map(b=>(
+              <button key={b} onClick={()=>setBranchFilter(b)}
+                style={{padding:'4px 12px',borderRadius:20,border:'1.5px solid '+(branchFilter===b?'var(--fill-accent)':'var(--border-color)'),
+                  background:branchFilter===b?'var(--fill-accent)':'transparent',color:branchFilter===b?'#fff':'var(--text-secondary)',
+                  cursor:'pointer',fontSize:11,fontWeight:branchFilter===b?700:400}}>
+                {b}
+              </button>
+            ))}
+          </div>
+          {allPromos.filter((p:any)=>branchFilter==='All branches'||(p.branches||['All branches']).includes('All branches')||(p.branches||[]).includes(branchFilter)).length===0
+            ?<div style={{padding:32,textAlign:'center',color:'var(--text-secondary)'}}>No promotions for this branch</div>
+          :(allPromos.filter((p:any)=>branchFilter==='All branches'||(p.branches||['All branches']).includes('All branches')||(p.branches||[]).includes(branchFilter))).map((p:any)=>{
             const st=promoStatus(p);
             return (
               <div key={p.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 0',borderBottom:'0.5px solid var(--border-color)'}}>
                 <div style={{flex:1}}>
                   <div style={{fontWeight:600,fontSize:13}}>{p.name}</div>
                   <div style={{fontSize:11,color:'var(--text-secondary)',marginTop:2}}>{p.description}
-                    {p.discount_value&&<span style={{marginLeft:8,color:'var(--fill-accent)',fontWeight:600}}>
+                    {p.discount_value>0&&<span style={{marginLeft:8,color:'var(--fill-accent)',fontWeight:600}}>
                       {p.discount_type==='percentage'?p.discount_value+'% off':'SAR '+p.discount_value+' off'}
                     </span>}
                   </div>
-                  {(p.start_date||p.end_date)&&<div style={{fontSize:10,color:'var(--text-secondary)',marginTop:3}}>
-                    {p.start_date?new Date(p.start_date).toLocaleDateString():''}{p.end_date?' → '+new Date(p.end_date).toLocaleDateString():''}
-                  </div>}
+                  <div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:4}}>
+                    {(p.branches||['All branches']).map((b:string)=>(
+                      <span key={b} style={{fontSize:10,padding:'1px 7px',borderRadius:10,background:'var(--bg-accent)',color:'var(--fill-accent)',fontWeight:600}}>{b}</span>
+                    ))}
+                    {(p.start_date||p.end_date)&&<span style={{fontSize:10,color:'var(--text-secondary)',padding:'1px 7px'}}>
+                      {p.start_date?new Date(p.start_date).toLocaleDateString():''}{p.end_date?' → '+new Date(p.end_date).toLocaleDateString():''}
+                    </span>}
+                  </div>
                 </div>
                 <div style={{display:'flex',gap:6,alignItems:'center',flexShrink:0,marginLeft:16}}>
                   <span className={'bx '+st.c} style={{fontSize:10}}>{st.label}</span>
@@ -223,7 +241,7 @@ export default function Loyalty() {
                     <button className="bt" style={{padding:'4px 8px',fontSize:11}} onClick={()=>toggleMut.mutate(p)}>
                       <i className={'ti '+(p.is_active?'ti-eye-off':'ti-eye')}/> {p.is_active?'Pause':'Activate'}
                     </button>
-                    <button className="bt" style={{padding:'4px 8px',fontSize:11}} onClick={()=>{setEditPromo(p);setEditPromoForm({name:p.name,description:p.description||'',discount_type:p.discount_type||'percentage',discount_value:String(p.discount_value||''),min_purchase:String(p.min_purchase||''),start_date:p.start_date?.slice(0,10)||'',end_date:p.end_date?.slice(0,10)||'',is_active:p.is_active,buy_qty:String(p.buy_qty||'1'),get_qty:String(p.get_qty||'1'),get_discount:String(p.get_discount||'100')});}}>
+                    <button className="bt" style={{padding:'4px 8px',fontSize:11}} onClick={()=>{setEditPromo(p);setEditPromoForm({name:p.name,description:p.description||'',discount_type:p.discount_type||'percentage',discount_value:String(p.discount_value||''),min_purchase:String(p.min_purchase||''),start_date:p.start_date?.slice(0,10)||'',end_date:p.end_date?.slice(0,10)||'',is_active:p.is_active,buy_qty:String(p.buy_qty||'1'),get_qty:String(p.get_qty||'1'),get_discount:String(p.get_discount||'100'),branches:p.branches||['All branches']});}}>
                       <i className="ti ti-edit"/> Edit
                     </button>
                     <button className="bt bt-d" style={{padding:'4px 8px',fontSize:11}} onClick={()=>{if(confirm('Delete "'+p.name+'"?'))deleteMut.mutate(p.id);}}>
@@ -271,6 +289,24 @@ export default function Loyalty() {
             </Field>
           </Row2>
           <Field label="Min purchase (SAR)"><Inp type="number" value={editPromoForm.min_purchase} onChange={v=>setEditPromoForm(p=>({...p,min_purchase:v}))} placeholder="0"/></Field>
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:11,fontWeight:600,marginBottom:8}}>Apply to branches</div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+              {BRANCHES.map(b=>{
+                const sel=(editPromoForm.branches||['All branches']).includes(b);
+                const tog=()=>{
+                  if(b==='All branches'){setEditPromoForm(p=>({...p,branches:['All branches']}));return;}
+                  const cur=(editPromoForm.branches||['All branches']).filter((x:string)=>x!=='All branches');
+                  setEditPromoForm(p=>({...p,branches:sel?cur.filter((x:string)=>x!==b):[...cur,b]}));
+                };
+                return <button key={b} type="button" onClick={tog}
+                  style={{padding:'4px 10px',borderRadius:20,border:'1.5px solid '+(sel?'var(--fill-accent)':'var(--border-color)'),
+                    background:sel?'var(--fill-accent)':'transparent',color:sel?'#fff':'var(--text-secondary)',cursor:'pointer',fontSize:11}}>
+                  {b}
+                </button>;
+              })}
+            </div>
+          </div>
           <Row2>
             <Field label="Start date"><Inp type="date" value={editPromoForm.start_date} onChange={v=>setEditPromoForm(p=>({...p,start_date:v}))}/></Field>
             <Field label="End date"><Inp type="date" value={editPromoForm.end_date} onChange={v=>setEditPromoForm(p=>({...p,end_date:v}))}/></Field>
@@ -335,6 +371,24 @@ export default function Loyalty() {
             </div>
           )}
           <Field label="Min purchase (SAR)"><Inp type="number" value={form.min_purchase} onChange={v=>set('min_purchase',v)} placeholder="0 = no minimum"/></Field>
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:11,fontWeight:600,marginBottom:8}}>Apply to branches</div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+              {BRANCHES.map(b=>{
+                const sel=(form.branches||[]).includes(b);
+                const toggle=()=>{
+                  if(b==='All branches'){set('branches',['All branches']);return;}
+                  const cur=(form.branches||[]).filter((x:string)=>x!=='All branches');
+                  set('branches',sel?cur.filter((x:string)=>x!==b):[...cur,b]);
+                };
+                return <button key={b} type="button" onClick={toggle}
+                  style={{padding:'4px 10px',borderRadius:20,border:'1.5px solid '+(sel?'var(--fill-accent)':'var(--border-color)'),
+                    background:sel?'var(--fill-accent)':'transparent',color:sel?'#fff':'var(--text-secondary)',cursor:'pointer',fontSize:11,fontWeight:sel?700:400}}>
+                  {b}
+                </button>;
+              })}
+            </div>
+          </div>
           <Row2>
             <Field label="Start date"><Inp type="date" value={form.start_date} onChange={v=>set('start_date',v)}/></Field>
             <Field label="End date"><Inp type="date" value={form.end_date} onChange={v=>set('end_date',v)}/></Field>
