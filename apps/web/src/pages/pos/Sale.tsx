@@ -88,7 +88,7 @@ export default function POSSale() {
           {discAmt > 0 && ` · Discount: SAR ${discAmt.toFixed(2)}`}{discPct && discAmt>0 && ` (${discPct}%${flatAmt>0?' + SAR '+flatAmt.toFixed(2):''})`}
         </div>
         <div style={{ display:'flex', gap:8 }}>
-          <button className="bt" style={{ flex:1, justifyContent:'center' }}><i className="ti ti-printer" /> Print</button>
+          <button className="bt" style={{ flex:1, justifyContent:'center' }} onClick={()=>window.print()}><i className="ti ti-printer" /> Print</button>
           <button className="bt bt-p" style={{ flex:1, justifyContent:'center' }} onClick={()=>setReceipt(null)}>
             <i className="ti ti-plus" /> New sale
           </button>
