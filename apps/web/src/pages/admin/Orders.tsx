@@ -95,6 +95,14 @@ export default function Orders() {
           </div>
 
           {!detail ? <div className="d-flex justify-content-center py-3"><div className="spinner-border spinner-border-sm"/></div> : (<>
+            {/* Return window */}
+            {(()=>{
+              const days=Math.floor((Date.now()-new Date(detail.created_at).getTime())/(86400000));
+              const canReturn=days<=7;
+              return <div style={{ fontSize:11,padding:'5px 8px',borderRadius:4,marginBottom:8,background:canReturn?'#f0faf0':'#fff5f5',color:canReturn?'#27ae60':'#e74c3c' }}>
+                {canReturn?<><i className="ti ti-refresh" /> Return eligible · {7-days} day{7-days!==1?'s':''} left</>:<><i className="ti ti-lock" /> Return period expired ({days} days ago)</>}
+              </div>;
+            })()}
             <span className={'bx '+(sc[detail.status]||'n')} style={{ marginBottom:10,display:'inline-block',textTransform:'capitalize' }}>{detail.status}</span>
 
             <div style={{ fontSize:11,color:'var(--text-secondary)',marginBottom:10 }}>
