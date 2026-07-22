@@ -219,6 +219,7 @@ export class SalesService {
   }
 
   async getOrder(companyId: string, orderId: string) {
+    try {
     const order = await this.db.query(
       `SELECT o.*, u.name as cashier_name, c.name as customer_name
        FROM sales_orders o
