@@ -366,7 +366,7 @@ export default function POSSale(){
           </div>
         </div>
 
-        <div style={{#__'#fff',borderLeft:'1px solid #e5e7eb',display:'flex',flexDirection:'column',flexShrink:0}}>
+        <div style={{width:400,background:'#fff',borderLeft:'1px solid #e5e7eb',display:'flex',flexDirection:'column',flexShrink:0}}>
           <div style={{padding:'12px 16px',borderBottom:'1px solid #f0f0f0',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
             <span style={{fontWeight:800,fontSize:15}}>Order List</span>
             <div style={{display:'flex',alignItems:'center',gap:8}}>
