@@ -224,7 +224,7 @@ export class SalesService {
        FROM sales_orders o
        JOIN users u ON u.id=o.cashier_id
        LEFT JOIN customers c ON c.id=o.customer_id
-       WHERE o.id=$1 AND o.company_id=$2`,
+       WHERE (o.id=$1 OR o.order_number=$1) AND o.company_id=$2`,
       [orderId, companyId],
     );
     if (!order.rows[0]) throw new NotFoundException('Order not found');

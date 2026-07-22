@@ -26,21 +26,22 @@ export default function POSReturn() {
     queryFn: () => api.get('/sales/orders').then(r => Array.isArray(r.data) ? r.data : []),
   });
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
     const q = search.trim().toLowerCase();
     if (!q) return;
     const found = orders.find((o:any) =>
       (o.order_number||'').toLowerCase().includes(q) ||
       (o.customer_name||'').toLowerCase().includes(q)
     );
-    if (found) {
-      setOrder(found);
+    if (!found) { toast('Order not found', 'error'); return; }
+    try {
+      const res = await api.get('/sales/orders/' + found.id);
+      const full = res.data;
+      setOrder(full);
       const init: Record<string,boolean> = {};
-      (found.lines||[]).forEach((l:any) => { init[l.id] = false; });
+      (full.lines||[]).forEach((l:any) => { init[l.id] = true; });
       setSelected(init);
-    } else {
-      toast('Order not found', 'error');
-    }
+    } catch(e:any) { toast(getErr(e), 'error'); }
   };
 
   const returnMut = useMutation({
