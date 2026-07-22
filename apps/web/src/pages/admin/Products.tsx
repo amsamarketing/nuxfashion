@@ -215,6 +215,11 @@ export default function Products() {
         </div>
         <div className="d-flex gap-2">
           <button className="bt" onClick={()=>exportCSV(products)}><i className="ti ti-download"/> Export</button>
+          <div style={{position:'relative'}}>
+            <i className="ti ti-search" style={{position:'absolute',left:8,top:'50%',transform:'translateY(-50%)',fontSize:13,color:'var(--text-secondary)',pointerEvents:'none'}}/>
+            <input type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, SKU…"
+              style={{padding:'6px 10px 6px 28px',border:'1px solid var(--border-color)',borderRadius:'var(--radius)',fontSize:12,background:'var(--surface-2)',color:'var(--text-primary)',width:200}}/>
+          </div>
           <button className="bt" onClick={()=>fileRef.current?.click()} disabled={importing}>
             {importing?<><div className="spinner-border spinner-border-sm" style={{width:13,height:13}}/> Importing…</>:<><i className="ti ti-upload"/> Import</>}
           </button>
