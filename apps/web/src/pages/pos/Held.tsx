@@ -5,19 +5,25 @@ export default function POSHeld() {
 
   useEffect(() => {
     const load = () => {
+      const TWO_HOURS = 2 * 60 * 60 * 1000;
       const h = JSON.parse(localStorage.getItem('held_orders')||'[]');
-      setHeld(h);
+      const valid = h.filter((o:any) => Date.now() - (o.heldAt||0) < TWO_HOURS);
+      if (valid.length !== h.length) localStorage.setItem('held_orders', JSON.stringify(valid));
+      setHeld(valid);
     };
     load();
+    const interval = setInterval(load, 30000); // re-check every 30s
     window.addEventListener('storage', load);
-    return () => window.removeEventListener('storage', load);
+    return () => { clearInterval(interval); window.removeEventListener('storage', load); };
   }, []);
 
   const resume = (h: any) => {
     localStorage.setItem('resume_cart', JSON.stringify(h));
-    // Navigate to POS sale — trigger custom event
     window.dispatchEvent(new CustomEvent('resume-held', { detail: h }));
-    alert('Cart restored — go to New Sale to continue');
+    // Remove from held list
+    const updated = held.filter(o => o.id !== h.id);
+    localStorage.setItem('held_orders', JSON.stringify(updated));
+    setHeld(updated);
   };
 
   const discard = (id: string) => {
@@ -59,7 +65,10 @@ export default function POSHeld() {
                 </div>
               </div>
             </div>
-            <span className="bx a"><i className="ti ti-clock" /> On hold</span>
+            <span className="bx a"><i className="ti ti-clock" /> {(()=>{
+              const mins=Math.max(0,Math.floor((2*3600000-(Date.now()-(h.heldAt||0)))/60000));
+              return mins>60?`${Math.floor(mins/60)}h ${mins%60}m left`:`${mins}m left`;
+            })()}</span>
           </div>
 
           {/* Items */}
