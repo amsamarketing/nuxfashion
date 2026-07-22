@@ -55,7 +55,7 @@ export default function Purchasing() {
     mutationFn:()=>api.post('/purchasing/orders',{
       supplier_id:form.supplier_id, warehouse_id:form.warehouse_id||warehouses[0]?.id,
       expected_date:form.expected_date||undefined, notes:form.notes||undefined,
-      lines:lines.map(l=>({variant_id:l.variant_id,quantity_ordered:l.quantity_ordered,unit_cost:l.unit_cost}))
+      lines:lines.map(l=>({variant_id:l.variant_id,quantity_ordered:Math.round(l.quantity_ordered),unit_cost:parseFloat(String(l.unit_cost))}))
     }),
     onSuccess:(d:any)=>{ toast('PO '+(d.po_number||'')+ ' created!','success'); qc.invalidateQueries({queryKey:['pos']}); setShowCreate(false); setForm({supplier_id:'',warehouse_id:'',expected_date:'',notes:''}); setLines([]); },
     onError:e=>toast(getErr(e),'error')
