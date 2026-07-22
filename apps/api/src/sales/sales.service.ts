@@ -325,12 +325,14 @@ export class SalesService {
       }
     }
 
+    const origOrder = order.rows[0];
+    const isFullReturn = totalRefund >= parseFloat(origOrder.total) * 0.99;
     await this.db.query(
-      `UPDATE sales_orders SET status='refunded', updated_at=NOW() WHERE id=$1`,
-      [dto.original_order_id],
+      `UPDATE sales_orders SET status=$1, updated_at=NOW() WHERE id=$2`,
+      [isFullReturn ? 'refunded' : 'partial_return', dto.original_order_id],
     );
 
-    return ret.rows[0];
+    return { ...ret.rows[0], is_full_return: isFullReturn };
     } catch(e:any) { throw new InternalServerErrorException('createReturn: '+(e?.message||e)); }
   }
 
