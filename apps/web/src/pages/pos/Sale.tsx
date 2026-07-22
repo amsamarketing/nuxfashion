@@ -456,6 +456,68 @@ export default function POSSale(){
           </div>
         )}
 
+        {/* Coupon / Gift Card / Wallet */}
+        {cart.length>0&&(
+          <div style={{padding:'10px 16px',borderTop:'1px solid #f1f5f9',background:'#fafbfc',display:'flex',flexDirection:'column',gap:8}}>
+            {/* Coupon */}
+            {appliedCoupon?(
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 12px',background:'#f0fdf4',border:'1.5px solid #86efac',borderRadius:12}}>
+                <div><div style={{fontWeight:700,color:'#15803d',fontSize:12}}><i className="ti ti-ticket" style={{marginRight:5}}/>{appliedCoupon.code}</div><div style={{fontSize:11,color:'#16a34a'}}>{appliedCoupon.type==='percentage'?appliedCoupon.value+'%':'SAR '+appliedCoupon.value} off</div></div>
+                <button onClick={()=>setAppliedCoupon(null)} style={{width:24,height:24,borderRadius:'50%',border:'none',background:'#fca5a5',color:'#991b1b',cursor:'pointer',fontWeight:700,fontSize:13}}>×</button>
+              </div>
+            ):(
+              <div style={{display:'flex',gap:6}}>
+                <div style={{flex:1,display:'flex',alignItems:'center',gap:6,padding:'7px 10px',background:'#fff',border:'1.5px solid #e2e8f0',borderRadius:10}}>
+                  <i className="ti ti-ticket" style={{fontSize:14,color:'#9ca3af'}}/>
+                  <input value={couponInput} onChange={e=>setCouponInput(e.target.value.toUpperCase())} placeholder="Coupon code…" onKeyDown={e=>e.key==='Enter'&&applyCoupon()}
+                    style={{border:'none',outline:'none',flex:1,fontSize:12,fontFamily:'monospace',fontWeight:700,letterSpacing:1,background:'transparent'}}/>
+                </div>
+                <button onClick={applyCoupon} disabled={!couponInput} style={{padding:'7px 14px',borderRadius:10,background:'#6366f1',color:'#fff',border:'none',cursor:'pointer',fontSize:12,fontWeight:700,opacity:couponInput?1:.4}}>Apply</button>
+              </div>
+            )}
+            {/* Gift card */}
+            {appliedGC?(
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 12px',background:'#f0fdf4',border:'1.5px solid #86efac',borderRadius:12}}>
+                <div><div style={{fontWeight:700,color:'#15803d',fontSize:12}}><i className="ti ti-gift" style={{marginRight:5}}/>{appliedGC.code}</div><div style={{fontSize:11,color:'#16a34a'}}>SAR {gcUsed.toFixed(2)} applied</div></div>
+                <button onClick={()=>setAppliedGC(null)} style={{width:24,height:24,borderRadius:'50%',border:'none',background:'#fca5a5',color:'#991b1b',cursor:'pointer',fontWeight:700,fontSize:13}}>×</button>
+              </div>
+            ):(
+              <div style={{display:'flex',gap:6}}>
+                <div style={{flex:1,display:'flex',alignItems:'center',gap:6,padding:'7px 10px',background:'#fff',border:'1.5px solid #e2e8f0',borderRadius:10}}>
+                  <i className="ti ti-gift" style={{fontSize:14,color:'#9ca3af'}}/>
+                  <input value={gcInput} onChange={e=>setGcInput(e.target.value.toUpperCase())} placeholder="Gift card code…" onKeyDown={e=>e.key==='Enter'&&applyGC()}
+                    style={{border:'none',outline:'none',flex:1,fontSize:12,fontFamily:'monospace',fontWeight:700,letterSpacing:1,background:'transparent'}}/>
+                </div>
+                <button onClick={applyGC} disabled={!gcInput} style={{padding:'7px 14px',borderRadius:10,background:'#6366f1',color:'#fff',border:'none',cursor:'pointer',fontSize:12,fontWeight:700,opacity:gcInput?1:.4}}>Apply</button>
+              </div>
+            )}
+            {/* Wallet + Points toggles */}
+            {customer&&(walletBal>0||custPoints>=10)&&(
+              <div style={{display:'flex',gap:6}}>
+                {walletBal>0&&(
+                  <label style={{flex:1,display:'flex',alignItems:'center',gap:8,padding:'8px 10px',border:`1.5px solid ${useWallet?'#86efac':'#e2e8f0'}`,borderRadius:10,cursor:'pointer',background:useWallet?'#f0fdf4':'#fff',transition:'all .15s'}}>
+                    <input type="checkbox" checked={useWallet} onChange={e=>setUseWallet(e.target.checked)} style={{width:15,height:15,accentColor:'#10b981'}}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:11,fontWeight:700,color:'#374151'}}>Wallet</div>
+                      <div style={{fontSize:10,color:'#9ca3af'}}>SAR {walletBal.toFixed(2)}</div>
+                    </div>
+                    {useWallet&&<span style={{fontSize:11,fontWeight:800,color:'#15803d',whiteSpace:'nowrap'}}>−{walletUsed.toFixed(2)}</span>}
+                  </label>
+                )}
+                {custPoints>=10&&(
+                  <label style={{flex:1,display:'flex',alignItems:'center',gap:8,padding:'8px 10px',border:`1.5px solid ${redeemPts?'#fde68a':'#e2e8f0'}`,borderRadius:10,cursor:'pointer',background:redeemPts?'#fffbf0':'#fff',transition:'all .15s'}}>
+                    <input type="checkbox" checked={redeemPts} onChange={e=>setRedeemPts(e.target.checked)} style={{width:15,height:15,accentColor:'#f59e0b'}}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:11,fontWeight:700,color:'#374151'}}>Points</div>
+                      <div style={{fontSize:10,color:'#9ca3af'}}>{custPoints.toLocaleString()} pts</div>
+                    </div>
+                    {redeemPts&&<span style={{fontSize:11,fontWeight:800,color:'#92400e',whiteSpace:'nowrap'}}>−{ptsVal.toFixed(2)}</span>}
+                  </label>
+                )}
+              </div>
+            )}
+          </div>
+        )}
         {/* Payment summary */}
         <div style={{padding:'12px 16px',borderTop:'2px solid #f1f5f9',background:'#fff'}}>
           <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:12}}>
