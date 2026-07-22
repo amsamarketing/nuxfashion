@@ -171,7 +171,7 @@ export default function Orders() {
                 const discAmt=parseFloat(detail.discount_amount||0);
                 const rows=[['Customer',detail.customer_name||'Walk-in'],['Subtotal','SAR '+parseFloat(detail.subtotal||0).toFixed(2)],...(discAmt>0?[['Discount','−SAR '+discAmt.toFixed(2)]]:[ ]),['VAT 15%','SAR '+vatAmt.toFixed(2)],['Original total','SAR '+parseFloat(detail.total||0).toFixed(2)],...(totalReturned>0?[['Returned','−SAR '+totalReturned.toFixed(2)],['NET TOTAL','SAR '+netTotal.toFixed(2)]]:[ ['TOTAL','SAR '+parseFloat(detail.total||0).toFixed(2)] ])];
                 return rows;
-              })().map(([l,v],i,arr)=>(
+              })().map(([l,v],i)=>(
                 <div key={l} style={{ display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:'0.5px solid var(--border)',fontSize:12,fontWeight:i===4?700:400 }}>
                   <span style={{ color:'var(--text-secondary)' }}>{l}</span>
                   <span style={{ color:i===4?'var(--fill-accent)':'' }}>{v}</span>
