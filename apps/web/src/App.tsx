@@ -57,8 +57,10 @@ function App() {
   const [mode, setMode] = useState<'pos' | 'admin'>('pos');
   useEffect(() => {
     const handler = () => { setMode('pos'); setScreen('pos-sale'); };
+    const navHandler = (e: any) => { setMode('admin'); setScreen(e.detail); };
     window.addEventListener('resume-held', handler);
-    return () => window.removeEventListener('resume-held', handler);
+    window.addEventListener('nav', navHandler);
+    return () => { window.removeEventListener('resume-held', handler); window.removeEventListener('nav', navHandler); };
   }, []);
   const [screen, setScreen] = useState('pos-sale');
 

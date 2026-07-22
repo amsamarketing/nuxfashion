@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
 import { useState, useMemo } from 'react';
 import api from '../../lib/api';
 
@@ -79,7 +78,6 @@ function DonutChart({slices,size=80}:{slices:{value:number;color:string;label:st
 }
 
 export default function Dashboard(){
-  const navigate = useNavigate();
   const [svsPeriod,setSvsPeriod]=useState('month');
   const [orderPeriod,setOrderPeriod]=useState('week');
   const [topProdPeriod,setTopProdPeriod]=useState('month');
@@ -204,7 +202,7 @@ export default function Dashboard(){
             <div style={{fontSize:22,fontWeight:900,color:'#fff',marginBottom:4}}>{c.value}</div>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <span style={{fontSize:11,color:'rgba(255,255,255,.7)'}}>{c.count} transactions</span>
-              <button onClick={()=>navigate('/orders')} style={{fontSize:10,fontWeight:700,color:'#fff',background:'rgba(255,255,255,.25)',border:'none',borderRadius:8,padding:'3px 10px',cursor:'pointer'}}>View All →</button>
+              <button onClick={()=>window.dispatchEvent(new CustomEvent('nav',{detail:'ad-orders'}))} style={{fontSize:10,fontWeight:700,color:'#fff',background:'rgba(255,255,255,.25)',border:'none',borderRadius:8,padding:'3px 10px',cursor:'pointer'}}>View All →</button>
             </div>
           </div>
         ))}
@@ -322,7 +320,7 @@ export default function Dashboard(){
       {/* Low Stock + Recent Sales */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
         <Card>
-          <CardHeader title="Low Stock Products" sub="Variants with ≤5 units" right={<button onClick={()=>navigate('/inventory')} style={{fontSize:11,fontWeight:700,color:'#6366f1',background:'#f0f4ff',border:'none',borderRadius:8,padding:'4px 12px',cursor:'pointer'}}>View All →</button>}/>
+          <CardHeader title="Low Stock Products" sub="Variants with ≤5 units" right={<button onClick={()=>window.dispatchEvent(new CustomEvent('nav',{detail:'ad-inv'}))} style={{fontSize:11,fontWeight:700,color:'#6366f1',background:'#f0f4ff',border:'none',borderRadius:8,padding:'4px 12px',cursor:'pointer'}}>View All →</button>}/>
           {lowStockItems.length>0?lowStockItems.map((v:any,i:number)=>(
             <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:i%2?'#fafbfc':'#fff',borderRadius:10,marginBottom:4}}>
               <div style={{width:8,height:8,borderRadius:'50%',background:parseFloat(v.stock_quantity)<=0?'#ef4444':'#f59e0b',flexShrink:0}}/>
@@ -448,7 +446,7 @@ export default function Dashboard(){
       {/* Top Customers + Categories */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
         <Card>
-          <CardHeader title="Top Customers" sub="By lifetime spend" right={<button onClick={()=>navigate('/customers')} style={{fontSize:11,fontWeight:700,color:'#6366f1',background:'#f0f4ff',border:'none',borderRadius:8,padding:'4px 12px',cursor:'pointer'}}>View All →</button>}/>
+          <CardHeader title="Top Customers" sub="By lifetime spend" right={<button onClick={()=>window.dispatchEvent(new CustomEvent('nav',{detail:'ad-crm'}))} style={{fontSize:11,fontWeight:700,color:'#6366f1',background:'#f0f4ff',border:'none',borderRadius:8,padding:'4px 12px',cursor:'pointer'}}>View All →</button>}/>
           {topCustomers.filter((c:any)=>c.spend>0).length>0?topCustomers.filter((c:any)=>c.spend>0).map((c:any,i:number)=>(
             <div key={c.id} style={{display:'flex',alignItems:'center',gap:12,padding:'9px 0',borderBottom:i<5?'1px solid #f8fafc':'none'}}>
               <div style={{width:36,height:36,borderRadius:10,background:['linear-gradient(135deg,#f59e0b,#ef4444)','linear-gradient(135deg,#94a3b8,#64748b)','linear-gradient(135deg,#cd7f32,#b45309)','linear-gradient(135deg,#6366f1,#8b5cf6)','linear-gradient(135deg,#10b981,#06b6d4)','linear-gradient(135deg,#ec4899,#f43f5e)'][i],display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:800,color:'#fff',flexShrink:0}}>
