@@ -215,7 +215,7 @@ export default function Loyalty() {
                     <button className="bt" style={{padding:'4px 8px',fontSize:11}} onClick={()=>toggleMut.mutate(p)}>
                       <i className={'ti '+(p.is_active?'ti-eye-off':'ti-eye')}/> {p.is_active?'Pause':'Activate'}
                     </button>
-                    <button className="bt" style={{padding:'4px 8px',fontSize:11}} onClick={()=>{setEditPromo(p);setEditPromoForm({name:p.name,description:p.description||'',discount_type:p.discount_type||'percentage',discount_value:String(p.discount_value||''),min_purchase:String(p.min_purchase||''),start_date:p.start_date?.slice(0,10)||'',end_date:p.end_date?.slice(0,10)||'',is_active:p.is_active});}}>
+                    <button className="bt" style={{padding:'4px 8px',fontSize:11}} onClick={()=>{setEditPromo(p);setEditPromoForm({name:p.name,description:p.description||'',discount_type:p.discount_type||'percentage',discount_value:String(p.discount_value||''),min_purchase:String(p.min_purchase||''),start_date:p.start_date?.slice(0,10)||'',end_date:p.end_date?.slice(0,10)||'',is_active:p.is_active,buy_qty:String(p.buy_qty||'1'),get_qty:String(p.get_qty||'1'),get_discount:String(p.get_discount||'100')});}}>
                       <i className="ti ti-edit"/> Edit
                     </button>
                     <button className="bt bt-d" style={{padding:'4px 8px',fontSize:11}} onClick={()=>{if(confirm('Delete "'+p.name+'"?'))deleteMut.mutate(p.id);}}>
