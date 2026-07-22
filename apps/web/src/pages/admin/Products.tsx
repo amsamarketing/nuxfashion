@@ -210,31 +210,45 @@ export default function Products() {
     <div>
       <div className="d-flex align-items-center justify-content-between mb-3">
         <div>
-          <div style={{fontSize:14,fontWeight:700}}>Products</div>
-          <div style={{fontSize:11,color:'var(--text-secondary)'}}>{products.length} products</div>
+          <div style={{fontSize:14,fontWeight:700}}>Product catalog</div>
+          <div style={{fontSize:11,color:'var(--text-secondary)'}}>{products.length} products &nbsp;·&nbsp; {categories.length} categories &nbsp;·&nbsp; {brands.length} brands</div>
         </div>
         <div className="d-flex gap-2">
-          <button className="bt" onClick={()=>exportCSV(products)}><i className="ti ti-download"/> Export CSV</button>
+          <button className="bt" onClick={()=>exportCSV(products)}><i className="ti ti-download"/> Export</button>
           <button className="bt" onClick={()=>fileRef.current?.click()} disabled={importing}>
-            {importing?<><div className="spinner-border spinner-border-sm" style={{width:13,height:13}}/> Importing…</>:<><i className="ti ti-upload"/> Import CSV</>}
+            {importing?<><div className="spinner-border spinner-border-sm" style={{width:13,height:13}}/> Importing…</>:<><i className="ti ti-upload"/> Import</>}
           </button>
           <input ref={fileRef} type="file" accept=".csv" style={{display:'none'}} onChange={handleCSV}/>
           <button className="bt bt-p" onClick={()=>{setForm({...EMPTY});setShowAdd(true);setShowVariants(false);}}><i className="ti ti-plus"/> Add product</button>
         </div>
       </div>
 
-      <div className="d-flex gap-2 mb-3 align-items-center flex-wrap">
-        <input type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, SKU…"
-          style={{width:220,padding:'6px 10px',border:'1px solid var(--border-color)',borderRadius:'var(--radius)',fontSize:12}}/>
-        <select value={catFilter} onChange={e=>setCatFilter(e.target.value)}
-          style={{padding:'6px 10px',border:'1px solid var(--border-color)',borderRadius:'var(--radius)',fontSize:12,background:'var(--surface-2)',color:'var(--text-primary)'}}>
-          <option value="">All categories</option>
-          {categories.map((c:any)=><option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-        {['all','active','inactive'].map(v=>(
-          <button key={v} className={'snb'+(statusFilter===v?' on':'')} onClick={()=>setStatusFilter(v)} style={{textTransform:'capitalize'}}>{v==='all'?'All status':v}</button>
-        ))}
-        <span style={{marginLeft:'auto',fontSize:11,color:'var(--text-secondary)'}}>{filtered.length} of {products.length}</span>
+      {/* Category pill tabs */}
+      <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10,alignItems:'center'}}>
+        <button onClick={()=>setCatFilter('')}
+          style={{padding:'5px 14px',borderRadius:20,border:'1.5px solid '+(catFilter===''?'var(--fill-accent)':'var(--border-color)'),
+            background:catFilter===''?'var(--fill-accent)':'transparent',
+            color:catFilter===''?'#fff':'var(--text-secondary)',cursor:'pointer',fontSize:12,fontWeight:catFilter===''?700:400}}>
+          All
+        </button>
+        {(categories as any[]).map((cat:any)=>{
+          const cnt=(products as any[]).filter((p:any)=>p.category_id===cat.id).length;
+          const on=catFilter===cat.id;
+          return (
+            <button key={cat.id} onClick={()=>setCatFilter(on?'':cat.id)}
+              style={{padding:'5px 14px',borderRadius:20,border:'1.5px solid '+(on?'var(--fill-accent)':'var(--border-color)'),
+                background:on?'var(--fill-accent)':'transparent',
+                color:on?'#fff':'var(--text-secondary)',cursor:'pointer',fontSize:12,fontWeight:on?700:400}}>
+              {cat.name}{cnt>0?` (${cnt})`:''}
+            </button>
+          );
+        })}
+        <div style={{marginLeft:'auto',display:'flex',gap:6,alignItems:'center'}}>
+          {['all','active','inactive'].map(v=>{
+            const cnt=v==='all'?(products as any[]).length:v==='active'?(products as any[]).filter((p:any)=>p.is_active).length:(products as any[]).filter((p:any)=>!p.is_active).length;
+            return <button key={v} className={'snb'+(statusFilter===v?' on':'')} onClick={()=>setStatusFilter(v)} style={{fontSize:11,textTransform:'capitalize'}}>{v==='all'?'All':v} ({cnt})</button>;
+          })}
+        </div>
       </div>
 
       {isLoading?<div className="d-flex justify-content-center py-5"><div className="spinner-border text-primary"/></div>:(
