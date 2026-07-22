@@ -58,8 +58,7 @@ export default function POSSale() {
       const order = await api.post('/sales/orders', body);
       await api.post('/sales/payments', {
         order_id: order.data.id,
-        method: method.toLowerCase().replace(/ /g,'_'),
-        amount: total
+        payments: [{ method: method.toLowerCase().replace(/ /g,'_'), amount: total }]
       });
       return order.data;
     },
