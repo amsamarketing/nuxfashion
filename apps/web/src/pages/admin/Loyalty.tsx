@@ -11,7 +11,7 @@ const TIERS = [
   { name:'Platinum', range:'20,000+ pts', desc:'1 pt per SAR 2 + free delivery + VIP', min:20000, max:Infinity },
 ];
 
-const PROMO_EMPTY = { name:'', description:'', discount_type:'percentage', discount_value:'', min_purchase:'', start_date:'', end_date:'', is_active:true };
+const PROMO_EMPTY = { name:'', description:'', discount_type:'percentage', discount_value:'', min_purchase:'', start_date:'', end_date:'', is_active:true, buy_qty:'1', get_qty:'1', get_discount:'100' };
 
 const TABS = ['Loyalty tiers','Promotions','Coupons','Gift cards','Memberships','Customer wallet'];
 
@@ -256,18 +256,50 @@ export default function Loyalty() {
         <Modal title="New promotion" onClose={()=>{setShowAdd(false);setForm({...PROMO_EMPTY});}} width={520}>
           <Field label="Promotion name" required><Inp value={form.name} onChange={v=>set('name',v)} placeholder="e.g. Summer Sale 20%"/></Field>
           <Field label="Description"><Inp value={form.description} onChange={v=>set('description',v)} placeholder="e.g. All categories · All branches"/></Field>
-          <Row2>
-            <Field label="Discount type">
-              <Sel value={form.discount_type} onChange={v=>set('discount_type',v)}>
-                <option value="percentage">Percentage (%)</option>
-                <option value="fixed">Fixed amount (SAR)</option>
-                <option value="bogo">Buy X Get Y</option>
-              </Sel>
-            </Field>
-            <Field label={form.discount_type==='percentage'?'Discount %':'Discount SAR'} required>
+          <Field label="Discount type">
+            <Sel value={form.discount_type} onChange={v=>set('discount_type',v)}>
+              <option value="percentage">Percentage (%) off</option>
+              <option value="fixed">Fixed amount (SAR) off</option>
+              <option value="bogo">Buy X Get Y free/discounted</option>
+            </Sel>
+          </Field>
+          {form.discount_type!=='bogo'?(
+            <Field label={form.discount_type==='percentage'?'Discount %':'Discount amount (SAR)'} required>
               <Inp type="number" value={form.discount_value} onChange={v=>set('discount_value',v)} placeholder={form.discount_type==='percentage'?'20':'50'}/>
             </Field>
-          </Row2>
+          ):(
+            <div style={{background:'var(--surface-1)',border:'1px solid var(--border-color)',borderRadius:'var(--radius)',padding:14,marginBottom:14}}>
+              <div style={{fontSize:11,fontWeight:600,color:'var(--text-secondary)',marginBottom:10}}>BOGO CONFIGURATION</div>
+              <Row2>
+                <Field label="Customer buys (qty)" required>
+                  <Sel value={form.buy_qty} onChange={v=>set('buy_qty',v)}>
+                    {['1','2','3','4','5'].map(n=><option key={n} value={n}>Buy {n}</option>)}
+                  </Sel>
+                </Field>
+                <Field label="Customer gets (qty)" required>
+                  <Sel value={form.get_qty} onChange={v=>set('get_qty',v)}>
+                    {['1','2','3','4','5'].map(n=><option key={n} value={n}>Get {n}</option>)}
+                  </Sel>
+                </Field>
+              </Row2>
+              <Field label="Get item discount">
+                <Sel value={form.get_discount} onChange={v=>set('get_discount',v)}>
+                  <option value="100">Free (100% off)</option>
+                  <option value="50">50% off</option>
+                  <option value="25">25% off</option>
+                  <option value="custom">Custom %</option>
+                </Sel>
+              </Field>
+              {form.get_discount==='custom'&&(
+                <Field label="Custom discount %" required>
+                  <Inp type="number" value={form.discount_value} onChange={v=>set('discount_value',v)} placeholder="e.g. 30"/>
+                </Field>
+              )}
+              <div style={{marginTop:8,padding:'8px 12px',background:'var(--bg-accent)',borderRadius:'var(--radius)',fontSize:12,color:'var(--fill-accent)',fontWeight:600}}>
+                Buy {form.buy_qty} get {form.get_qty} {form.get_discount==='100'?'free':form.get_discount==='custom'?form.discount_value+'% off':form.get_discount+'% off'}
+              </div>
+            </div>
+          )}
           <Field label="Min purchase (SAR)"><Inp type="number" value={form.min_purchase} onChange={v=>set('min_purchase',v)} placeholder="0 = no minimum"/></Field>
           <Row2>
             <Field label="Start date"><Inp type="date" value={form.start_date} onChange={v=>set('start_date',v)}/></Field>
@@ -279,7 +311,7 @@ export default function Loyalty() {
           </div>
           <div className="d-flex gap-2 justify-content-end">
             <button className="bt" onClick={()=>{setShowAdd(false);setForm({...PROMO_EMPTY});}}>Cancel</button>
-            <SaveBtn label="Create promotion" loading={addMut.isPending} disabled={!form.name||!form.discount_value} onClick={()=>addMut.mutate()}/>
+            <SaveBtn label="Create promotion" loading={addMut.isPending} disabled={!form.name||(form.discount_type!=='bogo'&&!form.discount_value)} onClick={()=>addMut.mutate()}/>
           </div>
         </Modal>
       )}
