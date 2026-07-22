@@ -366,7 +366,7 @@ export default function POSSale(){
           </div>
         </div>
 
-        <div style={{width:320,background:'#fff',borderLeft:'1px solid #e5e7eb',display:'flex',flexDirection:'column',flexShrink:0}}>
+        <div style={{#__'#fff',borderLeft:'1px solid #e5e7eb',display:'flex',flexDirection:'column',flexShrink:0}}>
           <div style={{padding:'12px 16px',borderBottom:'1px solid #f0f0f0',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
             <span style={{fontWeight:800,fontSize:15}}>Order List</span>
             <div style={{display:'flex',alignItems:'center',gap:8}}>
@@ -411,8 +411,8 @@ export default function POSSale(){
               <div key={r[0]} style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:4,color:r[2]||'#666'}}><span>{r[0]}</span><span style={{fontWeight:r[2]?700:400}}>{r[1]}</span></div>
             ))}
             <div style={{borderTop:'2px dashed #e5e7eb',paddingTop:10,marginTop:6,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <span style={{fontWeight:800,fontSize:14}}>Total Due</span>
-              <span style={{fontWeight:900,fontSize:22,color:'#6366f1'}}>SAR {cashDue.toFixed(2)}</span>
+              <span style={{fontWeight:800,fontSize:16}}>Total Due</span>
+              <span style={{fontWeight:900,fontSize:28,color:'#6366f1'}}>SAR {cashDue.toFixed(2)}</span>
             </div>
             {ptsEarned>0&&cart.length>0&&<div style={{fontSize:10,color:'#f59e0b',textAlign:'right',marginTop:2,fontWeight:600}}>+{ptsEarned} pts will be earned</div>}
           </div>

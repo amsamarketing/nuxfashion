@@ -105,19 +105,23 @@ function App() {
       <div className="app-body">
 
         {/* ── Sidebar ───────────────────────────────── */}
-        <div className="app-sidebar">
+        <div className="app-sidebar" style={mode==='pos'?{width:'64px',minWidth:'64px',padding:'8px 4px',alignItems:'center'}:{}}>
           {mode === 'pos' ? (
             <>
-              <div className="sep">POS TERMINAL</div>
               {POS_NAV.map(n => (
-                <div key={n.id} className={`ni ${screen === n.id ? 'on' : ''}`} onClick={() => setScreen(n.id)}>
-                  <i className={`ti ${n.i}`} /> {n.l}
+                <div key={n.id} title={n.l} onClick={() => setScreen(n.id)}
+                  style={{width:48,height:48,borderRadius:12,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',cursor:'pointer',background:screen===n.id?'var(--fill-accent)':'transparent',color:screen===n.id?'#fff':'var(--text-secondary)',marginBottom:4,gap:3,fontSize:9,fontWeight:600,border:'none',transition:'all .15s'}}>
+                  <i className={`ti ${n.i}`} style={{fontSize:18}}/>
+                  <span style={{fontSize:8,lineHeight:1,textAlign:'center',maxWidth:52,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{n.l.replace('New sale','Sale').replace('Held orders','Hold').replace('Z-report','Z-Rep')}</span>
                 </div>
               ))}
-              <div className="sep" style={{ marginTop: 'auto' }}>QUICK ACTIONS</div>
-              <div className="ni" onClick={()=>setScreen('ad-crm')}><i className="ti ti-user-plus" /> Add customer</div>
-              <div className="ni" onClick={()=>alert('Gift card feature coming soon')}><i className="ti ti-gift" /> Gift card</div>
-              <div className="ni" onClick={()=>setScreen('pos-sale')}><i className="ti ti-percentage" /> Discount</div>
+              <div style={{marginTop:'auto',display:'flex',flexDirection:'column',gap:4}}>
+                {[{icon:'ti-user-plus',label:'Add Cust',action:()=>setScreen('ad-crm')},{icon:'ti-gift',label:'Gift Card',action:()=>{}},{icon:'ti-percentage',label:'Discount',action:()=>setScreen('pos-sale')}].map(a=>(
+                  <div key={a.label} title={a.label} onClick={a.action} style={{width:48,height:48,borderRadius:12,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'var(--text-secondary)',gap:3,fontSize:8,fontWeight:600}}>
+                    <i className={`ti ${a.icon}`} style={{fontSize:16}}/><span>{a.label}</span>
+                  </div>
+                ))}
+              </div>
             </>
           ) : (
             <>
