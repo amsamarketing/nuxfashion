@@ -63,7 +63,6 @@ export default function Loyalty() {
         toast('Promotion updated!','success'); setEditPromo(null);
       } else toast('Failed to update','error');
     },
-    onError:()=>toast('Failed to update','error'),
   });
   const toggleMut = useMutation({
     mutationFn:(p:any)=>api.patch('/promotions/'+p.id,{is_active:!p.is_active}),
