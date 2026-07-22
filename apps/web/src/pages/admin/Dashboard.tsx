@@ -1,46 +1,60 @@
+#!/bin/bash
+cat > src/pages/admin/Dashboard.tsx << 'DASHEOF'
 import { useQuery } from '@tanstack/react-query';
+import { useState, useMemo } from 'react';
 import api from '../../lib/api';
 
-const today      = new Date().toISOString().split('T')[0];
-const yesterday  = new Date(Date.now()-86400000).toISOString().split('T')[0];
-const monthStart = today.slice(0,7)+'-01';
-const yearStart  = today.slice(0,4)+'-01-01';
-
+const today     = new Date().toISOString().split('T')[0];
+const yearStart = today.slice(0,4)+'-01-01';
 const sar  = (n:any)=>'SAR '+parseFloat(n||0).toLocaleString('en-SA',{minimumFractionDigits:2,maximumFractionDigits:2});
-const pct  = (a:number,b:number)=>b>0?((a-b)/b*100).toFixed(1):'0';
-const sarK = (n:any)=>{const v=parseFloat(n||0);return v>=1000?'SAR '+(v/1000).toFixed(1)+'K':'SAR '+v.toFixed(0);};
+const sarK = (n:any)=>{const v=parseFloat(n||0);return v>=1000000?'SAR '+(v/1000000).toFixed(1)+'M':v>=1000?'SAR '+(v/1000).toFixed(1)+'K':'SAR '+v.toFixed(0);};
 const CAT_COLORS=['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#84cc16'];
+const PERIOD_OPTS=[{k:'day',l:'Day'},{k:'week',l:'Week'},{k:'month',l:'Month'},{k:'3m',l:'3M'},{k:'6m',l:'6M'},{k:'1y',l:'1Y'}];
 
-function Trend({val,suffix='%'}:{val:string|number;suffix?:string}){
-  const v=parseFloat(String(val));
-  if(isNaN(v)||v===0) return <span style={{fontSize:11,color:'#9ca3af'}}>—</span>;
-  return <span style={{fontSize:11,fontWeight:700,color:v>0?'#10b981':'#ef4444'}}>{v>0?'▲':'▼'} {Math.abs(v).toFixed(1)}{suffix}</span>;
+function dateFrom(k:string):string{
+  const d=new Date();
+  if(k==='day')  return d.toISOString().split('T')[0];
+  if(k==='week') return new Date(d.getTime()-6*864e5).toISOString().split('T')[0];
+  if(k==='month')return d.toISOString().slice(0,7)+'-01';
+  if(k==='3m')   return new Date(d.getFullYear(),d.getMonth()-3,1).toISOString().split('T')[0];
+  if(k==='6m')   return new Date(d.getFullYear(),d.getMonth()-6,1).toISOString().split('T')[0];
+  return d.toISOString().slice(0,4)+'-01-01';
 }
 
-function KPICard({label,value,sub,trend,icon,gradient,iconBg}:{label:string;value:string|number;sub?:string;trend?:number;icon:string;gradient?:string;iconBg?:string}){
+function PeriodToggle({value,onChange}:{value:string;onChange:(k:string)=>void}){
   return(
-    <div style={{background:gradient||'#fff',borderRadius:16,padding:'16px 18px',boxShadow:'0 1px 4px rgba(0,0,0,.06)',border:'1px solid #f1f5f9',position:'relative',overflow:'hidden'}}>
-      <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:10}}>
-        <span style={{fontSize:11,fontWeight:600,color:gradient?'rgba(255,255,255,.8)':'#64748b',letterSpacing:.3}}>{label.toUpperCase()}</span>
-        <div style={{width:34,height:34,borderRadius:10,background:iconBg||(gradient?'rgba(255,255,255,.2)':'#f0f4ff'),display:'flex',alignItems:'center',justifyContent:'center'}}>
-          <i className={'ti '+icon} style={{fontSize:17,color:gradient?'#fff':'#6366f1'}}/>
-        </div>
-      </div>
-      <div style={{fontSize:24,fontWeight:900,color:gradient?'#fff':'#1e293b',lineHeight:1,marginBottom:6}}>{value}</div>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-        {sub&&<div style={{fontSize:11,color:gradient?'rgba(255,255,255,.7)':'#94a3b8'}}>{sub}</div>}
-        {trend!==undefined&&<Trend val={trend}/>}
-      </div>
+    <div style={{display:'flex',gap:2,background:'#f1f5f9',borderRadius:10,padding:3}}>
+      {PERIOD_OPTS.map(o=>(
+        <button key={o.k} onClick={()=>onChange(o.k)} style={{padding:'4px 10px',borderRadius:8,border:'none',cursor:'pointer',fontSize:11,fontWeight:700,background:value===o.k?'#6366f1':'transparent',color:value===o.k?'#fff':'#64748b',transition:'all .15s'}}>
+          {o.l}
+        </button>
+      ))}
     </div>
   );
 }
 
-function MiniBar({data,color='#6366f1'}:{data:number[];color?:string}){
-  const max=Math.max(...data,1);
+function Card({children,style={}}:{children:React.ReactNode;style?:React.CSSProperties}){
+  return <div style={{background:'#fff',borderRadius:16,padding:'18px 20px',boxShadow:'0 1px 4px rgba(0,0,0,.06)',border:'1px solid #f1f5f9',...style}}>{children}</div>;
+}
+
+function CardHeader({title,sub,right}:{title:string;sub?:string;right?:React.ReactNode}){
   return(
-    <div style={{display:'flex',alignItems:'flex-end',gap:2,height:32}}>
-      {data.map((v,i)=>(
-        <div key={i} style={{flex:1,background:i===data.length-1?color:color+'44',borderRadius:'2px 2px 0 0',height:`${Math.max(v/max*100,4)}%`}}/>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14}}>
+      <div><div style={{fontWeight:700,fontSize:14,color:'#1e293b'}}>{title}</div>{sub&&<div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{sub}</div>}</div>
+      {right}
+    </div>
+  );
+}
+
+function BarChart({data,color='#6366f1',height=90,labelKey='period',valueKey='revenue'}:{data:any[];color?:string;height?:number;labelKey?:string;valueKey?:string}){
+  const max=Math.max(...data.map((r:any)=>parseFloat(r[valueKey]||0)),1);
+  if(!data.length) return <div style={{height,display:'flex',alignItems:'center',justifyContent:'center',color:'#cbd5e1',fontSize:12}}>No data</div>;
+  return(
+    <div style={{display:'flex',alignItems:'flex-end',gap:3,height}}>
+      {data.map((r:any,i:number)=>(
+        <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2}} title={`${r[labelKey]}: ${sar(r[valueKey])}`}>
+          <div style={{width:'100%',borderRadius:'3px 3px 0 0',background:i===data.length-1?color:color+'55',minHeight:3,height:`${Math.max(parseFloat(r[valueKey]||0)/max*100,2)}%`}}/>
+        </div>
       ))}
     </div>
   );
@@ -48,17 +62,14 @@ function MiniBar({data,color='#6366f1'}:{data:number[];color?:string}){
 
 function DonutChart({slices,size=80}:{slices:{value:number;color:string;label:string}[];size?:number}){
   const total=slices.reduce((s,x)=>s+x.value,0)||1;
-  let angle=-90;
-  const r=size/2-8;const cx=size/2;const cy=size/2;
+  let angle=-90;const r=size/2-8;const cx=size/2;const cy=size/2;
   const paths=slices.map(s=>{
-    const pct=s.value/total;const deg=pct*360;
+    const deg=s.value/total*360;
     const r1=angle*(Math.PI/180);const r2=(angle+deg)*(Math.PI/180);
     const x1=cx+r*Math.cos(r1);const y1=cy+r*Math.sin(r1);
     const x2=cx+r*Math.cos(r2);const y2=cy+r*Math.sin(r2);
-    const la=deg>180?1:0;
-    const d=`M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${la},1 ${x2},${y2} Z`;
-    angle+=deg;
-    return{d,color:s.color,label:s.label,pct:(pct*100).toFixed(0)};
+    const d=`M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${deg>180?1:0},1 ${x2},${y2} Z`;
+    angle+=deg;return{d,color:s.color,label:s.label,pct:(s.value/total*100).toFixed(0)};
   });
   return(
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
@@ -69,419 +80,482 @@ function DonutChart({slices,size=80}:{slices:{value:number;color:string;label:st
 }
 
 export default function Dashboard(){
-  const {data:dash,isLoading}=useQuery({queryKey:['dashboard'],queryFn:()=>api.get('/reports/dashboard').then(r=>r.data)});
-  const {data:orders=[]}=useQuery<any[]>({queryKey:['orders-recent'],queryFn:()=>api.get('/sales/orders').then(r=>Array.isArray(r.data)?r.data:r.data?.data||[])});
-  const {data:byDay=[]}=useQuery<any[]>({queryKey:['rpt-day',monthStart,today],queryFn:()=>api.get(`/reports/sales/by-period?group_by=day&from=${monthStart}&to=${today}`).then(r=>r.data).catch(()=>[])});
-  const {data:byMonth=[]}=useQuery<any[]>({queryKey:['rpt-month',yearStart,today],queryFn:()=>api.get(`/reports/sales/by-period?group_by=month&from=${yearStart}&to=${today}`).then(r=>r.data).catch(()=>[])});
-  const {data:byCategory=[]}=useQuery<any[]>({queryKey:['rpt-cat',yearStart,today],queryFn:()=>api.get(`/reports/sales/by-category?from=${yearStart}&to=${today}`).then(r=>r.data).catch(()=>[])});
-  const {data:customers=[]}=useQuery<any[]>({queryKey:['customers'],queryFn:()=>api.get('/customers').then(r=>Array.isArray(r.data)?r.data:[])});
-  const {data:products=[]}=useQuery<any[]>({queryKey:['products'],queryFn:()=>api.get('/catalog/products').then(r=>Array.isArray(r.data)?r.data:[])});
-  const {data:todayOrders=[]}=useQuery<any[]>({queryKey:['orders-today',today],queryFn:()=>api.get('/sales/orders').then(r=>(Array.isArray(r.data)?r.data:r.data?.data||[]).filter((o:any)=>o.created_at?.slice(0,10)===today)).catch(()=>[])});
-  const {data:yesterdayOrders=[]}=useQuery<any[]>({queryKey:['orders-yday',yesterday],queryFn:()=>api.get('/sales/orders').then(r=>(Array.isArray(r.data)?r.data:r.data?.data||[]).filter((o:any)=>o.created_at?.slice(0,10)===yesterday)).catch(()=>[])});
+  const [svsPeriod,setSvsPeriod]=useState('month');
+  const [orderPeriod,setOrderPeriod]=useState('week');
+  const [topProdPeriod,setTopProdPeriod]=useState('month');
+  const [recentSalesPeriod,setRecentSalesPeriod]=useState('week');
+  const [txTab,setTxTab]=useState('sale');
+  const [custOverviewDate,setCustOverviewDate]=useState(today.slice(0,7));
 
-  // ── Derived metrics ──────────────────────────────────────────
-  const todayRev   = todayOrders.reduce((s:number,o:any)=>s+parseFloat(o.total||0),0);
-  const ydayRev    = yesterdayOrders.reduce((s:number,o:any)=>s+parseFloat(o.total||0),0);
-  const monthRev   = parseFloat(dash?.this_month?.revenue||0);
-  const yearRev    = (byMonth as any[]).reduce((s:number,r:any)=>s+parseFloat(r.revenue||0),0);
-  const todayOrdsN = todayOrders.length;
-  const monthOrds  = dash?.this_month?.orders||0;
-  const avgBasket  = monthOrds>0?monthRev/monthOrds:0;
-  const todayVAT   = todayRev*15/115;
-  const monthVAT   = monthRev*15/115;
-  const revTrend   = parseFloat(pct(todayRev,ydayRev));
-  const loyalMembers=(customers as any[]).filter((c:any)=>c.loyalty_points>0).length;
-  const totalPts   =(customers as any[]).reduce((s:number,c:any)=>s+(c.loyalty_points||0),0);
-  const goldPlat   =(customers as any[]).filter((c:any)=>['gold','platinum'].includes(c.loyalty_tier)).length;
-  const newCustsMon=(customers as any[]).filter((c:any)=>c.created_at?.slice(0,7)===today.slice(0,7)).length;
-  const totalVariants=(products as any[]).flatMap((p:any)=>p.variants||[]);
-  const lowStock   =totalVariants.filter((v:any)=>parseFloat(v.stock_quantity||0)<=5&&parseFloat(v.stock_quantity||0)>0).length;
-  const outOfStock =totalVariants.filter((v:any)=>parseFloat(v.stock_quantity||0)<=0).length;
-  const inStock    =totalVariants.length-lowStock-outOfStock;
+  const {data:orders=[]}=useQuery<any[]>({queryKey:['orders-all'],queryFn:()=>api.get('/sales/orders').then(r=>Array.isArray(r.data)?r.data:r.data?.data||[]).catch(()=>[])});
+  const {data:returns=[]}=useQuery<any[]>({queryKey:['returns'],queryFn:()=>api.get('/sales/returns').then(r=>Array.isArray(r.data)?r.data:r.data?.data||[]).catch(()=>[])});
+  const {data:purchases=[]}=useQuery<any[]>({queryKey:['purchases'],queryFn:()=>api.get('/purchases').then(r=>Array.isArray(r.data)?r.data:r.data?.data||[]).catch(()=>[])});
+  const {data:purchaseReturns=[]}=useQuery<any[]>({queryKey:['purchase-returns'],queryFn:()=>api.get('/purchases/returns').then(r=>Array.isArray(r.data)?r.data:r.data?.data||[]).catch(()=>[])});
+  const {data:suppliers=[]}=useQuery<any[]>({queryKey:['suppliers'],queryFn:()=>api.get('/suppliers').then(r=>Array.isArray(r.data)?r.data:[]).catch(()=>[])});
+  const {data:customers=[]}=useQuery<any[]>({queryKey:['customers'],queryFn:()=>api.get('/customers').then(r=>Array.isArray(r.data)?r.data:[]).catch(()=>[])});
+  const {data:products=[]}=useQuery<any[]>({queryKey:['products'],queryFn:()=>api.get('/catalog/products').then(r=>Array.isArray(r.data)?r.data:[]).catch(()=>[])});
+  const {data:categories=[]}=useQuery<any[]>({queryKey:['categories'],queryFn:()=>api.get('/catalog/categories').then(r=>Array.isArray(r.data)?r.data:[]).catch(()=>[])});
+  const {data:byCategory=[]}=useQuery<any[]>({queryKey:['cat-ytd'],queryFn:()=>api.get(`/reports/sales/by-category?from=${yearStart}&to=${today}`).then(r=>r.data).catch(()=>[])});
+  const {data:expenses=[]}=useQuery<any[]>({queryKey:['expenses'],queryFn:()=>api.get('/expenses').then(r=>Array.isArray(r.data)?r.data:[]).catch(()=>[])});
+  const {data:quotations=[]}=useQuery<any[]>({queryKey:['quotations'],queryFn:()=>api.get('/sales/quotations').then(r=>Array.isArray(r.data)?r.data:[]).catch(()=>[])});
+  const {data:invoices=[]}=useQuery<any[]>({queryKey:['invoices'],queryFn:()=>api.get('/invoices').then(r=>Array.isArray(r.data)?r.data:[]).catch(()=>[])});
+  const {data:svsSales=[]}=useQuery<any[]>({queryKey:['svs-sales',svsPeriod],queryFn:()=>api.get(`/reports/sales/by-period?group_by=day&from=${dateFrom(svsPeriod)}&to=${today}`).then(r=>r.data).catch(()=>[])});
 
-  // Payment method breakdown from orders
-  const pmBreak:(Record<string,number>)={};
-  (orders as any[]).forEach((o:any)=>{const m=(o.payment_method||'cash').toLowerCase().replace(/ /g,'_');pmBreak[m]=(pmBreak[m]||0)+parseFloat(o.total||0);});
-  const pmTotal=Object.values(pmBreak).reduce((s,v)=>s+v,0)||1;
-  const pmEntries=Object.entries(pmBreak).sort((a,b)=>b[1]-a[1]).slice(0,5);
-  const pmLabels:Record<string,string>={cash:'Cash',card:'Card',mada:'Mada',credit_card:'Card',tabby:'Tabby',tamara:'Tamara',apple_pay:'Apple Pay',wallet:'Wallet',loyalty_points:'Points'};
-  const pmColors=['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6'];
+  const totalSalesRev    = useMemo(()=>(orders as any[]).reduce((s:number,o:any)=>s+parseFloat(o.total||0),0),[orders]);
+  const totalReturnsRev  = useMemo(()=>(returns as any[]).reduce((s:number,o:any)=>s+parseFloat(o.refund_amount||o.total||0),0),[returns]);
+  const totalPurchasesRev= useMemo(()=>(purchases as any[]).reduce((s:number,o:any)=>s+parseFloat(o.total||0),0),[purchases]);
+  const totalPurRetRev   = useMemo(()=>(purchaseReturns as any[]).reduce((s:number,o:any)=>s+parseFloat(o.total||0),0),[purchaseReturns]);
+  const monthOrders      = useMemo(()=>(orders as any[]).filter((o:any)=>o.created_at?.slice(0,7)===today.slice(0,7)),[orders]);
+  const monthRevenue     = useMemo(()=>monthOrders.reduce((s:number,o:any)=>s+parseFloat(o.total||0),0),[monthOrders]);
+  const monthExpense     = useMemo(()=>(expenses as any[]).filter((e:any)=>e.date?.slice(0,7)===today.slice(0,7)).reduce((s:number,e:any)=>s+parseFloat(e.amount||0),0),[expenses]);
 
-  // 7-day sparkline
-  const last7days=Array.from({length:7},(_,i)=>{
-    const d=new Date(Date.now()-(6-i)*86400000).toISOString().split('T')[0];
-    const dayOrds=(orders as any[]).filter((o:any)=>o.created_at?.slice(0,10)===d);
-    return dayOrds.reduce((s:number,o:any)=>s+parseFloat(o.total||0),0);
-  });
+  const custMonthNew = useMemo(()=>(customers as any[]).filter((c:any)=>c.created_at?.slice(0,7)===custOverviewDate),[customers,custOverviewDate]);
+  const custReturning= useMemo(()=>(orders as any[]).filter((o:any)=>{
+    if(o.created_at?.slice(0,7)!==custOverviewDate||!o.customer_id)return false;
+    return (orders as any[]).some((x:any)=>x.customer_id===o.customer_id&&x.created_at?.slice(0,7)<custOverviewDate);
+  }),[orders,custOverviewDate]);
 
-  // Top 5 categories
-  const topCats=(byCategory as any[]).slice(0,5);
-  const catTotal=topCats.reduce((s:number,c:any)=>s+parseFloat(c.revenue||0),0)||1;
+  const topProducts=useMemo(()=>{
+    const from=dateFrom(topProdPeriod);
+    const map:Record<string,{name:string;qty:number;rev:number}>={};
+    (orders as any[]).filter((o:any)=>o.created_at?.slice(0,10)>=from).forEach((o:any)=>{
+      (o.items||o.order_items||[]).forEach((item:any)=>{
+        const k=item.product_id||item.name||'?';
+        if(!map[k])map[k]={name:item.product_name||item.name||'Product',qty:0,rev:0};
+        map[k].qty+=parseFloat(item.quantity||1);
+        map[k].rev+=parseFloat(item.total||item.subtotal||0);
+      });
+    });
+    return Object.values(map).sort((a,b)=>b.qty-a.qty).slice(0,6);
+  },[orders,topProdPeriod]);
 
-  // Top customers by spend
-  const topCusts=(customers as any[]).map((c:any)=>({...c,spend:parseFloat(c.total_spent||c.lifetime_value||0)})).sort((a:any,b:any)=>b.spend-a.spend).slice(0,5);
+  const allVariants  = useMemo(()=>(products as any[]).flatMap((p:any)=>(p.variants||[]).map((v:any)=>({...v,product_name:p.name}))),[products]);
+  const lowStockItems= useMemo(()=>allVariants.filter((v:any)=>parseFloat(v.stock_quantity||0)<=5).sort((a:any,b:any)=>parseFloat(a.stock_quantity)-parseFloat(b.stock_quantity)).slice(0,6),[allVariants]);
+  const recentSales  = useMemo(()=>(orders as any[]).filter((o:any)=>o.created_at?.slice(0,10)>=dateFrom(recentSalesPeriod)).slice(0,8),[orders,recentSalesPeriod]);
+  const txData       = useMemo(()=>{
+    if(txTab==='sale')     return (orders as any[]).slice(0,8);
+    if(txTab==='purchase') return (purchases as any[]).slice(0,8);
+    if(txTab==='quotation')return (quotations as any[]).slice(0,8);
+    if(txTab==='expense')  return (expenses as any[]).slice(0,8);
+    return (invoices as any[]).slice(0,8);
+  },[txTab,orders,purchases,quotations,expenses,invoices]);
 
-  // Recent 8 orders
-  const recentOrders=(orders as any[]).slice(0,8);
+  const topCustomers = useMemo(()=>(customers as any[]).map((c:any)=>({...c,spend:parseFloat(c.total_spent||c.lifetime_value||0)})).sort((a:any,b:any)=>b.spend-a.spend).slice(0,6),[customers]);
 
-  // Hourly distribution from today's orders
-  const hourly=Array(24).fill(0);
-  todayOrders.forEach((o:any)=>{const h=new Date(o.created_at).getHours();if(h>=0&&h<24)hourly[h]+=parseFloat(o.total||0);});
-  const peakHour=hourly.indexOf(Math.max(...hourly));
-  const businessHours=hourly.slice(8,22);
+  const orderStatsData=useMemo(()=>{
+    const from=dateFrom(orderPeriod);
+    const days:Record<string,{orders:number;revenue:number}>={};
+    (orders as any[]).filter((o:any)=>o.created_at?.slice(0,10)>=from).forEach((o:any)=>{
+      const d=o.created_at?.slice(0,10)||'';
+      if(!days[d])days[d]={orders:0,revenue:0};
+      days[d].orders++;days[d].revenue+=parseFloat(o.total||0);
+    });
+    return Object.entries(days).sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>({period:k,...v}));
+  },[orders,orderPeriod]);
 
-  if(isLoading) return(
-    <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:300,flexDirection:'column',gap:12,color:'#94a3b8'}}>
-      <div style={{width:36,height:36,border:'3px solid #e2e8f0',borderTopColor:'#6366f1',borderRadius:'50%',animation:'spin 1s linear infinite'}}/>
-      <div style={{fontSize:13,fontWeight:600}}>Loading dashboard…</div>
-    </div>
-  );
+  const svsCombined=useMemo(()=>{
+    const from=dateFrom(svsPeriod);
+    const purchMap:Record<string,number>={};
+    (purchases as any[]).filter((p:any)=>p.created_at?.slice(0,10)>=from).forEach((p:any)=>{
+      const d=p.created_at?.slice(0,10)||'';
+      purchMap[d]=(purchMap[d]||0)+parseFloat(p.total||0);
+    });
+    return (svsSales as any[]).map((r:any)=>({...r,purchase:purchMap[r.period]||0}));
+  },[svsSales,purchases,svsPeriod]);
+
+  const TIER_COLOR:Record<string,string>={bronze:'#cd7f32',silver:'#94a3b8',gold:'#f59e0b',platinum:'#6366f1'};
+  const STATUS_COLOR:Record<string,{c:string;bg:string}>={
+    paid:{c:'#10b981',bg:'#f0fdf4'},completed:{c:'#10b981',bg:'#f0fdf4'},
+    pending:{c:'#f59e0b',bg:'#fffbf0'},cancelled:{c:'#ef4444',bg:'#fef2f2'},
+    returned:{c:'#ef4444',bg:'#fef2f2'},draft:{c:'#94a3b8',bg:'#f8fafc'},approved:{c:'#6366f1',bg:'#f0f4ff'},
+  };
 
   return(
-    <div style={{display:'flex',flexDirection:'column',gap:20,maxWidth:1400}}>
+    <div style={{display:'flex',flexDirection:'column',gap:20,maxWidth:1500}}>
 
-      {/* ── Header ───────────────────────────────────────────── */}
-      <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
+      {/* Header */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <div>
           <h4 style={{margin:0,fontWeight:800,fontSize:20,color:'#1e293b'}}>Dashboard</h4>
-          <div style={{fontSize:13,color:'#94a3b8',marginTop:3}}>
-            {new Date().toLocaleDateString('en-SA',{weekday:'long',year:'numeric',month:'long',day:'numeric'})} · NuxFashion KSA
-          </div>
+          <div style={{fontSize:12,color:'#94a3b8',marginTop:3}}>{new Date().toLocaleDateString('en-SA',{weekday:'long',year:'numeric',month:'long',day:'numeric'})} · NuxFashion KSA</div>
         </div>
-        <div style={{display:'flex',gap:8,alignItems:'center'}}>
-          <div style={{display:'flex',alignItems:'center',gap:6,padding:'6px 12px',background:'#f0fdf4',border:'1px solid #86efac',borderRadius:10,fontSize:12,fontWeight:600,color:'#15803d'}}>
-            <div style={{width:7,height:7,borderRadius:'50%',background:'#22c55e'}}/> ZATCA Active
-          </div>
-          <div style={{display:'flex',alignItems:'center',gap:6,padding:'6px 12px',background:'#f0f4ff',border:'1px solid #c7d2fe',borderRadius:10,fontSize:12,fontWeight:600,color:'#4f46e5'}}>
-            <i className="ti ti-circle-dot" style={{fontSize:13}}/> Live
-          </div>
+        <div style={{display:'flex',gap:8}}>
+          <div style={{display:'flex',alignItems:'center',gap:6,padding:'6px 14px',background:'#f0fdf4',border:'1px solid #86efac',borderRadius:10,fontSize:12,fontWeight:700,color:'#15803d'}}><div style={{width:7,height:7,borderRadius:'50%',background:'#22c55e'}}/> ZATCA Active</div>
+          <div style={{padding:'6px 14px',background:'#f0f4ff',border:'1px solid #c7d2fe',borderRadius:10,fontSize:12,fontWeight:700,color:'#4f46e5'}}>⬤ Live</div>
         </div>
       </div>
 
-      {/* ── Primary KPIs ─────────────────────────────────────── */}
+      {/* 4 top summary cards */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14}}>
-        <KPICard label="Today's Revenue" value={sarK(todayRev)} sub={`${todayOrdsN} orders · VAT ${sarK(todayVAT)}`} trend={revTrend} icon="ti-cash" gradient="linear-gradient(135deg,#6366f1,#8b5cf6)" iconBg="rgba(255,255,255,.2)"/>
-        <KPICard label="Month Revenue" value={sarK(monthRev)} sub={`${monthOrds} orders · VAT ${sarK(monthVAT)}`} icon="ti-calendar-month" iconBg="#ede9fe"/>
-        <KPICard label="Avg Basket Size" value={sar(avgBasket)} sub="per transaction this month" icon="ti-shopping-bag" iconBg="#fef3c7"/>
-        <KPICard label="Year Revenue" value={sarK(yearRev)} sub={`YTD ${new Date().getFullYear()}`} icon="ti-chart-line" iconBg="#dcfce7"/>
+        {[
+          {label:'Total Sales',value:sarK(totalSalesRev),count:(orders as any[]).length,gradient:'linear-gradient(135deg,#6366f1,#8b5cf6)',icon:'ti-shopping-cart-up'},
+          {label:'Sales Returns',value:sarK(totalReturnsRev),count:(returns as any[]).length,gradient:'linear-gradient(135deg,#ef4444,#f97316)',icon:'ti-shopping-cart-x'},
+          {label:'Total Purchases',value:sarK(totalPurchasesRev),count:(purchases as any[]).length,gradient:'linear-gradient(135deg,#10b981,#06b6d4)',icon:'ti-truck-delivery'},
+          {label:'Purchase Returns',value:sarK(totalPurRetRev),count:(purchaseReturns as any[]).length,gradient:'linear-gradient(135deg,#f59e0b,#ef4444)',icon:'ti-truck-return'},
+        ].map(c=>(
+          <div key={c.label} style={{background:c.gradient,borderRadius:16,padding:'18px 20px',boxShadow:'0 4px 15px rgba(0,0,0,.15)',position:'relative',overflow:'hidden'}}>
+            <div style={{position:'absolute',top:-20,right:-20,width:80,height:80,borderRadius:'50%',background:'rgba(255,255,255,.1)'}}/>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
+              <span style={{fontSize:11,fontWeight:700,color:'rgba(255,255,255,.8)',letterSpacing:.5}}>{c.label.toUpperCase()}</span>
+              <div style={{width:32,height:32,borderRadius:10,background:'rgba(255,255,255,.2)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                <i className={'ti '+c.icon} style={{fontSize:16,color:'#fff'}}/>
+              </div>
+            </div>
+            <div style={{fontSize:22,fontWeight:900,color:'#fff',marginBottom:4}}>{c.value}</div>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <span style={{fontSize:11,color:'rgba(255,255,255,.7)'}}>{c.count} transactions</span>
+              <button style={{fontSize:10,fontWeight:700,color:'#fff',background:'rgba(255,255,255,.25)',border:'none',borderRadius:8,padding:'3px 10px',cursor:'pointer'}}>View All →</button>
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* ── Secondary KPIs ───────────────────────────────────── */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14}}>
-        <KPICard label="Loyal Members" value={loyalMembers.toLocaleString()} sub={`${goldPlat} Gold/Platinum · ${totalPts.toLocaleString()} pts`} icon="ti-star" iconBg="#fef3c7"/>
-        <KPICard label="New Customers" value={newCustsMon} sub="joined this month" icon="ti-user-plus" iconBg="#dcfce7"/>
-        <KPICard label="Low Stock Variants" value={lowStock} sub={`${outOfStock} out of stock · ${inStock} OK`} icon="ti-alert-triangle" iconBg={lowStock>0?'#fee2e2':'#dcfce7'}/>
-        <KPICard label="Total Customers" value={(customers as any[]).length.toLocaleString()} sub={`${(customers as any[]).filter((c:any)=>c.loyalty_tier==='platinum').length} Platinum members`} icon="ti-users" iconBg="#ede9fe"/>
-      </div>
-
-      {/* ── Sales trend + Hourly heatmap ─────────────────────── */}
+      {/* Sales vs Purchase + Overall Info */}
       <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:16}}>
-        {/* Daily chart this month */}
-        <div style={{background:'#fff',borderRadius:16,padding:'20px 22px',boxShadow:'0 1px 4px rgba(0,0,0,.06)',border:'1px solid #f1f5f9'}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
-            <div>
-              <div style={{fontWeight:700,fontSize:15,color:'#1e293b'}}>Sales Trend</div>
-              <div style={{fontSize:12,color:'#94a3b8'}}>Daily revenue · {new Date().toLocaleString('en-SA',{month:'long',year:'numeric'})}</div>
-            </div>
-            <div style={{display:'flex',gap:12,fontSize:12}}>
-              <span style={{color:'#94a3b8'}}>MTD <strong style={{color:'#1e293b'}}>{sarK(monthRev)}</strong></span>
-              <span style={{color:'#94a3b8'}}>Orders <strong style={{color:'#1e293b'}}>{monthOrds}</strong></span>
-            </div>
+        <Card>
+          <CardHeader title="Sales vs. Purchase" sub="Revenue comparison by period" right={<PeriodToggle value={svsPeriod} onChange={setSvsPeriod}/>}/>
+          <div style={{display:'flex',gap:16,marginBottom:12}}>
+            <div style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><div style={{width:10,height:10,borderRadius:3,background:'#6366f1'}}/><span style={{color:'#64748b'}}>Sales</span></div>
+            <div style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><div style={{width:10,height:10,borderRadius:3,background:'#10b981'}}/><span style={{color:'#64748b'}}>Purchase</span></div>
           </div>
-          {/* Bar chart */}
-          {(byDay as any[]).length>0?(
+          {svsCombined.length>0?(
             <div style={{display:'flex',alignItems:'flex-end',gap:3,height:120}}>
-              {(byDay as any[]).map((r:any,i:number)=>{
-                const max=Math.max(...(byDay as any[]).map((x:any)=>parseFloat(x.revenue||0)),1);
-                const h=Math.max(parseFloat(r.revenue||0)/max*100,2);
-                const isToday=r.period===today;
+              {svsCombined.map((r:any,i:number)=>{
+                const maxV=Math.max(...svsCombined.map((x:any)=>Math.max(parseFloat(x.revenue||0),parseFloat(x.purchase||0))),1);
                 return(
-                  <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:3}} title={`${r.period}: ${sar(r.revenue)}`}>
-                    <div style={{width:'100%',height:`${h}%`,background:isToday?'#6366f1':i===byDay.length-1?'#8b5cf6':'#c7d2fe',borderRadius:'3px 3px 0 0',minHeight:3,transition:'height .3s'}}/>
-                    {(byDay as any[]).length<=20&&<div style={{fontSize:7,color:'#94a3b8',whiteSpace:'nowrap'}}>{r.period?.slice(-2)}</div>}
+                  <div key={i} style={{flex:1,display:'flex',alignItems:'flex-end',gap:1}} title={`${r.period}\nSales: ${sar(r.revenue)}\nPurchase: ${sar(r.purchase)}`}>
+                    <div style={{flex:1,borderRadius:'3px 3px 0 0',background:'#6366f1',height:`${Math.max(parseFloat(r.revenue||0)/maxV*100,2)}%`,minHeight:3}}/>
+                    <div style={{flex:1,borderRadius:'3px 3px 0 0',background:'#10b981',height:`${Math.max(parseFloat(r.purchase||0)/maxV*100,2)}%`,minHeight:3}}/>
                   </div>
                 );
               })}
             </div>
           ):(
-            <div style={{height:120,display:'flex',alignItems:'center',justifyContent:'center',color:'#cbd5e1',fontSize:13}}>No sales data this month yet</div>
+            <div style={{height:120,display:'flex',alignItems:'center',justifyContent:'center',color:'#cbd5e1',fontSize:13}}>No data for this period</div>
           )}
-          {/* 7-day sparkline */}
-          <div style={{marginTop:14,padding:'12px 14px',background:'#f8fafc',borderRadius:12}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-              <span style={{fontSize:11,fontWeight:600,color:'#64748b'}}>LAST 7 DAYS</span>
-              <span style={{fontSize:11,color:'#94a3b8'}}>{sarK(last7days.reduce((s,v)=>s+v,0))} total</span>
-            </div>
-            <MiniBar data={last7days} color="#6366f1"/>
-            <div style={{display:'flex',justifyContent:'space-between',marginTop:4}}>
-              {['7d ago','6d','5d','4d','3d','2d','Today'].map(l=><span key={l} style={{fontSize:8,color:'#cbd5e1'}}>{l}</span>)}
-            </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginTop:14,padding:'12px 14px',background:'#f8fafc',borderRadius:12}}>
+            {[{l:'Total Sales',v:sarK(totalSalesRev),c:'#6366f1'},{l:'Total Purchases',v:sarK(totalPurchasesRev),c:'#10b981'},{l:'Net',v:sarK(totalSalesRev-totalPurchasesRev),c:totalSalesRev>totalPurchasesRev?'#10b981':'#ef4444'}].map(x=>(
+              <div key={x.l} style={{textAlign:'center'}}><div style={{fontSize:11,color:'#94a3b8'}}>{x.l}</div><div style={{fontWeight:800,fontSize:14,color:x.c}}>{x.v}</div></div>
+            ))}
           </div>
-        </div>
+        </Card>
 
-        {/* Hourly heatmap */}
-        <div style={{background:'#fff',borderRadius:16,padding:'20px 22px',boxShadow:'0 1px 4px rgba(0,0,0,.06)',border:'1px solid #f1f5f9'}}>
-          <div style={{fontWeight:700,fontSize:15,color:'#1e293b',marginBottom:4}}>Today's Peak Hours</div>
-          <div style={{fontSize:12,color:'#94a3b8',marginBottom:16}}>Revenue by hour · {new Date().toLocaleDateString('en-SA')}</div>
-          {todayOrdsN>0?(
-            <>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:4,marginBottom:10}}>
-                {businessHours.map((v:number,i:number)=>{
-                  const maxH=Math.max(...businessHours,1);
-                  const intensity=v/maxH;
-                  const hour=i+8;
-                  const isNow=new Date().getHours()===hour;
-                  return(
-                    <div key={i} title={`${hour}:00 — ${sar(v)}`} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
-                      <div style={{width:'100%',height:60,background:`rgba(99,102,241,${Math.max(intensity*.9,.05)})`,borderRadius:6,border:isNow?'2px solid #6366f1':'2px solid transparent',transition:'all .2s'}}/>
-                      <div style={{fontSize:8,color:'#94a3b8'}}>{hour}</div>
-                    </div>
-                  );
-                })}
+        <Card>
+          <CardHeader title="Overall Information" sub="Business snapshot"/>
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            {[
+              {label:'Suppliers',value:(suppliers as any[]).length,icon:'ti-building-store',color:'#6366f1',bg:'#f0f4ff'},
+              {label:'Customers',value:(customers as any[]).length,icon:'ti-users',color:'#10b981',bg:'#f0fdf4'},
+              {label:'Total Orders',value:(orders as any[]).length,icon:'ti-shopping-cart',color:'#f59e0b',bg:'#fffbf0'},
+              {label:'Products',value:(products as any[]).length,icon:'ti-shirt',color:'#8b5cf6',bg:'#faf5ff'},
+              {label:'Categories',value:(categories as any[]).length,icon:'ti-tags',color:'#06b6d4',bg:'#f0fdfa'},
+              {label:'Purchases',value:(purchases as any[]).length,icon:'ti-truck',color:'#ec4899',bg:'#fdf2f8'},
+            ].map(s=>(
+              <div key={s.label} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 12px',background:s.bg,borderRadius:12}}>
+                <div style={{width:36,height:36,borderRadius:10,background:s.color,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                  <i className={'ti '+s.icon} style={{fontSize:17,color:'#fff'}}/>
+                </div>
+                <div style={{flex:1}}><div style={{fontSize:12,color:'#64748b',fontWeight:600}}>{s.label}</div></div>
+                <div style={{fontWeight:900,fontSize:18,color:s.color}}>{s.value||'—'}</div>
               </div>
-              <div style={{padding:'10px 14px',background:'#f0f4ff',borderRadius:10,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <div><div style={{fontSize:11,fontWeight:700,color:'#6366f1'}}>Peak Hour</div><div style={{fontSize:13,fontWeight:800,color:'#4f46e5'}}>{peakHour}:00 – {peakHour+1}:00</div></div>
-                <div style={{textAlign:'right'}}><div style={{fontSize:11,color:'#94a3b8'}}>Peak revenue</div><div style={{fontSize:13,fontWeight:700,color:'#6366f1'}}>{sarK(hourly[peakHour])}</div></div>
-              </div>
-            </>
-          ):(
-            <div style={{height:120,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',color:'#cbd5e1',gap:8}}>
-              <i className="ti ti-clock" style={{fontSize:36}}/>
-              <span style={{fontSize:13}}>No sales today yet</span>
-            </div>
-          )}
-        </div>
+            ))}
+          </div>
+        </Card>
       </div>
 
-      {/* ── Category + Payment Methods + Stock ───────────────── */}
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:16}}>
-
-        {/* Category performance */}
-        <div style={{background:'#fff',borderRadius:16,padding:'20px 22px',boxShadow:'0 1px 4px rgba(0,0,0,.06)',border:'1px solid #f1f5f9'}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-            <div>
-              <div style={{fontWeight:700,fontSize:15,color:'#1e293b'}}>Top Categories</div>
-              <div style={{fontSize:12,color:'#94a3b8'}}>Sales by product category · YTD</div>
-            </div>
-            {topCats.length>0&&<DonutChart slices={topCats.map((c:any,i:number)=>({value:parseFloat(c.revenue||0),color:CAT_COLORS[i],label:c.category_name||'Other'}))} size={60}/>}
+      {/* Customer Overview + Top Selling Products */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+        <Card>
+          <CardHeader title="Customer Overview" sub="New vs returning"
+            right={<input type="month" value={custOverviewDate} onChange={e=>setCustOverviewDate(e.target.value)} style={{padding:'5px 10px',borderRadius:10,border:'1px solid #e2e8f0',fontSize:12,color:'#374151',cursor:'pointer'}}/>}/>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
+            {[{label:'First Time',value:custMonthNew.length,icon:'👋',color:'#6366f1',bg:'linear-gradient(135deg,#f0f4ff,#ede9fe)'},{label:'Returning',value:custReturning.length,icon:'🔄',color:'#10b981',bg:'linear-gradient(135deg,#f0fdf4,#dcfce7)'}].map(s=>(
+              <div key={s.label} style={{padding:16,background:s.bg,borderRadius:14,textAlign:'center'}}>
+                <div style={{fontSize:28}}>{s.icon}</div>
+                <div style={{fontSize:26,fontWeight:900,color:s.color}}>{s.value}</div>
+                <div style={{fontSize:12,color:'#64748b',fontWeight:600}}>{s.label}</div>
+              </div>
+            ))}
           </div>
-          {topCats.length>0?topCats.map((c:any,i:number)=>{
-            const rev=parseFloat(c.revenue||0);
-            const share=rev/catTotal*100;
+          <div style={{marginBottom:8,fontSize:12,fontWeight:700,color:'#64748b'}}>LOYALTY TIERS</div>
+          {['bronze','silver','gold','platinum'].map(tier=>{
+            const cnt=(customers as any[]).filter((c:any)=>c.loyalty_tier===tier).length;
+            const pctV=(customers as any[]).length>0?cnt/(customers as any[]).length*100:0;
             return(
-              <div key={i} style={{marginBottom:10}}>
-                <div style={{display:'flex',justifyContent:'space-between',marginBottom:4,alignItems:'center'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:7}}>
-                    <div style={{width:10,height:10,borderRadius:3,background:CAT_COLORS[i],flexShrink:0}}/>
-                    <span style={{fontSize:12,fontWeight:600,color:'#374151'}}>{c.category_name||'Other'}</span>
-                  </div>
-                  <span style={{fontSize:12,fontWeight:700,color:'#1e293b'}}>{sarK(rev)} <span style={{fontSize:10,color:'#94a3b8',fontWeight:400}}>({share.toFixed(0)}%)</span></span>
+              <div key={tier} style={{marginBottom:8}}>
+                <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+                  <span style={{fontSize:11,fontWeight:700,color:TIER_COLOR[tier],textTransform:'capitalize'}}>{tier}</span>
+                  <span style={{fontSize:11,color:'#94a3b8'}}>{cnt} ({pctV.toFixed(0)}%)</span>
                 </div>
-                <div style={{height:5,background:'#f1f5f9',borderRadius:99,overflow:'hidden'}}>
-                  <div style={{height:'100%',width:`${share}%`,background:CAT_COLORS[i],borderRadius:99}}/>
+                <div style={{height:5,background:'#f1f5f9',borderRadius:99}}><div style={{height:'100%',width:`${pctV}%`,background:TIER_COLOR[tier],borderRadius:99}}/></div>
+              </div>
+            );
+          })}
+        </Card>
+
+        <Card>
+          <CardHeader title="Top Selling Products" sub="By units sold" right={<PeriodToggle value={topProdPeriod} onChange={setTopProdPeriod}/>}/>
+          {topProducts.length>0?topProducts.map((p,i)=>{
+            const maxQ=Math.max(...topProducts.map(x=>x.qty),1);
+            return(
+              <div key={i} style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
+                <div style={{width:32,height:32,borderRadius:10,background:CAT_COLORS[i%8],display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:800,color:'#fff',flexShrink:0}}>{i+1}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:600,fontSize:12,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name}</div>
+                  <div style={{height:5,background:'#f1f5f9',borderRadius:99,marginTop:4}}><div style={{height:'100%',width:`${p.qty/maxQ*100}%`,background:CAT_COLORS[i%8],borderRadius:99}}/></div>
+                </div>
+                <div style={{textAlign:'right',flexShrink:0}}>
+                  <div style={{fontWeight:800,fontSize:12,color:'#1e293b'}}>{p.qty} units</div>
+                  <div style={{fontSize:10,color:'#94a3b8'}}>{sarK(p.rev)}</div>
                 </div>
               </div>
             );
           }):(
-            <div style={{textAlign:'center',padding:'24px 0',color:'#cbd5e1',fontSize:13}}>
-              <i className="ti ti-tags" style={{fontSize:32,display:'block',marginBottom:8}}/>
-              No category data yet
+            <div style={{textAlign:'center',padding:'32px 0',color:'#cbd5e1'}}>
+              <i className="ti ti-package" style={{fontSize:40,display:'block',marginBottom:8}}/>
+              <div style={{fontSize:13}}>No product sales data yet</div>
             </div>
           )}
-        </div>
-
-        {/* Payment methods */}
-        <div style={{background:'#fff',borderRadius:16,padding:'20px 22px',boxShadow:'0 1px 4px rgba(0,0,0,.06)',border:'1px solid #f1f5f9'}}>
-          <div style={{marginBottom:16}}>
-            <div style={{fontWeight:700,fontSize:15,color:'#1e293b'}}>Payment Methods</div>
-            <div style={{fontSize:12,color:'#94a3b8'}}>Revenue split by payment type</div>
-          </div>
-          {pmEntries.length>0?(
-            <>
-              <div style={{display:'flex',justifyContent:'center',marginBottom:16}}>
-                <DonutChart slices={pmEntries.map(([m,v]:any,i:number)=>({value:v,color:pmColors[i],label:pmLabels[m]||m}))} size={100}/>
-              </div>
-              {pmEntries.map(([m,v]:any,i:number)=>(
-                <div key={m} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'6px 0',borderBottom:i<pmEntries.length-1?'1px solid #f8fafc':'none'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:8}}>
-                    <div style={{width:10,height:10,borderRadius:3,background:pmColors[i],flexShrink:0}}/>
-                    <span style={{fontSize:12,color:'#374151',textTransform:'capitalize'}}>{pmLabels[m]||m}</span>
-                  </div>
-                  <div style={{textAlign:'right'}}>
-                    <div style={{fontSize:12,fontWeight:700,color:'#1e293b'}}>{sarK(v)}</div>
-                    <div style={{fontSize:10,color:'#94a3b8'}}>{(v/pmTotal*100).toFixed(0)}%</div>
-                  </div>
-                </div>
-              ))}
-            </>
-          ):(
-            <div style={{textAlign:'center',padding:'24px 0',color:'#cbd5e1',fontSize:13}}>
-              <i className="ti ti-credit-card" style={{fontSize:32,display:'block',marginBottom:8}}/>
-              No payment data yet
-            </div>
-          )}
-        </div>
-
-        {/* Inventory health + Loyalty */}
-        <div style={{display:'flex',flexDirection:'column',gap:12}}>
-          {/* Inventory health */}
-          <div style={{background:'#fff',borderRadius:16,padding:'18px 20px',boxShadow:'0 1px 4px rgba(0,0,0,.06)',border:'1px solid #f1f5f9',flex:1}}>
-            <div style={{fontWeight:700,fontSize:14,color:'#1e293b',marginBottom:12}}>Stock Health</div>
-            {[{label:'In Stock',count:inStock,color:'#10b981',bg:'#f0fdf4'},{label:'Low Stock',count:lowStock,color:'#f59e0b',bg:'#fffbf0'},{label:'Out of Stock',count:outOfStock,color:'#ef4444',bg:'#fef2f2'}].map(s=>(
-              <div key={s.label} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 10px',background:s.bg,borderRadius:10,marginBottom:6}}>
-                <div style={{display:'flex',alignItems:'center',gap:8}}>
-                  <div style={{width:8,height:8,borderRadius:'50%',background:s.color}}/>
-                  <span style={{fontSize:12,fontWeight:600,color:'#374151'}}>{s.label}</span>
-                </div>
-                <span style={{fontSize:14,fontWeight:800,color:s.color}}>{s.count}</span>
-              </div>
-            ))}
-            <div style={{fontSize:11,color:'#94a3b8',marginTop:6}}>{totalVariants.length} total variants tracked</div>
-          </div>
-          {/* Loyalty snapshot */}
-          <div style={{background:'linear-gradient(135deg,#1e1b4b,#312e81)',borderRadius:16,padding:'18px 20px',boxShadow:'0 1px 4px rgba(0,0,0,.06)'}}>
-            <div style={{fontWeight:700,fontSize:14,color:'#fff',marginBottom:10}}>⭐ Loyalty Program</div>
-            {[{label:'Members',value:loyalMembers,icon:'👥'},{label:'Total Points',value:totalPts.toLocaleString(),icon:'⭐'},{label:'Gold/Platinum',value:goldPlat,icon:'🏆'}].map(s=>(
-              <div key={s.label} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-                <span style={{fontSize:12,color:'rgba(255,255,255,.6)'}}>{s.icon} {s.label}</span>
-                <span style={{fontSize:13,fontWeight:800,color:'#fff'}}>{s.value}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        </Card>
       </div>
 
-      {/* ── Monthly trend + Top customers ────────────────────── */}
+      {/* Low Stock + Recent Sales */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
-        {/* Monthly YTD */}
-        <div style={{background:'#fff',borderRadius:16,padding:'20px 22px',boxShadow:'0 1px 4px rgba(0,0,0,.06)',border:'1px solid #f1f5f9'}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
-            <div>
-              <div style={{fontWeight:700,fontSize:15,color:'#1e293b'}}>Monthly Revenue</div>
-              <div style={{fontSize:12,color:'#94a3b8'}}>Year to date · {new Date().getFullYear()}</div>
-            </div>
-            <div style={{fontWeight:800,fontSize:15,color:'#10b981'}}>{sarK(yearRev)}</div>
-          </div>
-          {(byMonth as any[]).length>0?(
-            <div style={{display:'flex',alignItems:'flex-end',gap:6,height:100}}>
-              {(byMonth as any[]).map((r:any,i:number)=>{
-                const max=Math.max(...(byMonth as any[]).map((x:any)=>parseFloat(x.revenue||0)),1);
-                const h=Math.max(parseFloat(r.revenue||0)/max*100,2);
-                const isThis=r.period?.slice(0,7)===today.slice(0,7);
-                const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-                const mIdx=parseInt(r.period?.slice(5,7)||'1')-1;
-                return(
-                  <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:3}} title={`${r.period}: ${sar(r.revenue)}`}>
-                    <div style={{width:'100%',height:`${h}%`,background:isThis?'#10b981':'#d1fae5',borderRadius:'4px 4px 0 0',minHeight:3}}/>
-                    <div style={{fontSize:8,color:'#94a3b8'}}>{months[mIdx]}</div>
-                  </div>
-                );
-              })}
-            </div>
-          ):(
-            <div style={{height:100,display:'flex',alignItems:'center',justifyContent:'center',color:'#cbd5e1',fontSize:13}}>No monthly data</div>
-          )}
-        </div>
-
-        {/* Top customers */}
-        <div style={{background:'#fff',borderRadius:16,padding:'20px 22px',boxShadow:'0 1px 4px rgba(0,0,0,.06)',border:'1px solid #f1f5f9'}}>
-          <div style={{fontWeight:700,fontSize:15,color:'#1e293b',marginBottom:4}}>Top Customers</div>
-          <div style={{fontSize:12,color:'#94a3b8',marginBottom:14}}>By lifetime spend · All time</div>
-          {topCusts.filter((c:any)=>c.spend>0).length>0?topCusts.filter((c:any)=>c.spend>0).map((c:any,i:number)=>(
-            <div key={c.id} style={{display:'flex',alignItems:'center',gap:12,padding:'8px 0',borderBottom:i<4?'1px solid #f8fafc':'none'}}>
-              <div style={{width:36,height:36,borderRadius:10,background:i===0?'linear-gradient(135deg,#f59e0b,#ef4444)':i===1?'linear-gradient(135deg,#94a3b8,#64748b)':i===2?'linear-gradient(135deg,#cd7f32,#b45309)':'linear-gradient(135deg,#6366f1,#8b5cf6)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,color:'#fff',flexShrink:0}}>
-                {i===0?'🥇':i===1?'🥈':i===2?'🥉':c.name?.slice(0,2).toUpperCase()}
-              </div>
+        <Card>
+          <CardHeader title="Low Stock Products" sub="Variants with ≤5 units" right={<button style={{fontSize:11,fontWeight:700,color:'#6366f1',background:'#f0f4ff',border:'none',borderRadius:8,padding:'4px 12px',cursor:'pointer'}}>View All →</button>}/>
+          {lowStockItems.length>0?lowStockItems.map((v:any,i:number)=>(
+            <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:i%2?'#fafbfc':'#fff',borderRadius:10,marginBottom:4}}>
+              <div style={{width:8,height:8,borderRadius:'50%',background:parseFloat(v.stock_quantity)<=0?'#ef4444':'#f59e0b',flexShrink:0}}/>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontWeight:600,fontSize:13,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.name}</div>
-                <div style={{fontSize:11,color:'#94a3b8',textTransform:'capitalize'}}>{c.loyalty_tier||'Bronze'} · {(c.loyalty_points||0).toLocaleString()} pts</div>
+                <div style={{fontWeight:600,fontSize:12,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{v.product_name}</div>
+                <div style={{fontSize:10,color:'#94a3b8'}}>{v.sku||v.size||v.color||'Variant'}</div>
               </div>
               <div style={{textAlign:'right'}}>
-                <div style={{fontWeight:800,fontSize:13,color:'#1e293b'}}>{sarK(c.spend)}</div>
+                <div style={{fontWeight:800,fontSize:13,color:parseFloat(v.stock_quantity)<=0?'#ef4444':'#f59e0b'}}>{v.stock_quantity||0} left</div>
               </div>
             </div>
           )):(
             <div style={{textAlign:'center',padding:'24px 0',color:'#cbd5e1',fontSize:13}}>
-              <i className="ti ti-users" style={{fontSize:32,display:'block',marginBottom:8}}/>
-              No customer spend data yet
+              <i className="ti ti-circle-check" style={{fontSize:36,display:'block',marginBottom:8,color:'#10b981'}}/>All variants in stock
             </div>
           )}
-        </div>
-      </div>
+        </Card>
 
-      {/* ── Recent orders ─────────────────────────────────────── */}
-      <div style={{background:'#fff',borderRadius:16,padding:'20px 22px',boxShadow:'0 1px 4px rgba(0,0,0,.06)',border:'1px solid #f1f5f9'}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-          <div>
-            <div style={{fontWeight:700,fontSize:15,color:'#1e293b'}}>Recent Orders</div>
-            <div style={{fontSize:12,color:'#94a3b8'}}>Last {recentOrders.length} transactions · All channels</div>
-          </div>
-          <div style={{fontSize:11,padding:'4px 12px',borderRadius:20,background:'#f0f4ff',color:'#6366f1',fontWeight:700}}>{(orders as any[]).length} total</div>
-        </div>
-        <div style={{overflowX:'auto'}}>
-          <div style={{display:'grid',gridTemplateColumns:'100px 110px 1fr 90px 110px 80px',gap:8,padding:'8px 12px',background:'#f8fafc',borderRadius:10,marginBottom:6,fontSize:11,fontWeight:700,color:'#94a3b8',letterSpacing:.3}}>
-            <span>ORDER #</span><span>DATE & TIME</span><span>CUSTOMER</span><span>PAYMENT</span><span>TOTAL</span><span>STATUS</span>
-          </div>
-          {recentOrders.length===0&&<div style={{padding:'32px 0',textAlign:'center',color:'#cbd5e1',fontSize:13}}><i className="ti ti-shopping-cart" style={{fontSize:32,display:'block',marginBottom:8}}/>No orders yet</div>}
-          {recentOrders.map((o:any,i:number)=>{
-            const statusColor:Record<string,string>={paid:'#10b981',completed:'#10b981',pending:'#f59e0b',returned:'#ef4444',cancelled:'#ef4444'};
-            const statusBg:Record<string,string>={paid:'#f0fdf4',completed:'#f0fdf4',pending:'#fffbf0',returned:'#fef2f2',cancelled:'#fef2f2'};
-            const sc=statusColor[o.status]||'#94a3b8';
-            const sb=statusBg[o.status]||'#f8fafc';
+        <Card>
+          <CardHeader title="Recent Sales" sub="Latest transactions"
+            right={
+              <div style={{display:'flex',gap:6}}>
+                {['week','month'].map(p=>(
+                  <button key={p} onClick={()=>setRecentSalesPeriod(p)} style={{padding:'4px 12px',borderRadius:8,border:'none',cursor:'pointer',fontSize:11,fontWeight:700,background:recentSalesPeriod===p?'#6366f1':'#f1f5f9',color:recentSalesPeriod===p?'#fff':'#64748b'}}>
+                    {p.charAt(0).toUpperCase()+p.slice(1)}
+                  </button>
+                ))}
+              </div>
+            }/>
+          {recentSales.map((o:any,i:number)=>{
+            const sc=STATUS_COLOR[o.status]||{c:'#94a3b8',bg:'#f8fafc'};
             return(
-              <div key={o.id} style={{display:'grid',gridTemplateColumns:'100px 110px 1fr 90px 110px 80px',gap:8,padding:'10px 12px',borderRadius:10,background:i%2===0?'#fff':'#fafbfc',alignItems:'center',marginBottom:2}}>
-                <span style={{fontWeight:700,fontSize:13,color:'#6366f1'}}>#{o.order_number}</span>
-                <span style={{fontSize:11,color:'#94a3b8'}}>{o.created_at?new Date(o.created_at).toLocaleString('en-SA',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):'-'}</span>
-                <div>
+              <div key={o.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:i<recentSales.length-1?'1px solid #f1f5f9':'none'}}>
+                <div style={{width:34,height:34,borderRadius:10,background:'#f0f4ff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,color:'#6366f1',flexShrink:0}}>#{String(o.order_number||o.id||i+1).slice(-3)}</div>
+                <div style={{flex:1,minWidth:0}}>
                   <div style={{fontWeight:600,fontSize:12}}>{o.customer_name||'Walk-in'}</div>
-                  <div style={{fontSize:10,color:'#94a3b8'}}>POS · Riyadh Mall</div>
+                  <div style={{fontSize:10,color:'#94a3b8'}}>{o.created_at?new Date(o.created_at).toLocaleDateString('en-SA',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):'-'}</div>
                 </div>
-                <span style={{fontSize:11,color:'#64748b',textTransform:'capitalize'}}>{(o.payment_method||'—').replace(/_/g,' ')}</span>
-                <div>
-                  <div style={{fontWeight:700,fontSize:13,color:'#1e293b'}}>{sar(o.total)}</div>
-                  <div style={{fontSize:10,color:'#94a3b8'}}>VAT {sar(parseFloat(o.tax_amount||0))}</div>
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontWeight:800,fontSize:13}}>{sar(o.total)}</div>
+                  <span style={{fontSize:9,padding:'2px 8px',borderRadius:20,background:sc.bg,color:sc.c,fontWeight:700}}>{o.status}</span>
                 </div>
-                <span style={{fontSize:11,padding:'3px 10px',borderRadius:20,background:sb,color:sc,fontWeight:700,textTransform:'capitalize',textAlign:'center'}}>{o.status||'—'}</span>
               </div>
             );
           })}
-        </div>
+          {recentSales.length===0&&<div style={{textAlign:'center',padding:'24px 0',color:'#cbd5e1',fontSize:13}}>No sales this period</div>}
+        </Card>
       </div>
 
-      {/* ── Alerts ────────────────────────────────────────────── */}
-      <div style={{display:'flex',flexDirection:'column',gap:10}}>
-        {outOfStock>0&&(
-          <div style={{display:'flex',alignItems:'center',gap:14,padding:'14px 18px',background:'#fef2f2',border:'1px solid #fca5a5',borderRadius:14}}>
-            <i className="ti ti-alert-circle" style={{fontSize:22,color:'#ef4444',flexShrink:0}}/>
-            <div style={{flex:1}}>
-              <div style={{fontWeight:700,color:'#991b1b',fontSize:13}}>{outOfStock} variants out of stock</div>
-              <div style={{fontSize:12,color:'#b91c1c',opacity:.8}}>Check inventory and create purchase orders immediately</div>
-            </div>
-            <button style={{padding:'7px 16px',borderRadius:10,border:'1px solid #fca5a5',background:'#fff',color:'#ef4444',cursor:'pointer',fontSize:12,fontWeight:700,whiteSpace:'nowrap'}}>View Inventory</button>
+      {/* Sales Stats + Revenue/Expense */}
+      <div style={{display:'grid',gridTemplateColumns:'3fr 2fr',gap:16}}>
+        <Card>
+          <CardHeader title="Sales Statistics" sub="Monthly performance"/>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:16}}>
+            {[
+              {l:'Month Revenue',v:sarK(monthRevenue),c:'#6366f1'},
+              {l:'Month Orders',v:monthOrders.length,c:'#10b981'},
+              {l:'Avg Basket',v:sarK(monthOrders.length?monthRevenue/monthOrders.length:0),c:'#f59e0b'},
+              {l:'Month Expense',v:sarK(monthExpense),c:'#ef4444'},
+            ].map(s=>(
+              <div key={s.l} style={{padding:'12px 14px',background:'#f8fafc',borderRadius:12,textAlign:'center'}}>
+                <div style={{fontWeight:900,fontSize:16,color:s.c}}>{s.v}</div>
+                <div style={{fontSize:10,color:'#94a3b8',marginTop:3}}>{s.l}</div>
+              </div>
+            ))}
           </div>
-        )}
-        {lowStock>0&&(
-          <div style={{display:'flex',alignItems:'center',gap:14,padding:'14px 18px',background:'#fffbf0',border:'1px solid #fde68a',borderRadius:14}}>
-            <i className="ti ti-alert-triangle" style={{fontSize:22,color:'#f59e0b',flexShrink:0}}/>
-            <div style={{flex:1}}>
-              <div style={{fontWeight:700,color:'#92400e',fontSize:13}}>{lowStock} variants running low (≤5 units)</div>
-              <div style={{fontSize:12,color:'#b45309',opacity:.8}}>Consider reordering soon to avoid stockouts</div>
-            </div>
-            <button style={{padding:'7px 16px',borderRadius:10,border:'1px solid #fde68a',background:'#fff',color:'#f59e0b',cursor:'pointer',fontSize:12,fontWeight:700,whiteSpace:'nowrap'}}>Reorder</button>
+          <BarChart data={orderStatsData} valueKey="revenue" color="#6366f1" height={100}/>
+        </Card>
+
+        <Card>
+          <CardHeader title="Revenue & Expense" sub="This month"/>
+          <div style={{display:'flex',justifyContent:'center',marginBottom:12}}>
+            <DonutChart size={120} slices={[{value:monthRevenue,color:'#6366f1',label:'Revenue'},{value:monthExpense,color:'#ef4444',label:'Expense'}]}/>
           </div>
-        )}
-        {dash?.alerts?.open_purchase_orders>0&&(
-          <div style={{display:'flex',alignItems:'center',gap:14,padding:'14px 18px',background:'#f0f4ff',border:'1px solid #c7d2fe',borderRadius:14}}>
-            <i className="ti ti-truck" style={{fontSize:22,color:'#6366f1',flexShrink:0}}/>
-            <div style={{flex:1}}>
-              <div style={{fontWeight:700,color:'#4338ca',fontSize:13}}>{dash.alerts.open_purchase_orders} open purchase orders pending</div>
-              <div style={{fontSize:12,color:'#4f46e5',opacity:.8}}>Awaiting supplier confirmation or delivery</div>
+          {[{l:'Revenue',v:monthRevenue,c:'#6366f1'},{l:'Expense',v:monthExpense,c:'#ef4444'},{l:'Net Profit',v:monthRevenue-monthExpense,c:monthRevenue>monthExpense?'#10b981':'#ef4444'}].map(s=>(
+            <div key={s.l} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 14px',background:'#f8fafc',borderRadius:12,marginBottom:8}}>
+              <div style={{display:'flex',alignItems:'center',gap:8}}><div style={{width:10,height:10,borderRadius:3,background:s.c}}/><span style={{fontSize:12,fontWeight:600,color:'#374151'}}>{s.l}</span></div>
+              <span style={{fontWeight:800,fontSize:13,color:s.c}}>{sarK(s.v)}</span>
             </div>
-            <button style={{padding:'7px 16px',borderRadius:10,border:'1px solid #c7d2fe',background:'#fff',color:'#6366f1',cursor:'pointer',fontSize:12,fontWeight:700,whiteSpace:'nowrap'}}>View POs</button>
+          ))}
+          <div style={{marginTop:4}}>
+            <div style={{fontSize:10,color:'#94a3b8',marginBottom:4}}>Profit Margin</div>
+            <div style={{height:6,background:'#f1f5f9',borderRadius:99}}><div style={{height:'100%',width:`${monthRevenue>0?Math.min(Math.max((monthRevenue-monthExpense)/monthRevenue*100,0),100):0}%`,background:'#10b981',borderRadius:99}}/></div>
+            <div style={{fontSize:11,fontWeight:700,color:'#10b981',marginTop:4}}>{monthRevenue>0?((monthRevenue-monthExpense)/monthRevenue*100).toFixed(1):0}%</div>
           </div>
-        )}
+        </Card>
       </div>
+
+      {/* Recent Transactions tabs */}
+      <Card>
+        <CardHeader title="Recent Transactions" sub="All transaction types"/>
+        <div style={{display:'flex',gap:4,marginBottom:16,borderBottom:'2px solid #f1f5f9',paddingBottom:0}}>
+          {[{k:'sale',l:'Sales'},{k:'purchase',l:'Purchases'},{k:'quotation',l:'Quotations'},{k:'expense',l:'Expenses'},{k:'invoice',l:'Invoices'}].map(t=>(
+            <button key={t.k} onClick={()=>setTxTab(t.k)} style={{padding:'8px 16px',border:'none',cursor:'pointer',fontSize:12,fontWeight:700,background:'transparent',color:txTab===t.k?'#6366f1':'#94a3b8',borderBottom:txTab===t.k?'2px solid #6366f1':'2px solid transparent',marginBottom:-2,transition:'all .15s'}}>
+              {t.l}
+            </button>
+          ))}
+        </div>
+        {txData.length>0?(
+          <div>
+            <div style={{display:'grid',gridTemplateColumns:'80px 100px 1fr 120px 100px 80px',gap:8,padding:'6px 10px',background:'#f8fafc',borderRadius:10,marginBottom:6,fontSize:10,fontWeight:700,color:'#94a3b8',letterSpacing:.5}}>
+              <span>#</span><span>DATE</span><span>NAME</span><span>METHOD</span><span>AMOUNT</span><span>STATUS</span>
+            </div>
+            {txData.map((item:any,i:number)=>{
+              const sc=STATUS_COLOR[item.status||'pending']||{c:'#94a3b8',bg:'#f8fafc'};
+              return(
+                <div key={item.id||i} style={{display:'grid',gridTemplateColumns:'80px 100px 1fr 120px 100px 80px',gap:8,padding:'9px 10px',borderRadius:10,background:i%2?'#fafbfc':'#fff',alignItems:'center',marginBottom:2}}>
+                  <span style={{fontWeight:700,fontSize:12,color:'#6366f1'}}>#{item.order_number||item.id||i+1}</span>
+                  <span style={{fontSize:10,color:'#94a3b8'}}>{item.created_at||item.date?new Date(item.created_at||item.date).toLocaleDateString('en-SA',{month:'short',day:'numeric'}):'-'}</span>
+                  <span style={{fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{item.customer_name||item.supplier_name||item.description||'—'}</span>
+                  <span style={{fontSize:11,color:'#64748b',textTransform:'capitalize'}}>{(item.payment_method||item.type||txTab).replace(/_/g,' ')}</span>
+                  <span style={{fontWeight:700,fontSize:12}}>{sar(item.total||item.amount||0)}</span>
+                  <span style={{fontSize:10,padding:'3px 8px',borderRadius:20,background:sc.bg,color:sc.c,fontWeight:700,textAlign:'center'}}>{item.status||'—'}</span>
+                </div>
+              );
+            })}
+          </div>
+        ):(
+          <div style={{textAlign:'center',padding:'24px 0',color:'#cbd5e1',fontSize:13}}>No {txTab} records</div>
+        )}
+      </Card>
+
+      {/* Top Customers + Categories */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+        <Card>
+          <CardHeader title="Top Customers" sub="By lifetime spend" right={<button style={{fontSize:11,fontWeight:700,color:'#6366f1',background:'#f0f4ff',border:'none',borderRadius:8,padding:'4px 12px',cursor:'pointer'}}>View All →</button>}/>
+          {topCustomers.filter((c:any)=>c.spend>0).length>0?topCustomers.filter((c:any)=>c.spend>0).map((c:any,i:number)=>(
+            <div key={c.id} style={{display:'flex',alignItems:'center',gap:12,padding:'9px 0',borderBottom:i<5?'1px solid #f8fafc':'none'}}>
+              <div style={{width:36,height:36,borderRadius:10,background:['linear-gradient(135deg,#f59e0b,#ef4444)','linear-gradient(135deg,#94a3b8,#64748b)','linear-gradient(135deg,#cd7f32,#b45309)','linear-gradient(135deg,#6366f1,#8b5cf6)','linear-gradient(135deg,#10b981,#06b6d4)','linear-gradient(135deg,#ec4899,#f43f5e)'][i],display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:800,color:'#fff',flexShrink:0}}>
+                {i<3?['🥇','🥈','🥉'][i]:c.name?.slice(0,2).toUpperCase()||'??'}
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontWeight:700,fontSize:13,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.name}</div>
+                <div style={{fontSize:10,color:'#94a3b8',textTransform:'capitalize'}}>{c.loyalty_tier||'Bronze'} · {(c.loyalty_points||0).toLocaleString()} pts</div>
+              </div>
+              <div style={{textAlign:'right'}}>
+                <div style={{fontWeight:900,fontSize:13,color:'#1e293b'}}>{sarK(c.spend)}</div>
+                <div style={{fontSize:10,color:'#94a3b8'}}>{(orders as any[]).filter((o:any)=>o.customer_id===c.id).length} orders</div>
+              </div>
+            </div>
+          )):(
+            <div style={{textAlign:'center',padding:'24px 0',color:'#cbd5e1',fontSize:13}}><i className="ti ti-users" style={{fontSize:36,display:'block',marginBottom:8}}/>No spend data</div>
+          )}
+        </Card>
+
+        <Card>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14}}>
+            <div><div style={{fontWeight:700,fontSize:14,color:'#1e293b'}}>Top Categories</div><div style={{fontSize:11,color:'#94a3b8'}}>YTD sales performance</div></div>
+            <div style={{display:'flex',gap:8}}>
+              <div style={{textAlign:'center',padding:'6px 12px',background:'#f0f4ff',borderRadius:10}}>
+                <div style={{fontWeight:900,fontSize:16,color:'#6366f1'}}>{(categories as any[]).length||'—'}</div>
+                <div style={{fontSize:9,color:'#94a3b8',fontWeight:600}}>CATEGORIES</div>
+              </div>
+              <div style={{textAlign:'center',padding:'6px 12px',background:'#f0fdf4',borderRadius:10}}>
+                <div style={{fontWeight:900,fontSize:16,color:'#10b981'}}>{(products as any[]).length||'—'}</div>
+                <div style={{fontSize:9,color:'#94a3b8',fontWeight:600}}>PRODUCTS</div>
+              </div>
+            </div>
+          </div>
+          {(() => {
+            const cats=byCategory as any[];
+            const total=cats.reduce((s:number,c:any)=>s+parseFloat(c.revenue||0),0)||1;
+            return cats.length>0?cats.slice(0,6).map((c:any,i:number)=>{
+              const rev=parseFloat(c.revenue||0);
+              return(
+                <div key={i} style={{marginBottom:10}}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                    <div style={{display:'flex',alignItems:'center',gap:7}}><div style={{width:10,height:10,borderRadius:3,background:CAT_COLORS[i%8]}}/><span style={{fontSize:12,fontWeight:600}}>{c.category_name||'Other'}</span></div>
+                    <span style={{fontSize:11,fontWeight:700}}>{sarK(rev)} <span style={{fontSize:10,color:'#94a3b8',fontWeight:400}}>({(rev/total*100).toFixed(0)}%)</span></span>
+                  </div>
+                  <div style={{height:5,background:'#f1f5f9',borderRadius:99}}><div style={{height:'100%',width:`${rev/total*100}%`,background:CAT_COLORS[i%8],borderRadius:99}}/></div>
+                </div>
+              );
+            }):(
+              <div style={{textAlign:'center',padding:'24px 0',color:'#cbd5e1',fontSize:13}}><i className="ti ti-tags" style={{fontSize:36,display:'block',marginBottom:8}}/>No category data</div>
+            );
+          })()}
+        </Card>
+      </div>
+
+      {/* Order Statistics */}
+      <Card>
+        <CardHeader title="Order Statistics" sub="Orders and revenue trend"
+          right={
+            <div style={{display:'flex',gap:6}}>
+              {['week','month'].map(p=>(
+                <button key={p} onClick={()=>setOrderPeriod(p)} style={{padding:'5px 14px',borderRadius:10,border:'none',cursor:'pointer',fontSize:11,fontWeight:700,background:orderPeriod===p?'#6366f1':'#f1f5f9',color:orderPeriod===p?'#fff':'#64748b'}}>
+                  {p.charAt(0).toUpperCase()+p.slice(1)}
+                </button>
+              ))}
+            </div>
+          }/>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:16}}>
+          {[
+            {l:`${orderPeriod==='week'?'Week':'Month'} Orders`,v:orderStatsData.reduce((s:number,r:any)=>s+(r.orders||0),0),c:'#6366f1'},
+            {l:`${orderPeriod==='week'?'Week':'Month'} Revenue`,v:sarK(orderStatsData.reduce((s:number,r:any)=>s+(r.revenue||0),0)),c:'#10b981'},
+            {l:'Avg Daily Orders',v:orderStatsData.length?Math.round(orderStatsData.reduce((s:number,r:any)=>s+(r.orders||0),0)/orderStatsData.length):0,c:'#f59e0b'},
+            {l:'Avg Daily Revenue',v:sarK(orderStatsData.length?orderStatsData.reduce((s:number,r:any)=>s+(r.revenue||0),0)/orderStatsData.length:0),c:'#8b5cf6'},
+          ].map(s=>(
+            <div key={s.l} style={{padding:14,background:'#f8fafc',borderRadius:12,textAlign:'center'}}>
+              <div style={{fontWeight:900,fontSize:18,color:s.c}}>{s.v}</div>
+              <div style={{fontSize:11,color:'#94a3b8',marginTop:3}}>{s.l}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+          <div><div style={{fontSize:11,fontWeight:700,color:'#64748b',marginBottom:8}}>REVENUE</div><BarChart data={orderStatsData} valueKey="revenue" color="#6366f1" height={80}/></div>
+          <div><div style={{fontSize:11,fontWeight:700,color:'#64748b',marginBottom:8}}>ORDERS</div><BarChart data={orderStatsData} valueKey="orders" color="#10b981" height={80}/></div>
+        </div>
+      </Card>
+
+      {/* Alerts */}
+      {lowStockItems.length>0&&(
+        <div style={{display:'flex',flexDirection:'column',gap:8}}>
+          {lowStockItems.filter((v:any)=>parseFloat(v.stock_quantity)<=0).length>0&&(
+            <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 18px',background:'#fef2f2',border:'1px solid #fca5a5',borderRadius:14}}>
+              <i className="ti ti-alert-circle" style={{fontSize:20,color:'#ef4444'}}/>
+              <div style={{flex:1}}><strong style={{color:'#991b1b'}}>{lowStockItems.filter((v:any)=>parseFloat(v.stock_quantity)<=0).length} variants out of stock</strong> — Create purchase orders immediately</div>
+              <button style={{padding:'6px 14px',borderRadius:8,border:'1px solid #fca5a5',background:'#fff',color:'#ef4444',cursor:'pointer',fontSize:11,fontWeight:700}}>Reorder</button>
+            </div>
+          )}
+          {lowStockItems.filter((v:any)=>parseFloat(v.stock_quantity)>0).length>0&&(
+            <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 18px',background:'#fffbf0',border:'1px solid #fde68a',borderRadius:14}}>
+              <i className="ti ti-alert-triangle" style={{fontSize:20,color:'#f59e0b'}}/>
+              <div style={{flex:1}}><strong style={{color:'#92400e'}}>{lowStockItems.filter((v:any)=>parseFloat(v.stock_quantity)>0).length} variants running low</strong> — Consider reordering soon</div>
+              <button style={{padding:'6px 14px',borderRadius:8,border:'1px solid #fde68a',background:'#fff',color:'#f59e0b',cursor:'pointer',fontSize:11,fontWeight:700}}>View All</button>
+            </div>
+          )}
+        </div>
+      )}
 
     </div>
   );
 }
+DASHEOF
+npm run build
