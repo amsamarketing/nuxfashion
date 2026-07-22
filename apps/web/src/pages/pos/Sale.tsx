@@ -12,6 +12,13 @@ const TIER_RATE:Record<string,number> = {bronze:1/5,silver:1/4,gold:1/3,platinum
 const getStoredCoupons = () => { try{return JSON.parse(sessionStorage.getItem('coupons')||'[]');}catch{return [];} };
 const getStoredGiftCards = () => { try{return JSON.parse(sessionStorage.getItem('giftcards')||'[]');}catch{return [];} };
 const getStoredPromos = () => { try{return JSON.parse(sessionStorage.getItem('localPromos')||'[]');}catch{return [];} };
+const getStoredWallets = () => { try{return JSON.parse(sessionStorage.getItem('wallets')||'[]');}catch{return [];} };
+const getWalletBalance = (customer:any) => {
+  if(!customer) return 0;
+  const wallets = getStoredWallets();
+  const w = wallets.find((w:any)=>w.customer===customer.name||w.id==='w'+customer.id);
+  return w ? w.balance : parseFloat(customer?.wallet_balance||0);
+};
 
 export default function POSSale() {
   const { toast } = useToast();
@@ -44,7 +51,7 @@ export default function POSSale() {
   const customer = customers.find((c:any)=>c.id===custId) as any;
   const tier = customer?.loyalty_tier||'bronze';
   const custPoints = customer?.loyalty_points||0;
-  const walletBal = parseFloat(customer?.wallet_balance||0);
+  const walletBal = getWalletBalance(customer);
 
   // Auto-apply promotion when cart changes
   useEffect(()=>{
