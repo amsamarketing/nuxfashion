@@ -331,6 +331,7 @@ export class SalesService {
     );
 
     return ret.rows[0];
+    } catch(e:any) { throw new InternalServerErrorException('createReturn: '+(e?.message||e)); }
   }
 
   async getReturns(companyId: string) {
