@@ -21,6 +21,8 @@ export default function POSSale() {
   const [receipt, setReceipt] = useState<any>(null);
 
   const { data: products=[] } = useQuery({ queryKey:['products'], queryFn:()=>api.get('/catalog/products').then(r=>r.data) });
+  const { data: warehouses=[] } = useQuery({ queryKey:['warehouses'], queryFn:()=>api.get('/inventory/warehouses').then(r=>r.data).catch(()=>[]) });
+  const defaultWarehouseId = warehouses[0]?.id || null;
   const { data: customers=[] } = useQuery({ queryKey:['customers'], queryFn:()=>api.get('/customers').then(r=>r.data) });
 
   const sub = cart.reduce((s,i)=>s+i.price*i.qty, 0);
@@ -47,11 +49,12 @@ export default function POSSale() {
 
   const chargeMut = useMutation({
     mutationFn: async () => {
-      const body = {
+      const body: any = {
         customer_id: custId || null,
         lines: cart.map(i=>({ variant_id:i.id, quantity:i.qty, unit_price:i.price, discount_amount:0 })),
         subtotal: sub, tax_amount: tax, discount_amount: discAmt, total
       };
+      if (defaultWarehouseId) body.warehouse_id = defaultWarehouseId;
       const order = await api.post('/sales/orders', body);
       await api.post('/sales/payments', {
         order_id: order.data.id,
