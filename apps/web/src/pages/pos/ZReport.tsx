@@ -8,6 +8,9 @@ export default function ZReport() {
   const [openingFloat, setOpeningFloat] = useState(500);
   const [actualCounted, setActualCounted] = useState<number | null>(null);
   const [countInput, setCountInput] = useState('');
+  const shiftKey = `closed_shift_${new Date().toISOString().slice(0,10)}`;
+  const [shiftClosed, setShiftClosed] = useState(() => !!localStorage.getItem(shiftKey));
+  const [showCloseModal, setShowCloseModal] = useState(false);
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -145,9 +148,16 @@ export default function ZReport() {
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="bx" onClick={handlePrint}><i className="ti ti-printer" /> Print</button>
           <button className="bx" onClick={handlePrint}><i className="ti ti-file-type-pdf" /> Export PDF</button>
-          <button className="bx a" style={{ background: '#2563eb', color: '#fff', borderColor: '#2563eb' }}>
-            <i className="ti ti-lock" /> Close shift
-          </button>
+          {shiftClosed ? (
+            <span style={{ background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0', borderRadius: 8, padding: '6px 14px', fontSize: 14, fontWeight: 600 }}>
+              <i className="ti ti-check" /> Shift closed
+            </span>
+          ) : (
+            <button className="bx a" style={{ background: '#2563eb', color: '#fff', borderColor: '#2563eb' }}
+              onClick={() => setShowCloseModal(true)}>
+              <i className="ti ti-lock" /> Close shift
+            </button>
+          )}
         </div>
       </div>
 
@@ -292,6 +302,47 @@ export default function ZReport() {
           <i className="ti ti-chart-bar" style={{ marginRight: 8 }} />
           No sales line items available for top items breakdown.
           {transactions > 0 && ' (Orders fetched without line items — API list endpoint may not include lines.)'}
+        </div>
+      )}
+
+      {/* Close Shift Modal */}
+      {showCloseModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: 32, width: 400, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Close shift?</div>
+            <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 20 }}>
+              This will mark the shift as closed. You can still view the Z-report but no further changes will be recorded.
+            </p>
+            <div style={{ background: '#f9fafb', borderRadius: 10, padding: '14px 16px', marginBottom: 20, fontSize: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ color: '#6b7280' }}>Total sales</span>
+                <strong>{SAR(totalSales)}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ color: '#6b7280' }}>Transactions</span>
+                <strong>{transactions}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ color: '#6b7280' }}>Expected in drawer</span>
+                <strong>{SAR(expectedInDrawer)}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#6b7280' }}>Variance</span>
+                <strong style={{ color: Math.abs(variance) < 0.01 ? '#16a34a' : '#dc2626' }}>{SAR(variance)}</strong>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="bx" style={{ flex: 1 }} onClick={() => setShowCloseModal(false)}>Cancel</button>
+              <button className="bx a" style={{ flex: 1, background: '#2563eb', color: '#fff', borderColor: '#2563eb' }}
+                onClick={() => {
+                  localStorage.setItem(shiftKey, JSON.stringify({ closedAt: new Date().toISOString(), totalSales, transactions, expectedInDrawer, variance }));
+                  setShiftClosed(true);
+                  setShowCloseModal(false);
+                }}>
+                Confirm close shift
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
