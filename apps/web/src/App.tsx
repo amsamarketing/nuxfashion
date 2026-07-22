@@ -32,6 +32,7 @@ const POS_NAV = [
 const ADMIN_NAV = [
   { id: 'ad-dash',   l: 'Dashboard',       i: 'ti-layout-dashboard',  group: 'MAIN' },
   { id: 'ad-orders', l: 'Orders',           i: 'ti-shopping-cart',    group: 'MAIN' },
+  { id: 'ad-wh',     l: 'Warehouses',        i: 'ti-building-warehouse',group: 'MAIN' },
   { id: 'ad-inv',    l: 'Inventory',        i: 'ti-package',           group: 'MAIN' },
   { id: 'ad-prod',   l: 'Products',         i: 'ti-tag',               group: 'MAIN' },
   { id: 'ad-purch',  l: 'Purchasing',       i: 'ti-truck',             group: 'MAIN' },
@@ -46,7 +47,7 @@ const ADMIN_NAV = [
 
 const SCREENS: Record<string, React.ComponentType> = {
   'pos-sale': POSSale, 'pos-return': POSReturn, 'pos-held': POSHeld, 'pos-zreport': ZReport,
-  'ad-dash': Dashboard, 'ad-orders': Orders, 'ad-inv': Inventory, 'ad-prod': Products,
+  'ad-dash': Dashboard, 'ad-orders': Orders, 'ad-wh': Warehouses, 'ad-inv': Inventory, 'ad-prod': Products,
   'ad-purch': Purchasing, 'ad-acct': Accounting, 'ad-zatca': ZATCA, 'ad-crm': Customers,
   'ad-loyal': Loyalty, 'ad-hr': HR, 'ad-rep': Reports, 'ad-set': Settings,
 };
