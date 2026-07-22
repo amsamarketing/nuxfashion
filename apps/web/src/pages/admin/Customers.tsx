@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
 import { useToast } from '../../components/Toast';
@@ -84,6 +84,37 @@ export default function Customers() {
     onError:(e:any)=>toast(getErr(e),'error')
   });
 
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+
+  const handleCSV = async (e:React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; if(!file) return;
+    setImporting(true);
+    const text = await file.text();
+    const lines = text.split('\n').filter(Boolean);
+    const headers = lines[0].split(',').map(h=>h.replace(/^"|"$/g,'').trim().toLowerCase());
+    const idx=(t:string[])=>headers.findIndex(h=>t.some(x=>h.includes(x)));
+    const ni=idx(['name']), pi=idx(['phone','mobile']), ei=idx(['email']), di=idx(['dob','birth','date']);
+    let ok=0, fail=0;
+    for(let i=1;i<lines.length;i++){
+      const cols=lines[i].split(',').map(x=>x.replace(/^"|"$/g,'').trim());
+      const name=ni>=0?cols[ni]:''; if(!name) continue;
+      try {
+        await api.post('/customers',{
+          name,
+          phone: pi>=0&&cols[pi]?cols[pi]:undefined,
+          email: ei>=0&&cols[ei]?cols[ei]:undefined,
+          date_of_birth: di>=0&&cols[di]?cols[di]:undefined,
+        });
+        ok++;
+      } catch { fail++; }
+    }
+    setImporting(false);
+    qc.invalidateQueries({queryKey:['customers']});
+    toast('Imported '+ok+' customers'+(fail?' ('+fail+' failed)':''), ok>0?'success':'error');
+    if(fileRef.current) fileRef.current.value='';
+  };
+
   const set=(k:string,v:string)=>setForm(p=>({...p,[k]:v}));
   const eSet=(k:string,v:string)=>setEditForm(p=>({...p,[k]:v}));
   const openEdit=(c:any)=>{ setEditCust(c); setEditForm({name:c.name||'',phone:c.phone||'',email:c.email||'',date_of_birth:c.date_of_birth||''}); };
@@ -114,7 +145,10 @@ export default function Customers() {
                 style={{padding:'6px 10px 6px 28px',border:'1px solid var(--border-color)',borderRadius:'var(--radius)',fontSize:12,background:'var(--surface-2)',color:'var(--text-primary)',width:200}}/>
             </div>
             <button className="bt"><i className="ti ti-filter"/> Segment</button>
-            <button className="bt"><i className="ti ti-upload"/> Import</button>
+            <button className="bt" onClick={()=>fileRef.current?.click()} disabled={importing}>
+              {importing?<><div className="spinner-border spinner-border-sm" style={{width:13,height:13}}/> Importing…</>:<><i className="ti ti-upload"/> Import</>}
+            </button>
+            <input ref={fileRef} type="file" accept=".csv" style={{display:'none'}} onChange={handleCSV}/>
             <button className="bt bt-p" onClick={()=>setShowAdd(true)}><i className="ti ti-plus"/> Add customer</button>
           </div>
         </div>
