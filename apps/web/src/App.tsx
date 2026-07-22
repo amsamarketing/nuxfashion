@@ -115,9 +115,9 @@ function App() {
                 </div>
               ))}
               <div className="sep" style={{ marginTop: 'auto' }}>QUICK ACTIONS</div>
-              <div className="ni"><i className="ti ti-user-plus" /> Add customer</div>
-              <div className="ni"><i className="ti ti-gift" /> Gift card</div>
-              <div className="ni"><i className="ti ti-percentage" /> Discount</div>
+              <div className="ni" onClick={()=>setScreen('ad-crm')}><i className="ti ti-user-plus" /> Add customer</div>
+              <div className="ni" onClick={()=>alert('Gift card feature coming soon')}><i className="ti ti-gift" /> Gift card</div>
+              <div className="ni" onClick={()=>setScreen('pos-sale')}><i className="ti ti-percentage" /> Discount</div>
             </>
           ) : (
             <>
