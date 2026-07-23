@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
 const TIER_COLOR:Record<string,string>={regular:'grey',bronze:'grey',silver:'teal',gold:'amber',vip:'indigo',platinum:'indigo'};
-const TIER_C:Record<string,string>={regular:'#9ca3af',bronze:'#cd7f32',silver:'#aaa',gold:'#f59e0b',vip:'#6366f1',platinum:'#6366f1'};
 const TIER_CONFIG=[
   {key:'regular',label:'Regular',icon:'👤',minSpend:0,pointsRate:20,color:'#9ca3af',perks:['Basic loyalty points','Birthday discount 5%']},
   {key:'silver',label:'Silver',icon:'🥈',minSpend:500,pointsRate:25,color:'#aaa',perks:['25% faster points','Birthday discount 10%','Free shipping on orders 200+']},
@@ -135,7 +134,6 @@ function GiftCardModal({onClose}:{onClose:()=>void}){
 }
 
 export default function Loyalty(){
-  const qc=useQueryClient();
   const [tab,setTab]=useState('members');
   const [showDisc,setShowDisc]=useState(false);
   const [showGC,setShowGC]=useState(false);
