@@ -1,5 +1,5 @@
 import { ToastProvider } from './components/Toast';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
