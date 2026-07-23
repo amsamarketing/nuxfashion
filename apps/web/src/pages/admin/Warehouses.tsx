@@ -65,7 +65,6 @@ function WhForm({wh,onClose}:{wh:any,onClose:()=>void}){
 }
 
 export default function Warehouses(){
-  const [sel,setSel]=useState<any>(null);const [showForm,setShowForm]=useState(false);const [editWh,setEditWh]=useState<any>(null);
   const [selTab,setSelTab]=useState('info');
 
   const {data,isLoading}=useQuery({queryKey:['warehouses'],queryFn:async()=>{const r=await api.get('/inventory/warehouses');return r.data;}});
