@@ -56,7 +56,7 @@ body {
 .nux-icon-btn:hover { background:rgba(255,255,255,.14); color:#fff; }
 
 /* ─── Admin Root ─────────────────────────────────────────────── */
-.nux-admin-root { display:flex; height:100vh; overflow:hidden; position:relative; background:#e2e8f0; }
+.nux-admin-root { display:flex; height:100vh; overflow:hidden; position:relative; background:#f0f2f5; }
 .nux-overlay {
   position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:200;
 }
@@ -64,7 +64,7 @@ body {
 /* ─── Sidebar ────────────────────────────────────────────────── */
 .nux-sidebar {
   width:var(--sidebar-w); min-width:var(--sidebar-w);
-  background:var(--sidebar-bg); border-right:none; border-radius:0 14px 14px 0; 
+  background:#ffffff; border-right:1px solid #e8ecf0; box-shadow:2px 0 8px rgba(0,0,0,.05); 
   display:flex; flex-direction:column; height:100vh; overflow:hidden;
   transition:transform .25s cubic-bezier(.4,0,.2,1); z-index:300; flex-shrink:0;
 }
@@ -162,12 +162,12 @@ body {
 }
 
 /* ─── Main Wrap ──────────────────────────────────────────────── */
-.nux-main-wrap { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; background:var(--content-bg); margin-left:10px; border-radius:14px 0 0 14px; overflow:hidden; }
+.nux-main-wrap { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; background:#f0f2f5; }
 
 /* ─── Topbar ─────────────────────────────────────────────────── */
 .nux-topbar {
   height:var(--topbar-h); min-height:var(--topbar-h);
-  background:#fff; border-bottom:1px solid var(--border);
+  background:#ffffff; border-bottom:1px solid #e8ecf0;
   display:flex; align-items:center; justify-content:space-between;
   padding:0 24px; gap:12px; flex-shrink:0;
   box-shadow:0 1px 4px rgba(0,0,0,.04);
@@ -208,7 +208,7 @@ body {
 .nux-badge-blue   { display:inline-flex; align-items:center; gap:4px; padding:3px 10px; border-radius:99px; font-size:11px; font-weight:600; background:#dbeafe; color:#2563eb; border:1px solid #93c5fd; }
 
 /* ─── Content ────────────────────────────────────────────────── */
-.nux-content { flex:1; overflow-y:auto; background:var(--content-bg); padding:0; }
+.nux-content { flex:1; overflow-y:auto; background:#f0f2f5; }
 
 /* ─── Legacy utility classes ─────────────────────────────────── */
 .card { background:var(--card-bg); border:1px solid var(--border); border-radius:12px; padding:16px; box-shadow:var(--shadow-sm); }
@@ -236,10 +236,10 @@ body {
 .tr         { display:grid; gap:8px; padding:10px 14px; border-bottom:1px solid #f1f5f9; align-items:center; font-size:13px; }
 .tr:last-child { border-bottom:none; }
 .th         { background:#f8fafc; font-weight:700; color:#94a3b8; font-size:11px; }
-.app-topbar { height:64px; min-height:64px; display:flex; align-items:center; background:#fff; border-bottom:1px solid var(--border); padding:0 24px; gap:12px; }
+.app-topbar { height:64px; min-height:64px; display:flex; align-items:center; background:#ffffff; border-bottom:1px solid #e8ecf0; padding:0 24px; gap:12px; }
 .app-body   { flex:1; display:flex; overflow:hidden; }
 .app-main   { flex:1; overflow-y:auto; background:var(--content-bg); padding:24px; }
-.app-sidebar { width:var(--sidebar-w); background:var(--sidebar-bg); border-right:none; border-radius:0 14px 14px 0;  overflow-y:auto; padding:8px; }
+.app-sidebar { width:var(--sidebar-w); background:#ffffff; border-right:1px solid #e8ecf0; box-shadow:2px 0 8px rgba(0,0,0,.05);  overflow-y:auto; padding:8px; }
 .snb  { padding:5px 14px; font-size:12px; border-radius:99px; border:1.5px solid var(--border); background:#fff; color:var(--text-sub); cursor:pointer; transition:all .15s; font-weight:500; }
 .snb.on { background:var(--accent-light); color:var(--accent); border-color:var(--accent-border); font-weight:600; }
 .subnav { display:flex; gap:6px; padding:8px 0 14px; flex-wrap:wrap; }
