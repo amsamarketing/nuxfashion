@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
+import { api } from '../../lib/api';
 const nav=(s:string)=>window.dispatchEvent(new CustomEvent('nav',{detail:s}));
 const fmt=(n:number)=>'SAR '+n.toLocaleString('en-SA',{minimumFractionDigits:2,maximumFractionDigits:2});
 const SC:Record<string,string>={completed:'active',paid:'active',pending:'pending',cancelled:'danger',draft:'inactive'};
 export default function Dashboard(){
-  const {data:stats}=useQuery({queryKey:['dash-stats'],queryFn:async()=>{const r=await fetch('/api/dashboard/stats');if(!r.ok)return{};return r.json();}});
-  const {data:recent}=useQuery({queryKey:['dash-recent'],queryFn:async()=>{const r=await fetch('/api/orders?limit=8&sort=desc');if(!r.ok)return{orders:[]};return r.json();}});
+  const {data:stats}=useQuery({queryKey:['dash-stats'],queryFn:async()=>{const r=await api.get('/reports/dashboard');return r.data;}});
+  const {data:recent}=useQuery({queryKey:['dash-recent'],queryFn:async()=>{const r=await api.get('/sales/orders?limit=8');return r.data;}});
   const s=stats||{};
   const orders:any[]=recent?.orders||recent?.data||[];
   return(<div>
@@ -16,10 +17,10 @@ export default function Dashboard(){
       </div>
     </div>
     <div className="nx-stats cols-4">
-      <div className="nx-stat"><div className="nx-stat-icon indigo"><i className="ti ti-cash"/></div><div className="nx-stat-body"><div className="nx-stat-val">{fmt(s.today_sales||0)}</div><div className="nx-stat-lbl">Today's Sales</div></div></div>
+      <div className="nx-stat"><div className="nx-stat-icon indigo"><i className="ti ti-cash"/></div><div className="nx-stat-body"><div className="nx-stat-val">{fmt(s.today_revenue||s.today_sales||0)}</div><div className="nx-stat-lbl">Today's Sales</div></div></div>
       <div className="nx-stat"><div className="nx-stat-icon green"><i className="ti ti-shopping-bag"/></div><div className="nx-stat-body"><div className="nx-stat-val">{s.today_orders||0}</div><div className="nx-stat-lbl">Orders Today</div></div></div>
-      <div className="nx-stat"><div className="nx-stat-icon amber"><i className="ti ti-users"/></div><div className="nx-stat-body"><div className="nx-stat-val">{s.active_customers||0}</div><div className="nx-stat-lbl">Active Customers</div></div></div>
-      <div className="nx-stat"><div className="nx-stat-icon red"><i className="ti ti-alert-triangle"/></div><div className="nx-stat-body"><div className="nx-stat-val">{s.low_stock||0}</div><div className="nx-stat-lbl">Low Stock Items</div></div></div>
+      <div className="nx-stat"><div className="nx-stat-icon amber"><i className="ti ti-users"/></div><div className="nx-stat-body"><div className="nx-stat-val">{s.total_customers||s.active_customers||0}</div><div className="nx-stat-lbl">Active Customers</div></div></div>
+      <div className="nx-stat"><div className="nx-stat-icon red"><i className="ti ti-alert-triangle"/></div><div className="nx-stat-body"><div className="nx-stat-val">{s.low_stock_count||s.low_stock||0}</div><div className="nx-stat-lbl">Low Stock Items</div></div></div>
     </div>
     <div className="nx-quick">
       {[{icon:'ti-shopping-cart',l:'New Sale',s:'pos-sale'},{icon:'ti-users',l:'Customers',s:'ad-crm'},{icon:'ti-package',l:'Inventory',s:'ad-inv'},{icon:'ti-truck',l:'Purchasing',s:'ad-purch'},{icon:'ti-id',l:'HR',s:'ad-hr'},{icon:'ti-report-money',l:'Accounting',s:'ad-acct'},{icon:'ti-file-check',l:'ZATCA',s:'ad-zatca'},{icon:'ti-settings',l:'Settings',s:'ad-set'}].map(q=>(
