@@ -11,7 +11,6 @@ const TIER_CONFIG=[
 ];
 const OCCASIONS=['None','Eid Al-Fitr','Eid Al-Adha','Ramadan','National Day','Black Friday','Summer Sale','Winter Sale','Clearance','New Year','Valentine\'s Day','Back to School'];
 const TYPE_LABEL:Record<string,string>={percentage:'% Off',fixed_amount:'SAR Off',buy_x_get_y:'Buy X Get Y',free_item:'Free Item'};
-const SCOPE_ICON:Record<string,string>={all:'🌐',category:'📂',product:'👕',tier:'👑'};
 
 function MultiSelect({label,options,selected,onToggle}:{label:string;options:{id:string;name:string}[];selected:string[];onToggle:(id:string)=>void}){
   const [open,setOpen]=useState(false);
@@ -252,7 +251,7 @@ function GiftCardModal({onClose}:{onClose:()=>void}){
   );
 }
 
-function DiscountCard({d,cats,prods,onEdit}:{d:any;cats:{id:string;name:string}[];prods:any[];onEdit:()=>void}){
+function DiscountCard({d,cats,onEdit}:{d:any;cats:{id:string;name:string}[];onEdit:()=>void}){
   const now=new Date();
   const started=!d.valid_from||new Date(d.valid_from)<=now;
   const expired=d.valid_until&&new Date(d.valid_until)<now;
