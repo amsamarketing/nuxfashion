@@ -64,6 +64,9 @@ function POModal({ onClose }: { onClose: () => void }) {
   const products: any[] = Array.isArray(prodData) ? prodData : prodData?.products || prodData?.data || [];
 
   const [suppId, setSuppId] = useState('');
+  const [whId, setWhId] = useState('');
+  const { data: whData } = useQuery({ queryKey: ['warehouses-brief'], queryFn: async () => { const r = await api.get('/inventory/warehouses'); return r.data; } });
+  const warehouses: any[] = Array.isArray(whData) ? whData : whData?.warehouses || whData?.data || [];
   const [expectedDate, setExpectedDate] = useState('');
   const [notes, setNotes] = useState('');
   const [lines, setLines] = useState<any[]>([{ product_id: '', variant_id: '', size: '', color: '', quantity_ordered: 1, unit_cost: '', tax_rate: 15 }]);
@@ -75,7 +78,7 @@ function POModal({ onClose }: { onClose: () => void }) {
   const total = lines.reduce((s, l) => s + (parseFloat(l.unit_cost) || 0) * (parseInt(l.quantity_ordered) || 0), 0);
 
   const save = useMutation({
-    mutationFn: () => api.post('/purchasing/orders', { supplier_id: suppId, expected_date: expectedDate, notes, lines: lines.filter(l => l.product_id && l.quantity_ordered && l.unit_cost) }),
+    mutationFn: () => api.post('/purchasing/orders', { supplier_id: suppId, warehouse_id: whId, expected_date: expectedDate, notes, lines: lines.filter(l => l.product_id && l.quantity_ordered && l.unit_cost) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['po'] }); onClose(); },
   });
 
@@ -90,11 +93,17 @@ function POModal({ onClose }: { onClose: () => void }) {
           <button className="btn-nx ghost sm" onClick={onClose}><i className="ti ti-x" /></button>
         </div>
         <div style={{ padding: 24, overflowY: 'auto', flex: 1, display: 'grid', gap: 16 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-            <div style={{ gridColumn: '1/3' }}><label style={{ fontSize: 12, color: 'var(--mu)', display: 'block', marginBottom: 4 }}>Supplier *</label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div><label style={{ fontSize: 12, color: 'var(--mu)', display: 'block', marginBottom: 4 }}>Supplier *</label>
               <select className="nx-select" style={{ width: '100%' }} value={suppId} onChange={e => setSuppId(e.target.value)}>
                 <option value="">Select supplier...</option>
                 {suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+            <div><label style={{ fontSize: 12, color: 'var(--mu)', display: 'block', marginBottom: 4 }}>Destination Warehouse *</label>
+              <select className="nx-select" style={{ width: '100%' }} value={whId} onChange={e => setWhId(e.target.value)}>
+                <option value="">Select warehouse...</option>
+                {warehouses.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}
               </select>
             </div>
             <div><label style={{ fontSize: 12, color: 'var(--mu)', display: 'block', marginBottom: 4 }}>Expected Date</label><input className="nx-input" type="date" style={{ width: '100%' }} value={expectedDate} onChange={e => setExpectedDate(e.target.value)} /></div>
@@ -133,7 +142,7 @@ function POModal({ onClose }: { onClose: () => void }) {
         </div>
         <div style={{ padding: '16px 24px', borderTop: '1px solid var(--bd)', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button className="btn-nx ghost" onClick={onClose}>Cancel</button>
-          <button className="btn-nx primary" onClick={() => save.mutate()} disabled={!suppId || save.isPending}>{save.isPending ? 'Creating...' : 'Create PO'}</button>
+          <button className="btn-nx primary" onClick={() => save.mutate()} disabled={!suppId || !whId || save.isPending}>{save.isPending ? 'Creating...' : 'Create PO'}</button>
         </div>
       </div>
     </div>
