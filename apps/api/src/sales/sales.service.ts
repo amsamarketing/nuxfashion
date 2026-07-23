@@ -231,7 +231,7 @@ export class SalesService {
     if (!order.rows[0]) throw new NotFoundException('Order not found');
     const oid = order.rows[0].id;
     const lines = await this.db.query(
-      `SELECT l.*, pv.sku, pv.name as variant_name, p.name as product_name
+      `SELECT l.*, pv.sku, pv.barcode, pv.name as variant_name, p.name as product_name
        FROM sales_order_lines l
        LEFT JOIN product_variants pv ON pv.id=l.variant_id
        LEFT JOIN products p ON p.id=pv.product_id

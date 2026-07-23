@@ -147,7 +147,8 @@ export default function POSSale(){
 
   const filteredProducts=products.filter((p:any)=>{
     if(p.is_active===false||(p.tags||[]).includes('channel:no-pos'))return false;
-    const ms=!search||p.name?.toLowerCase().includes(search.toLowerCase())||(p.variants||[]).some((v:any)=>v.sku?.toLowerCase().includes(search.toLowerCase()));
+    const q=search.toLowerCase();
+    const ms=!search||p.name?.toLowerCase().includes(q)||p.name_ar?.toLowerCase().includes(q)||(p.variants||[]).some((v:any)=>v.sku?.toLowerCase().includes(q)||v.barcode?.toLowerCase().includes(q));
     const mc=!catFilter||p.category_id===catFilter;
     return ms&&mc;
   });
@@ -168,12 +169,34 @@ export default function POSSale(){
   const ptsEarned=customer?Math.floor(cashDue*(TIER_RATE[tier]||0.2)):0;
 
   const addToCart=(v:any)=>{
+    const price=parseFloat(v.selling_price||0);
+    if(price<=0){toast('Selling price is required before this product can be sold','error');return;}
     setCart(prev=>{
       const ex=prev.find(i=>i.id===v.id);
       if(ex)return prev.map(i=>i.id===v.id?{...i,qty:i.qty+1}:i);
       const label=`${v.productName||v.name}${v.size?' · '+v.size:''}${v.color?' · '+v.color:''}`;
-      return[...prev,{id:v.id,sku:v.sku||'',name:label,price:parseFloat(v.selling_price||0),qty:1,category:v.categoryName||'',size:v.size,color:v.color}];
+      return[...prev,{id:v.id,sku:v.sku||'',name:label,price,qty:1,category:v.categoryName||'',size:v.size,color:v.color}];
     });
+  };
+  const scanOrAddProduct=()=>{
+    const q=search.trim().toLowerCase();
+    if(!q)return;
+    for(const product of products){
+      if(product.is_active===false||(product.tags||[]).includes('channel:no-pos'))continue;
+      const variant=(product.variants||[]).find((v:any)=>(v.barcode||'').toLowerCase()===q||(v.sku||'').toLowerCase()===q);
+      if(variant){
+        const catName=categories.find((c:any)=>c.id===product.category_id)?.name||'';
+        addToCart({...variant,productName:product.name,categoryName:catName});
+        setSearch('');setTimeout(()=>searchRef.current?.focus(),50);return;
+      }
+    }
+    const exactProduct=products.find((p:any)=>p.is_active!==false&&!(p.tags||[]).includes('channel:no-pos')&&(p.name||'').toLowerCase()===q);
+    if(exactProduct&&(exactProduct.variants||[]).length===1){
+      const catName=categories.find((c:any)=>c.id===exactProduct.category_id)?.name||'';
+      addToCart({...exactProduct.variants[0],productName:exactProduct.name,categoryName:catName});
+      setSearch('');return;
+    }
+    toast('Barcode or exact SKU not found','error');
   };
   const removeFromCart=(id:string)=>setCart(p=>p.filter(i=>i.id!==id));
   const setQty=(id:string,qty:number)=>{if(qty<=0)removeFromCart(id);else setCart(p=>p.map(i=>i.id===id?{...i,qty}:i));};
@@ -393,7 +416,7 @@ export default function POSSale(){
         <div style={{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',background:'#6366f1',color:'#fff',borderRadius:8,fontSize:12,fontWeight:700,flexShrink:0}}><i className="ti ti-clock" style={{fontSize:13}}/><Clock/></div>
         <div style={{flex:1,display:'flex',alignItems:'center',gap:8,padding:'7px 12px',background:'#f9fafb',border:'1px solid #e5e7eb',borderRadius:10}}>
           <i className="ti ti-barcode" style={{fontSize:15,color:'#9ca3af'}}/>
-          <input ref={searchRef} value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search product or scan barcode…" autoFocus style={{border:'none',background:'transparent',outline:'none',flex:1,fontSize:13}}/>
+          <input ref={searchRef} value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>e.key==='Enter'&&scanOrAddProduct()} placeholder="Search product or scan barcode…" autoFocus style={{border:'none',background:'transparent',outline:'none',flex:1,fontSize:13}}/>
           {search&&<button onClick={()=>setSearch('')} style={{background:'none',border:'none',cursor:'pointer',color:'#9ca3af',fontSize:18}}>×</button>}
         </div>
         <button onClick={()=>setShowCustModal(true)} style={{display:'flex',alignItems:'center',gap:6,padding:'7px 12px',border:`2px solid ${custId?'#6366f1':'#e5e7eb'}`,borderRadius:10,background:custId?'#ede9fe':'#fff',cursor:'pointer',fontSize:12,color:custId?'#6366f1':'#666',fontWeight:custId?700:400,flexShrink:0}}>

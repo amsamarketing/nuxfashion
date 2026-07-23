@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
 import { useToast } from '../../components/Toast';
@@ -16,6 +16,8 @@ export default function POSReturn() {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [order, setOrder] = useState<any>(null);
+  const [productScan, setProductScan] = useState('');
+  const productScanRef = useRef<HTMLInputElement>(null);
   const [qtys, setQtys] = useState<Record<string,number>>({});
   const [reason, setReason] = useState('');
   const [refundMethod, setRefundMethod] = useState('cash');
@@ -59,7 +61,23 @@ export default function POSReturn() {
       const init: Record<string,number> = {};
       (full.lines||[]).forEach((l:any) => { init[l.id] = 0; });
       setQtys(init);
+      setProductScan('');
+      setTimeout(()=>productScanRef.current?.focus(),100);
     } catch(e:any) { toast(getErr(e),'error'); }
+  };
+
+  const scanReturnProduct = () => {
+    if(!order)return;
+    const q=productScan.trim().toLowerCase();
+    if(!q)return;
+    const line=(order.lines||[]).find((l:any)=>(l.barcode||'').toLowerCase()===q||(l.sku||'').toLowerCase()===q);
+    if(!line){toast('This barcode is not on the selected invoice','error');setProductScan('');return;}
+    const current=qtys[line.id]||0;
+    if(current>=line.quantity){toast('Maximum return quantity reached for this item','error');setProductScan('');return;}
+    setQtys(values=>({...values,[line.id]:(values[line.id]||0)+1}));
+    setProductScan('');
+    toast(`${line.product_name||'Product'} added to return`,'success');
+    setTimeout(()=>productScanRef.current?.focus(),50);
   };
 
   const returnMut = useMutation({
@@ -136,6 +154,17 @@ export default function POSReturn() {
 
       {order && (
         <>
+          <div className="pos-toolbar" style={{marginBottom:12}}>
+            <input
+              ref={productScanRef}
+              placeholder="Scan product barcode from this invoice…"
+              value={productScan}
+              onChange={e=>setProductScan(e.target.value)}
+              onKeyDown={e=>e.key==='Enter'&&scanReturnProduct()}
+              autoFocus
+            />
+            <button className="pos-action" onClick={scanReturnProduct}><i className="ti ti-barcode"/> Add scanned item</button>
+          </div>
           <div className="pos-panel" style={{ marginBottom:12 }}>
             <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10 }}>
               <div>
@@ -165,12 +194,10 @@ export default function POSReturn() {
                     </div>
                   </div>
                   <div style={{ textAlign:'center',fontSize:13,color:'var(--text-secondary)' }}>×{maxQty}</div>
-                  <div style={{ display:'flex',alignItems:'center',justifyContent:'center',gap:4 }}>
-                    <button className="bt" style={{ padding:'2px 8px',fontSize:14,lineHeight:1 }}
-                      onClick={()=>setQtys(q=>({...q,[l.id]:Math.max(0,(q[l.id]||0)-1)}))} disabled={qty===0}>−</button>
-                    <span style={{ minWidth:20,textAlign:'center',fontWeight:600 }}>{qty}</span>
-                    <button className="bt" style={{ padding:'2px 8px',fontSize:14,lineHeight:1 }}
-                      onClick={()=>setQtys(q=>({...q,[l.id]:Math.min(maxQty,(q[l.id]||0)+1)}))} disabled={qty>=maxQty}>+</button>
+                  <div style={{ display:'flex',alignItems:'center',justifyContent:'center',gap:6 }}>
+                    <span style={{ minWidth:20,textAlign:'center',fontWeight:700,color:qty?'var(--fill-accent)':'var(--text-secondary)' }}>{qty}</span>
+                    {qty>0&&<button className="bt" style={{ padding:'2px 7px',fontSize:10 }} title="Undo last scan"
+                      onClick={()=>setQtys(q=>({...q,[l.id]:Math.max(0,(q[l.id]||0)-1)}))}>Undo</button>}
                   </div>
                   <div style={{ textAlign:'right',fontWeight:600,fontSize:13,color:qty>0?'var(--fill-accent)':'var(--text-secondary)' }}>
                     {qty>0?`SAR ${lineAmt.toFixed(2)}`:'-'}
