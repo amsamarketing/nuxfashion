@@ -174,6 +174,30 @@ export default function POSSale(){
 
   const resetSale=()=>{setCart([]);setDiscPct('');setCustId('');setAppliedCoupon(null);setAppliedGC(null);setUseWallet(false);setRedeemPts(false);setCashGiven('');setOrderNote('');setShowPayModal(false);setTimeout(()=>searchRef.current?.focus(),100);};
 
+  const holdSale=()=>{
+    if(!cart.length){toast('Cart is empty','error');return;}
+    try{
+      const stored=localStorage.getItem('held_orders');
+      const parsed=stored?JSON.parse(stored):[];
+      const held=Array.isArray(parsed)?parsed:[];
+      held.push({
+        id:`HOLD-${Date.now()}`,
+        cart,
+        custId,
+        method,
+        discPct,
+        orderNote,
+        time:new Date().toLocaleString(),
+        note:orderNote,
+      });
+      localStorage.setItem('held_orders',JSON.stringify(held));
+      resetSale();
+      toast('Order held successfully','success');
+    }catch{
+      toast('Unable to hold order. Please clear browser storage and try again.','error');
+    }
+  };
+
   const chargeMut=useMutation({
     mutationFn:async()=>{
       const body:any={customer_id:custId||null,lines:cart.map(i=>({variant_id:i.id,quantity:i.qty,unit_price:i.price,discount_amount:i.discount||0})),subtotal:sub,tax_amount:tax,discount_amount:totalDisc,total:gross,notes:orderNote||undefined};
@@ -341,7 +365,7 @@ export default function POSSale(){
       {showCustModal&&<CustModal/>}
       {showPayModal&&<PaymentModal/>}
       {showOrders&&<OrdersModal/>}
-      {showHeld&&<HeldOrders onRetrieve={h=>{setCart(h.cart||[]);setCustId(h.custId||'');}} onClose={()=>setShowHeld(false)}/>}
+      {showHeld&&<HeldOrders onRetrieve={h=>{setCart(Array.isArray(h.cart)?h.cart:[]);setCustId(h.custId||'');setMethod(h.method||'Cash');setDiscPct(h.discPct||'');setOrderNote(h.orderNote||h.note||'');}} onClose={()=>setShowHeld(false)}/>}
       {pickerProd&&<VariantPicker product={pickerProd} onAdd={addToCart} onClose={()=>setPickerProd(null)}/>}
 
       {/* Top bar */}
@@ -469,7 +493,7 @@ export default function POSSale(){
       {/* Bottom toolbar */}
       <div style={{display:'flex',padding:'0 10px',height:52,background:'#1e1b4b',alignItems:'center',gap:6,flexShrink:0}}>
         {[
-          {label:'Hold',icon:'ti-player-pause',color:'#fbbf24',bg:'rgba(251,191,36,.15)',action:()=>{if(!cart.length){toast('Cart is empty','error');return;}const held=JSON.parse(localStorage.getItem('held_orders')||'[]');const note=prompt('Note for held order:');held.push({id:'Hold-'+Date.now(),cart,custId,time:new Date().toLocaleTimeString(),note:note||''});localStorage.setItem('held_orders',JSON.stringify(held));resetSale();toast('Order held','success');}},
+          {label:'Hold',icon:'ti-player-pause',color:'#fbbf24',bg:'rgba(251,191,36,.15)',action:holdSale},
           {label:'Retrieve',icon:'ti-player-play',color:'#6ee7b7',bg:'rgba(110,231,183,.15)',action:()=>setShowHeld(true)},
           {label:'Orders',icon:'ti-list',color:'#93c5fd',bg:'rgba(147,197,253,.15)',action:()=>setShowOrders(true)},
           {label:'Void',icon:'ti-ban',color:'#f87171',bg:'rgba(248,113,113,.15)',action:()=>{if(cart.length&&confirm('Void current sale?'))resetSale();}},
