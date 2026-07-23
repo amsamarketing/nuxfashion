@@ -133,27 +133,31 @@ export default function ZReport() {
     w.document.close(); w.print();
   };
 
-  if (isLoading) return <div className="pg"><p>Loading Z-Report…</p></div>;
+  if (isLoading) return <div className="pos-page"><div className="pos-empty"><i className="ti ti-loader-2"/>Loading Z-Report…</div></div>;
 
   return (
-    <div className="pg" style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
+    <div className="pos-page">
+      <div className="pos-page-inner">
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 600 }}>Z-report — End of shift</h2>
-          <p style={{ margin: '4px 0 0', color: '#888', fontSize: 13 }}>
+      <div className="pos-page-header">
+        <div className="pos-page-title">
+          <div className="pos-page-title-icon"><i className="ti ti-report"/></div>
+          <div>
+          <h2>Z-Report · End of shift</h2>
+          <p>
             {shift} &nbsp;·&nbsp; {new Date().toLocaleDateString('en-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="bx" onClick={handlePrint}><i className="ti ti-printer" /> Print</button>
-          <button className="bx" onClick={handlePrint}><i className="ti ti-file-type-pdf" /> Export PDF</button>
+          <button className="pos-action ghost" onClick={handlePrint}><i className="ti ti-printer" /> Print</button>
+          <button className="pos-action ghost" onClick={handlePrint}><i className="ti ti-file-type-pdf" /> Export PDF</button>
           {shiftClosed ? (
             <span style={{ background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0', borderRadius: 8, padding: '6px 14px', fontSize: 14, fontWeight: 600 }}>
               <i className="ti ti-check" /> Shift closed
             </span>
           ) : (
-            <button className="bx a" style={{ background: '#2563eb', color: '#fff', borderColor: '#2563eb' }}
+            <button className="pos-action"
               onClick={() => setShowCloseModal(true)}>
               <i className="ti ti-lock" /> Close shift
             </button>
@@ -162,39 +166,39 @@ export default function ZReport() {
       </div>
 
       {/* Top metric cards — row 1 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 12 }}>
+      <div className="pos-kpi-grid">
         {[
           { label: 'Total sales', value: SAR(totalSales) },
           { label: 'Transactions', value: transactions.toString() },
           { label: 'Avg basket', value: SAR(avgBasket) },
           { label: 'Returns', value: `${returnCount} · ${SAR(totalReturned)}` },
         ].map(c => (
-          <div key={c.label} style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: '14px 16px', background: '#fff' }}>
-            <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 4 }}>{c.label}</div>
-            <div style={{ fontSize: 20, fontWeight: 700 }}>{c.value}</div>
+          <div key={c.label} className="pos-kpi">
+            <div className="pos-kpi-label">{c.label}</div>
+            <div className="pos-kpi-value">{c.value}</div>
           </div>
         ))}
       </div>
 
       {/* Top metric cards — row 2 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
+      <div className="pos-kpi-grid">
         {[
           { label: 'Discounts given', value: SAR(totalDiscount) },
           { label: 'Tax collected', value: SAR(totalTax) },
           { label: 'Loyalty pts issued', value: `${Math.round(totalSales / 10)} pts` },
           { label: 'Gift cards redeemed', value: SAR(0) },
         ].map(c => (
-          <div key={c.label} style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: '14px 16px', background: '#fff' }}>
-            <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 4 }}>{c.label}</div>
-            <div style={{ fontSize: 20, fontWeight: 700 }}>{c.value}</div>
+          <div key={c.label} className="pos-kpi">
+            <div className="pos-kpi-label">{c.label}</div>
+            <div className="pos-kpi-value">{c.value}</div>
           </div>
         ))}
       </div>
 
       {/* Payment breakdown + Cash reconciliation */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+      <div className="pos-two-col">
         {/* Payment breakdown */}
-        <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: '18px 20px', background: '#fff' }}>
+        <div className="pos-panel">
           <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 14 }}>Payment breakdown</div>
           {pmEntries.length === 0 ? (
             <p style={{ color: '#9ca3af', fontSize: 13 }}>No payments recorded today</p>
@@ -213,7 +217,7 @@ export default function ZReport() {
         </div>
 
         {/* Cash reconciliation */}
-        <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: '18px 20px', background: '#fff' }}>
+        <div className="pos-panel">
           <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 14 }}>Cash reconciliation</div>
           {[
             { label: 'Opening float', value: SAR(openingFloat), muted: false },
@@ -283,7 +287,7 @@ export default function ZReport() {
 
       {/* Top selling items */}
       {topItems.length > 0 && (
-        <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: '18px 20px', background: '#fff' }}>
+        <div className="pos-panel">
           <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 14 }}>Top selling items</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
             {topItems.map(item => (
@@ -298,7 +302,7 @@ export default function ZReport() {
       )}
 
       {topItems.length === 0 && (
-        <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: '18px 20px', background: '#fff', color: '#9ca3af', fontSize: 14 }}>
+        <div className="pos-panel" style={{ color: '#9ca3af', fontSize: 14 }}>
           <i className="ti ti-chart-bar" style={{ marginRight: 8 }} />
           No sales line items available for top items breakdown.
           {transactions > 0 && ' (Orders fetched without line items — API list endpoint may not include lines.)'}
@@ -345,6 +349,7 @@ export default function ZReport() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -91,44 +91,52 @@ export default function POSReturn() {
   const returnTotal = selectedLines.reduce((s:number,l:any) => s + parseFloat(l.unit_price||0)*(qtys[l.id]||0), 0);
 
   if (done) return (
-    <div style={{ display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:12,padding:40 }}>
-      <div style={{ fontSize:52 }}>✅</div>
-      <div style={{ fontSize:20,fontWeight:800 }}>Return Processed</div>
-      <div style={{ fontSize:13,color:'var(--text-secondary)' }}>Return #{done.return_number}</div>
-      <div style={{ fontSize:28,fontWeight:700,color:'var(--fill-accent)' }}>SAR {parseFloat(done.refund_amount||returnTotal).toFixed(2)}</div>
-      <div style={{ fontSize:12,color:'var(--text-secondary)' }}>Refund via {refundMethod.replace('_',' ')}</div>
-      <button className="bt bt-p" onClick={()=>{ setDone(null);setOrder(null);setSearch('');setQtys({}); }}>+ New return</button>
+    <div className="pos-page">
+      <div className="pos-panel" style={{ maxWidth:460,margin:'70px auto',display:'flex',flexDirection:'column',alignItems:'center',gap:12,padding:40,textAlign:'center' }}>
+        <div style={{ width:68,height:68,borderRadius:'50%',background:'#dcfce7',display:'flex',alignItems:'center',justifyContent:'center',fontSize:36 }}>✓</div>
+        <div style={{ fontSize:20,fontWeight:800 }}>Return Processed</div>
+        <div style={{ fontSize:13,color:'#6b7280' }}>Return #{done.return_number}</div>
+        <div style={{ fontSize:28,fontWeight:800,color:'#6366f1' }}>SAR {parseFloat(done.refund_amount||returnTotal).toFixed(2)}</div>
+        <div style={{ fontSize:12,color:'#6b7280' }}>Refund via {refundMethod.replace('_',' ')}</div>
+        <button className="pos-action" onClick={()=>{ setDone(null);setOrder(null);setSearch('');setQtys({}); }}>+ New return</button>
+      </div>
     </div>
   );
 
   return (
-    <div style={{ padding:14 }}>
-      <div style={{ fontSize:14,fontWeight:600,marginBottom:12 }}>Process return / exchange</div>
+    <div className="pos-page">
+      <div className="pos-page-inner">
+      <div className="pos-page-header">
+        <div className="pos-page-title">
+          <div className="pos-page-title-icon"><i className="ti ti-arrow-back-up"/></div>
+          <div><h2>Returns & Exchanges</h2><p>Find an order, select items and process the refund</p></div>
+        </div>
+      </div>
 
-      <div style={{ display:'grid',gridTemplateColumns:'1fr auto',gap:8,marginBottom:12 }}>
+      <div className="pos-toolbar">
         <input
-          className="form-control form-control-sm"
           placeholder="Search by order #, customer name, SKU or barcode…"
           value={search}
           onChange={e=>setSearch(e.target.value)}
           onKeyDown={e=>e.key==='Enter'&&handleSearch()}
-          style={{ fontSize:13 }}
         />
-        <button className="bt bt-p" onClick={handleSearch} disabled={isLoading}>
+        <button className="pos-action" onClick={handleSearch} disabled={isLoading}>
+          <i className="ti ti-search"/>
           {isLoading?'Loading…':'Search'}
         </button>
       </div>
 
       {!order && (
-        <div style={{ textAlign:'center',padding:40,color:'var(--text-secondary)',fontSize:13 }}>
-          <i className="ti ti-search" style={{ fontSize:32,display:'block',marginBottom:8 }} />
-          Search by order #, customer name, SKU or barcode
+        <div className="pos-empty">
+          <i className="ti ti-receipt-refund"/>
+          <div style={{fontWeight:700,color:'#374151',marginBottom:4}}>Find a completed sale</div>
+          <div style={{fontSize:12}}>Search by order number, customer, SKU or barcode</div>
         </div>
       )}
 
       {order && (
         <>
-          <div className="card" style={{ marginBottom:12 }}>
+          <div className="pos-panel" style={{ marginBottom:12 }}>
             <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10 }}>
               <div>
                 <div style={{ fontSize:13,fontWeight:600 }}>Order #{order.order_number}{order.customer_name?` — ${order.customer_name}`:''}</div>
@@ -173,7 +181,7 @@ export default function POSReturn() {
           </div>
 
           <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10 }}>
-            <div className="card">
+            <div className="pos-panel">
               <div style={{ fontSize:11,fontWeight:600,color:'var(--text-secondary)',marginBottom:8 }}>RETURN REASON</div>
               {REASONS.map(r=>(
                 <label key={r} style={{ display:'flex',alignItems:'center',gap:7,padding:'4px 0',cursor:'pointer',fontSize:12 }}>
@@ -181,7 +189,7 @@ export default function POSReturn() {
                 </label>
               ))}
             </div>
-            <div className="card">
+            <div className="pos-panel">
               <div style={{ fontSize:11,fontWeight:600,color:'var(--text-secondary)',marginBottom:8 }}>REFUND METHOD</div>
               {REFUND_METHODS.map(m=>(
                 <label key={m.value} style={{ display:'flex',alignItems:'flex-start',gap:7,padding:'5px 0',cursor:'pointer' }}>
@@ -198,14 +206,15 @@ export default function POSReturn() {
               <div style={{ fontSize:17,fontWeight:700 }}>SAR {returnTotal.toFixed(2)}</div>
             </div>
             <div style={{ display:'flex',gap:6 }}>
-              <button className="bt" onClick={()=>{ setOrder(null);setSearch('');setQtys({}); }}>Cancel</button>
-              <button className="bt bt-p" onClick={()=>returnMut.mutate()} disabled={returnMut.isPending||selectedLines.length===0}>
+              <button className="pos-action ghost" onClick={()=>{ setOrder(null);setSearch('');setQtys({}); }}>Cancel</button>
+              <button className="pos-action" onClick={()=>returnMut.mutate()} disabled={returnMut.isPending||selectedLines.length===0}>
                 {returnMut.isPending?'Processing…':<><i className="ti ti-check" /> Process return</>}
               </button>
             </div>
           </div>
         </>
       )}
+      </div>
     </div>
   );
 }

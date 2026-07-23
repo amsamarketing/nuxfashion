@@ -45,23 +45,29 @@ export default function POSHeld() {
   const total = (cart: any[]) => cart.reduce((s,i)=>s+i.price*i.qty,0).toFixed(2);
 
   return (
-    <div style={{ padding:14 }}>
-      <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12 }}>
-        <div>
-          <div style={{ fontSize:14,fontWeight:600 }}>Held / parked orders</div>
-          <div style={{ fontSize:11,color:'var(--text-secondary)' }}>{held.length} order{held.length!==1?'s':''} on hold</div>
+    <div className="pos-page">
+      <div className="pos-page-inner">
+      <div className="pos-page-header">
+        <div className="pos-page-title">
+          <div className="pos-page-title-icon"><i className="ti ti-player-pause"/></div>
+          <div>
+            <h2>Held Orders</h2>
+            <p>{held.length} order{held.length!==1?'s':''} waiting · automatically expires after 2 hours</p>
+          </div>
         </div>
       </div>
 
       {held.length===0 && (
-        <div style={{ textAlign:'center',padding:40,color:'var(--text-secondary)' }}>
-          <i className="ti ti-player-pause" style={{ fontSize:36,display:'block',marginBottom:8 }} />
-          No held orders — use "Hold sale" button in POS to park an order
+        <div className="pos-empty">
+          <i className="ti ti-player-pause"/>
+          <div style={{fontWeight:700,color:'#374151',marginBottom:4}}>No held orders</div>
+          <div style={{fontSize:12}}>Use the Hold button in New Sale to park an order</div>
         </div>
       )}
 
+      <div className="pos-held-grid">
       {held.map(h=>(
-        <div key={h.id} className="card" style={{ marginBottom:8 }}>
+        <div key={h.id} className="pos-held-card">
           <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8 }}>
             <div style={{ display:'flex',alignItems:'center',gap:9 }}>
               <div style={{ width:36,height:36,borderRadius:'50%',background:'var(--bg-accent)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:600,color:'var(--fill-accent)' }}>
@@ -95,11 +101,13 @@ export default function POSHeld() {
           </div>}
 
           <div style={{ display:'flex',gap:5 }}>
-            <button className="bt bt-p" onClick={()=>resume(h)}><i className="ti ti-player-play" /> Resume</button>
-            <button className="bt bt-d" onClick={()=>discard(h.id)}><i className="ti ti-trash" /> Discard</button>
+            <button className="pos-action" style={{flex:1}} onClick={()=>resume(h)}><i className="ti ti-player-play" /> Resume order</button>
+            <button className="pos-action danger" onClick={()=>discard(h.id)}><i className="ti ti-trash" /> Discard</button>
           </div>
         </div>
       ))}
+      </div>
+      </div>
     </div>
   );
 }
