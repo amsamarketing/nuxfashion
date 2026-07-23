@@ -5,7 +5,6 @@ import { useToast } from '../../components/Toast';
 import { getErr } from '../../lib/err';
 
 const sar   = (n:any) => 'SAR\u00a0'+Number(n||0).toLocaleString('en-SA',{minimumFractionDigits:0,maximumFractionDigits:0});
-const sarD  = (n:any) => 'SAR\u00a0'+Number(n||0).toLocaleString('en-SA',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmt   = (d:string) => d?new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
 const todayStr = () => new Date().toISOString().split('T')[0];
 const gosiAmt  = (basic:any) => Math.round(Number(basic||0)*0.10);
