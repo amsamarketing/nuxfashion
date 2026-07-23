@@ -19,7 +19,7 @@ export default function Inventory(){
   const {data:low}=useQuery({queryKey:['low-stock'],queryFn:async()=>{const r=await api.get('/inventory/low-stock');return r.data;}});
   const {data:moves}=useQuery({queryKey:['movements'],queryFn:async()=>{const r=await api.get('/inventory/movements?limit=100');return r.data;}});
   const {data:whs}=useQuery({queryKey:['warehouses'],queryFn:async()=>{const r=await api.get('/inventory/warehouses');return r.data;}});
-  const {data:summary}=useQuery({queryKey:['inv-summary'],queryFn:async()=>{const r=await api.get('/inventory/summary');return r.data;}});
+
 
   const adjust=useMutation({mutationFn:()=>api.post('/inventory/adjust',{
     variant_id:showAdj.variant_id,warehouse_id:showAdj.warehouse_id,
