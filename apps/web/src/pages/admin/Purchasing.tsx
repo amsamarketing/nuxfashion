@@ -6,7 +6,7 @@ const SC:Record<string,string>={received:'active',ordered:'pending',cancelled:'d
 export default function Purchasing(){
   const [tab,setTab]=useState('all');
   const {data,isLoading}=useQuery({queryKey:['purchase-orders'],queryFn:async()=>{const r=await api.get('/purchasing/orders?limit=50'); return r.data;}});
-  const items:any[]=(data?.orders||data?.data||[]).filter((o:any)=>tab==='all'||o.status===tab);
+  const items:any[]=(Array.isArray(data)?data:data?.orders||data?.data||[]).filter((o:any)=>tab==='all'||o.status===tab);
   return(<div>
     <div className="nx-page-head">
       <div><h1 className="nx-page-title">Purchasing</h1><p className="nx-page-sub">Purchase orders & supplier management</p></div>

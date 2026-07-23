@@ -4,7 +4,7 @@ import { useState } from 'react';
 export default function Inventory(){
   const [q,setQ]=useState('');
   const {data,isLoading}=useQuery({queryKey:['inventory'],queryFn:async()=>{const r=await api.get('/inventory?limit=100'); return r.data;}});
-  const items:any[]=(data?.items||data?.data||[]).filter((i:any)=>!q||(i.product_name||i.name||'').toLowerCase().includes(q.toLowerCase()));
+  const items:any[]=(Array.isArray(data)?data:data?.items||data?.data||[]).filter((i:any)=>!q||(i.product_name||i.name||'').toLowerCase().includes(q.toLowerCase()));
   return(<div>
     <div className="nx-page-head">
       <div><h1 className="nx-page-title">Inventory</h1><p className="nx-page-sub">Stock levels across all branches</p></div>

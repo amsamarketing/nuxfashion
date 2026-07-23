@@ -15,7 +15,7 @@ export default function Products() {
     }
   });
 
-  const raw: any[] = data?.products || data?.data || [];
+  const raw: any[] = Array.isArray(data) ? data : data?.products || data?.data || [];
   const categories = ['all', ...Array.from(new Set(raw.map((p: any) => p.category_name).filter(Boolean))) as string[]];
   const items = raw
     .filter((p: any) => cat === 'all' || p.category_name === cat)

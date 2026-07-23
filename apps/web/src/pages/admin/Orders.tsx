@@ -6,7 +6,7 @@ const SC:Record<string,string>={completed:'active',paid:'active',pending:'pendin
 export default function Orders(){
   const [q,setQ]=useState('');const [tab,setTab]=useState('all');
   const {data,isLoading}=useQuery({queryKey:['orders',tab],queryFn:async()=>{const r=await api.get('/sales/orders?limit=50&sort=desc'); return r.data;}});
-  const orders:any[]=(data?.orders||data?.data||[]).filter((o:any)=>!q||(o.order_number||'').toLowerCase().includes(q.toLowerCase())||(o.customer_name||'').toLowerCase().includes(q.toLowerCase())).filter((o:any)=>tab==='all'||o.status===tab);
+  const orders:any[]=(Array.isArray(data)?data:data?.orders||data?.data||[]).filter((o:any)=>!q||(o.order_number||'').toLowerCase().includes(q.toLowerCase())||(o.customer_name||'').toLowerCase().includes(q.toLowerCase())).filter((o:any)=>tab==='all'||o.status===tab);
   return(<div>
     <div className="nx-page-head">
       <div><h1 className="nx-page-title">Orders</h1><p className="nx-page-sub">{data?.total||orders.length} total orders</p></div>
