@@ -270,7 +270,6 @@ function CustomerDetail({ cust, onEdit, onClose }: { cust: any; onEdit: () => vo
 }
 
 export default function Customers() {
-  const qc = useQueryClient();
   const [q, setQ] = useState('');
   const [tierFilter, setTierFilter] = useState('all');
   const [sel, setSel] = useState<any>(null);
