@@ -146,6 +146,7 @@ export default function POSSale(){
   const defaultWarehouseId=warehouses[0]?.id??null;
 
   const filteredProducts=products.filter((p:any)=>{
+    if(p.is_active===false||(p.tags||[]).includes('channel:no-pos'))return false;
     const ms=!search||p.name?.toLowerCase().includes(search.toLowerCase())||(p.variants||[]).some((v:any)=>v.sku?.toLowerCase().includes(search.toLowerCase()));
     const mc=!catFilter||p.category_id===catFilter;
     return ms&&mc;

@@ -1,12 +1,19 @@
 import { api } from '../../lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 
 const SIZES=['XS','S','M','L','XL','XXL','3XL','4XL','One Size','28','30','32','34','36','38','40','42','44'];
 const COLORS=['Black','White','Navy','Grey','Beige','Brown','Red','Pink','Blue','Green','Yellow','Orange','Purple','Gold','Silver','Multicolor'];
 const COLOR_DOT:Record<string,string>={Black:'#111',White:'#f5f5f5',Navy:'#1e3a5f',Grey:'#9ca3af',Beige:'#d4b896',Brown:'#7c4a03',Red:'#ef4444',Pink:'#f472b6',Blue:'#3b82f6',Green:'#22c55e',Yellow:'#eab308',Orange:'#f97316',Purple:'#a855f7',Gold:'#f59e0b',Silver:'#aaa',Multicolor:'linear-gradient(135deg,#ef4444,#3b82f6,#22c55e)'};
 
 const slugify=(s:string)=>s.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');
+const NO_POS='channel:no-pos';
+const NO_ECOM='channel:no-ecommerce';
+const csvCell=(v:any)=>`"${String(v??'').replace(/"/g,'""')}"`;
+const parseCsv=(text:string)=>text.trim().split(/\r?\n/).map(line=>{
+  const cells:string[]=[];let cur='';let quoted=false;
+  for(let i=0;i<line.length;i++){const c=line[i];if(c==='"'&&line[i+1]==='"'&&quoted){cur+='"';i++;}else if(c==='"'){quoted=!quoted;}else if(c===','&&!quoted){cells.push(cur);cur='';}else cur+=c;}cells.push(cur);return cells;
+});
 
 function inp(label:string,el:React.ReactNode){return(<div><label style={{fontSize:12,color:'var(--mu)',display:'block',marginBottom:4}}>{label}</label>{el}</div>);}
 
@@ -143,11 +150,15 @@ function VariantModal({productId,variant,onClose}:{productId:string;variant:any;
 /* ── Product Modal ───────────────────────────────────────── */
 function ProductModal({prod,categories,brands,onClose}:{prod:any;categories:any[];brands:any[];onClose:()=>void}){
   const qc=useQueryClient();
-  const [form,setForm]=useState({name:prod?.name||'',name_ar:prod?.name_ar||'',description:prod?.description||'',description_ar:prod?.description_ar||'',category_id:prod?.category_id||'',brand_id:prod?.brand_id||'',sku_prefix:prod?.sku_prefix||'',tags:(prod?.tags||[]).join(', '),is_active:prod?.is_active??true});
+  const existingTags:string[]=prod?.tags||[];
+  const [form,setForm]=useState({name:prod?.name||'',name_ar:prod?.name_ar||'',description:prod?.description||'',description_ar:prod?.description_ar||'',category_id:prod?.category_id||'',brand_id:prod?.brand_id||'',sku_prefix:prod?.sku_prefix||'',image_url:prod?.image_url||'',tags:existingTags.filter(t=>!t.startsWith('channel:')).join(', '),is_active:prod?.is_active??true,pos_active:!existingTags.includes(NO_POS),ecommerce_active:!existingTags.includes(NO_ECOM)});
   const F=(k:string,v:any)=>setForm(f=>({...f,[k]:v}));
   const save=useMutation({
     mutationFn:()=>{
-      const body={...form,tags:form.tags.split(',').map((t:string)=>t.trim()).filter(Boolean),category_id:form.category_id||undefined,brand_id:form.brand_id||undefined};
+      const tags=form.tags.split(',').map((t:string)=>t.trim()).filter(Boolean);
+      if(!form.pos_active)tags.push(NO_POS);if(!form.ecommerce_active)tags.push(NO_ECOM);
+      const {pos_active,ecommerce_active,...rest}=form;
+      const body={...rest,tags,category_id:form.category_id||undefined,brand_id:form.brand_id||undefined};
       return prod?.id?api.patch(`/catalog/products/${prod.id}`,body):api.post('/catalog/products',body);
     },
     onSuccess:()=>{qc.invalidateQueries({queryKey:['products']});onClose();},
@@ -182,14 +193,31 @@ function ProductModal({prod,categories,brands,onClose}:{prod:any;categories:any[
             {inp('Brand',<select className="nx-select" style={{width:'100%'}} value={form.brand_id} onChange={e=>F('brand_id',e.target.value)}><option value="">— None —</option>{brands.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select>)}
           </div>
           {inp('Tags (comma-separated)',<input className="nx-input" style={{width:'100%'}} value={form.tags} onChange={e=>F('tags',e.target.value)} placeholder="summer, casual, cotton"/>)}
+          <div style={{fontWeight:600,fontSize:12,color:'var(--mu)',textTransform:'uppercase',letterSpacing:.5,marginTop:4}}>Product Image</div>
+          <div style={{display:'grid',gridTemplateColumns:'110px 1fr',gap:12,alignItems:'center'}}>
+            <div style={{height:100,border:'1px dashed var(--bd)',borderRadius:10,overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--bg)'}}>
+              {form.image_url?<img src={form.image_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<i className="ti ti-photo" style={{fontSize:28,color:'var(--mu)'}}/>}
+            </div>
+            <div>
+              <input className="nx-input" style={{width:'100%',marginBottom:7}} value={form.image_url} onChange={e=>F('image_url',e.target.value)} placeholder="Image URL or upload below"/>
+              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>{
+                const file=e.target.files?.[0];if(!file)return;
+                if(file.size>1024*1024){alert('Image must be 1 MB or smaller');return;}
+                const reader=new FileReader();reader.onload=()=>F('image_url',String(reader.result));reader.readAsDataURL(file);
+              }}/>
+              {form.image_url&&<button className="btn-nx ghost sm" style={{marginTop:7,color:'#ef4444'}} onClick={()=>F('image_url','')}>Remove image</button>}
+            </div>
+          </div>
           <div style={{fontWeight:600,fontSize:12,color:'var(--mu)',textTransform:'uppercase',letterSpacing:.5,marginTop:4}}>Description</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
             {inp('Description (EN)',<textarea className="nx-input" style={{width:'100%',height:72,resize:'none'}} value={form.description} onChange={e=>F('description',e.target.value)}/>)}
             {inp('Description (AR)',<textarea className="nx-input" style={{width:'100%',height:72,resize:'none',direction:'rtl'}} value={form.description_ar} onChange={e=>F('description_ar',e.target.value)}/>)}
           </div>
-          <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',padding:'10px 12px',border:'1px solid var(--bd)',borderRadius:8}}>
-            <input type="checkbox" checked={form.is_active} onChange={e=>F('is_active',e.target.checked)}/><div><div style={{fontWeight:600,fontSize:13}}>Active</div><div style={{fontSize:11,color:'var(--mu)'}}>Visible in POS and storefront</div></div>
-          </label>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
+            {[['is_active','Product Active','Available for business'],['pos_active','Active in POS','Visible to cashiers'],['ecommerce_active','Active in E-commerce','Visible in online store']].map(([key,title,sub])=><label key={key} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',padding:'10px 12px',border:'1px solid var(--bd)',borderRadius:8}}>
+              <input type="checkbox" checked={(form as any)[key]} onChange={e=>F(key,e.target.checked)}/><div><div style={{fontWeight:600,fontSize:12}}>{title}</div><div style={{fontSize:10,color:'var(--mu)'}}>{sub}</div></div>
+            </label>)}
+          </div>
           {prod?.id&&<div style={{padding:'10px 14px',background:'var(--acg)',borderRadius:8,fontSize:12,color:'var(--ac)'}}><i className="ti ti-info-circle" style={{marginRight:6}}/>Save product first, then manage variants in the side panel.</div>}
         </div>
         <div style={{padding:'14px 20px',borderTop:'1px solid var(--bd)',display:'flex',gap:8,justifyContent:'flex-end',flexShrink:0}}>
@@ -215,6 +243,7 @@ export default function Products(){
   const [editProd,setEditProd]=useState<any>(null);
   const [showVariant,setShowVariant]=useState(false);
   const [editVariant,setEditVariant]=useState<any>(null);
+  const importRef=useRef<HTMLInputElement>(null);
   const [showCat,setShowCat]=useState(false);
   const [editCat,setEditCat]=useState<any>(null);
   const [showBrand,setShowBrand]=useState(false);
@@ -255,6 +284,21 @@ export default function Products(){
 
   const priceRange=(p:any)=>{const vs=p.variants||[];if(!vs.length)return null;const prices=vs.map((v:any)=>v.selling_price).filter(Boolean);if(!prices.length)return null;const mn=Math.min(...prices),mx=Math.max(...prices);return mn===mx?`SAR ${mn}`:`SAR ${mn}–${mx}`;};
   const totalStock=(p:any)=>(p.variants||[]).reduce((s:number,v:any)=>s+(v.stock_quantity||0),0);
+  const exportProducts=()=>{
+    const head=['name','name_ar','description','description_ar','sku_prefix','category','brand','image_url','active','active_pos','active_ecommerce','tags'];
+    const rows=products.map(p=>[p.name,p.name_ar,p.description,p.description_ar,p.sku_prefix,catMap[p.category_id]||'',brandMap[p.brand_id]||'',p.image_url,p.is_active!==false,!(p.tags||[]).includes(NO_POS),!(p.tags||[]).includes(NO_ECOM),(p.tags||[]).filter((t:string)=>!t.startsWith('channel:')).join('|')]);
+    const blob=new Blob([[head,...rows].map(r=>r.map(csvCell).join(',')).join('\n')],{type:'text/csv;charset=utf-8'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`products-${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(a.href);
+  };
+  const importProducts=async(file:File)=>{
+    const rows=parseCsv(await file.text());const head=rows.shift()?.map(x=>x.trim())||[];
+    let done=0;
+    for(const row of rows){const x=Object.fromEntries(head.map((h,i)=>[h,row[i]||'']));if(!x.name)continue;
+      const tags=(x.tags||'').split('|').filter(Boolean);if(x.active_pos==='false')tags.push(NO_POS);if(x.active_ecommerce==='false')tags.push(NO_ECOM);
+      await api.post('/catalog/products',{name:x.name,name_ar:x.name_ar||undefined,description:x.description||undefined,description_ar:x.description_ar||undefined,sku_prefix:x.sku_prefix||undefined,image_url:x.image_url||undefined,category_id:categories.find(c=>c.name===x.category)?.id,brand_id:brands.find(b=>b.name===x.brand)?.id,is_active:x.active!=='false',tags});done++;
+    }
+    await qc.invalidateQueries({queryKey:['products']});alert(`${done} products imported`);
+  };
 
   return(<div style={{display:'flex',gap:0,height:'calc(100vh - 64px)',overflow:'hidden'}}>
     <div style={{flex:1,overflowY:'auto',padding:'0 20px 20px'}}>
@@ -263,7 +307,7 @@ export default function Products(){
         <div style={{display:'flex',gap:8}}>
           {tab==='categories'&&<button className="btn-nx primary" onClick={()=>{setEditCat(null);setShowCat(true);}}><i className="ti ti-plus"/> New Category</button>}
           {tab==='brands'&&<button className="btn-nx primary" onClick={()=>{setEditBrand(null);setShowBrand(true);}}><i className="ti ti-plus"/> New Brand</button>}
-          {tab==='products'&&<button className="btn-nx primary" onClick={()=>{setEditProd(null);setShowProd(true);}}><i className="ti ti-plus"/> New Product</button>}
+          {tab==='products'&&<><input ref={importRef} type="file" accept=".csv,text/csv" hidden onChange={e=>{const f=e.target.files?.[0];if(f)importProducts(f).catch(err=>alert(err?.response?.data?.message||err.message));e.currentTarget.value='';}}/><button className="btn-nx ghost" onClick={()=>importRef.current?.click()}><i className="ti ti-file-import"/> Import CSV</button><button className="btn-nx ghost" onClick={exportProducts}><i className="ti ti-file-export"/> Export CSV</button><button className="btn-nx primary" onClick={()=>{setEditProd(null);setShowProd(true);}}><i className="ti ti-plus"/> New Product</button></>}
         </div>
       </div>
 

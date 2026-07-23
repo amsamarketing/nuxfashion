@@ -21,6 +21,7 @@ export class CreateProductDto {
   @IsOptional() @IsUUID() category_id?: string;
   @IsOptional() @IsUUID() brand_id?: string;
   @IsOptional() @IsString() sku_prefix?: string;
+  @IsOptional() @IsString() image_url?: string;
   @IsOptional() @IsArray() tags?: string[];
   @IsOptional() @IsBoolean() is_active?: boolean;
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => CreateVariantDto) variants?: CreateVariantDto[];

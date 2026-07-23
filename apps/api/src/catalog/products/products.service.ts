@@ -57,11 +57,11 @@ export class ProductsService {
 
   async create(dto: CreateProductDto, companyId: string) {
     const result = await this.db.query(
-      `INSERT INTO products (company_id, category_id, brand_id, name, name_ar, description, description_ar, sku_prefix, tags, is_active)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      `INSERT INTO products (company_id, category_id, brand_id, name, name_ar, description, description_ar, sku_prefix, image_url, tags, is_active)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
       [companyId, dto.category_id || null, dto.brand_id || null, dto.name, dto.name_ar || null,
        dto.description || null, dto.description_ar || null, dto.sku_prefix || null,
-       dto.tags || [], dto.is_active ?? true],
+       dto.image_url || null, dto.tags || [], dto.is_active ?? true],
     );
     const product = result.rows[0];
     if (dto.variants?.length) {
@@ -78,10 +78,11 @@ export class ProductsService {
       `UPDATE products SET name=COALESCE($1,name), name_ar=COALESCE($2,name_ar),
        description=COALESCE($3,description), description_ar=COALESCE($4,description_ar),
        category_id=COALESCE($5,category_id), brand_id=COALESCE($6,brand_id),
-       sku_prefix=COALESCE($7,sku_prefix), is_active=COALESCE($8,is_active),
-       updated_at=NOW() WHERE id=$9 AND company_id=$10 RETURNING *`,
+       sku_prefix=COALESCE($7,sku_prefix), image_url=COALESCE($8,image_url),
+       is_active=COALESCE($9,is_active),
+       updated_at=NOW() WHERE id=$10 AND company_id=$11 RETURNING *`,
       [dto.name, dto.name_ar, dto.description, dto.description_ar,
-       dto.category_id, dto.brand_id, dto.sku_prefix, dto.is_active, id, companyId],
+       dto.category_id, dto.brand_id, dto.sku_prefix, dto.image_url, dto.is_active, id, companyId],
     );
     return result.rows[0];
   }

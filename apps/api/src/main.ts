@@ -5,6 +5,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.useBodyParser('json', { limit: '2mb' });
   app.setGlobalPrefix('api/v1');
   app.enableCors({
     origin: ['http://localhost:5173', 'https://nuxfashion-api.vercel.app', process.env.FRONTEND_URL].filter(Boolean),
