@@ -11,8 +11,7 @@ export default function Products() {
     queryKey: ['products'],
     queryFn: async () => {
       const r = await api.get('/catalog/products?limit=200');
-      if (!r.ok) return { products: [] };
-      return r.json();
+      return r.data;
     }
   });
 
