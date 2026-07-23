@@ -281,12 +281,12 @@ export default function Accounting(){
   };
 
   const ReportSection=({title,data,color}:{title:string;data:any[];color:string})=>{
-    const total=data.reduce((s,r)=>s+(r.amount||r.balance||r.total||0),0);
-    return(<div style={{marginBottom:20}}>
+    const safeData=Array.isArray(data)?data:[];const total=safeData.reduce((s,r)=>s+(r.amount||r.balance||r.total||0),0);
+    return safeData.length===0?(<div style={{padding:16,textAlign:"center",color:"var(--mu)",fontSize:13}}>No data for this period</div>):(<div style={{marginBottom:20}}>
       <div style={{fontWeight:700,fontSize:14,marginBottom:10,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
         <span>{title}</span><span style={{color}}>{fmt(total)}</span>
       </div>
-      {data.map((r:any,i:number)=>{
+      {safeData.map((r:any,i:number)=>{
         const val=r.amount||r.balance||r.total||0;
         return(<div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid var(--bd)',gap:12}}>
           <div style={{flex:1}}>
