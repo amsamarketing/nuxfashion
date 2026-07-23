@@ -1,5 +1,5 @@
 import { ToastProvider } from './components/Toast';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
@@ -24,150 +24,161 @@ import Settings from './pages/admin/Settings';
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30000 } } });
 
 const POS_NAV = [
-  { id: 'pos-sale',    l: 'New sale',     i: 'ti-shopping-cart' },
-  { id: 'pos-return',  l: 'Returns',      i: 'ti-arrow-back' },
-  { id: 'pos-held',    l: 'Held orders',  i: 'ti-player-pause' },
-  { id: 'pos-zreport', l: 'Z-report',     i: 'ti-report' },
+  { id:'pos-sale',    l:'New Sale',    icon:'ti-shopping-cart' },
+  { id:'pos-return',  l:'Returns',     icon:'ti-arrow-back' },
+  { id:'pos-held',    l:'Held Orders', icon:'ti-player-pause' },
+  { id:'pos-zreport', l:'Z-Report',    icon:'ti-report' },
 ];
+
 const ADMIN_NAV = [
-  { id: 'ad-dash',   l: 'Dashboard',       i: 'ti-layout-dashboard',  group: 'MAIN' },
-  { id: 'ad-orders', l: 'Orders',           i: 'ti-shopping-cart',    group: 'MAIN' },
-  { id: 'ad-wh',     l: 'Warehouses',        i: 'ti-building-warehouse',group: 'MAIN' },
-  { id: 'ad-inv',    l: 'Inventory',        i: 'ti-package',           group: 'MAIN' },
-  { id: 'ad-prod',   l: 'Products',         i: 'ti-tag',               group: 'MAIN' },
-  { id: 'ad-purch',  l: 'Purchasing',       i: 'ti-truck',             group: 'MAIN' },
-  { id: 'ad-acct',   l: 'Accounting',       i: 'ti-report-money',      group: 'FINANCE' },
-  { id: 'ad-zatca',  l: 'ZATCA invoices',   i: 'ti-file-check',        group: 'FINANCE' },
-  { id: 'ad-crm',    l: 'Customers',        i: 'ti-users',             group: 'PEOPLE' },
-  { id: 'ad-loyal',  l: 'Loyalty & promos', i: 'ti-star',              group: 'PEOPLE' },
-  { id: 'ad-hr',     l: 'HR & payroll',     i: 'ti-id',                group: 'PEOPLE' },
-  { id: 'ad-rep',    l: 'Reports',          i: 'ti-chart-bar',         group: 'SYSTEM' },
-  { id: 'ad-set',    l: 'Settings',         i: 'ti-settings',          group: 'SYSTEM' },
+  { id:'ad-dash',   l:'Dashboard',        icon:'ti-layout-dashboard',    group:'Main' },
+  { id:'ad-orders', l:'Orders',           icon:'ti-shopping-cart',       group:'Main' },
+  { id:'ad-prod',   l:'Products',         icon:'ti-tag',                 group:'Main' },
+  { id:'ad-inv',    l:'Inventory',        icon:'ti-package',             group:'Main' },
+  { id:'ad-wh',     l:'Warehouses',       icon:'ti-building-warehouse',  group:'Main' },
+  { id:'ad-purch',  l:'Purchasing',       icon:'ti-truck',               group:'Main' },
+  { id:'ad-acct',   l:'Accounting',       icon:'ti-report-money',        group:'Finance' },
+  { id:'ad-zatca',  l:'ZATCA Invoices',   icon:'ti-file-check',          group:'Finance' },
+  { id:'ad-crm',    l:'Customers',        icon:'ti-users',               group:'People' },
+  { id:'ad-loyal',  l:'Loyalty & Promos', icon:'ti-star',                group:'People' },
+  { id:'ad-hr',     l:'HR & Payroll',     icon:'ti-id',                  group:'People' },
+  { id:'ad-rep',    l:'Reports',          icon:'ti-chart-bar',           group:'System' },
+  { id:'ad-set',    l:'Settings',         icon:'ti-settings',            group:'System' },
 ];
 
 const SCREENS: Record<string, React.ComponentType> = {
   'pos-sale': POSSale, 'pos-return': POSReturn, 'pos-held': POSHeld, 'pos-zreport': ZReport,
-  'ad-dash': Dashboard, 'ad-orders': Orders, 'ad-wh': Warehouses, 'ad-inv': Inventory, 'ad-prod': Products,
-  'ad-purch': Purchasing, 'ad-acct': Accounting, 'ad-zatca': ZATCA, 'ad-crm': Customers,
-  'ad-loyal': Loyalty, 'ad-hr': HR, 'ad-rep': Reports, 'ad-set': Settings,
+  'ad-dash': Dashboard, 'ad-orders': Orders, 'ad-wh': Warehouses, 'ad-inv': Inventory,
+  'ad-prod': Products, 'ad-purch': Purchasing, 'ad-acct': Accounting, 'ad-zatca': ZATCA,
+  'ad-crm': Customers, 'ad-loyal': Loyalty, 'ad-hr': HR, 'ad-rep': Reports, 'ad-set': Settings,
+};
+
+const PAGE_TITLES: Record<string, string> = {
+  'ad-dash':'Dashboard','ad-orders':'Orders','ad-wh':'Warehouses','ad-inv':'Inventory',
+  'ad-prod':'Products','ad-purch':'Purchasing','ad-acct':'Accounting','ad-zatca':'ZATCA Invoices',
+  'ad-crm':'Customers','ad-loyal':'Loyalty & Promos','ad-hr':'HR & Payroll','ad-rep':'Reports','ad-set':'Settings',
 };
 
 function App() {
   const { user, logout } = useAuth();
-  const [mode, setMode] = useState<'pos' | 'admin'>('pos');
-  useEffect(() => {
-    const handler = () => { setMode('pos'); setScreen('pos-sale'); };
-    const navHandler = (e: any) => { setMode('admin'); setScreen(e.detail); };
-    window.addEventListener('resume-held', handler);
-    window.addEventListener('nav', navHandler);
-    return () => { window.removeEventListener('resume-held', handler); window.removeEventListener('nav', navHandler); };
-  }, []);
+  const [mode, setMode] = useState<'pos'|'admin'>('pos');
   const [screen, setScreen] = useState('pos-sale');
+  const [sideOpen, setSideOpen] = useState(false);
 
-  const switchMode = (m: 'pos' | 'admin') => {
-    setMode(m);
-    setScreen(m === 'pos' ? 'pos-sale' : 'ad-dash');
-  };
+  useEffect(() => {
+    const h1 = () => { setMode('pos'); setScreen('pos-sale'); };
+    const h2 = (e: any) => { setMode('admin'); setScreen(e.detail); };
+    window.addEventListener('resume-held', h1);
+    window.addEventListener('nav', h2);
+    return () => { window.removeEventListener('resume-held', h1); window.removeEventListener('nav', h2); };
+  }, []);
 
   if (!user) return <Login onLogin={() => setScreen('pos-sale')} />;
-
   const Screen = SCREENS[screen] || Dashboard;
-  const groups = ['MAIN', 'FINANCE', 'PEOPLE', 'SYSTEM'];
 
-  return (
-    <div className="app-root">
-
-      {/* ── Top bar ───────────────────────────────── */}
-      <div className="app-topbar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <i className="ti ti-hanger" style={{ fontSize: 22, color: 'var(--fill-accent)' }} />
-          <span style={{ fontSize: 15, fontWeight: 700 }}>NuxFashion</span>
-          <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-            {mode === 'pos' ? 'POS · Riyadh Mall · Terminal 1' : 'ERP · Multi-branch · KSA'}
-          </span>
-        </div>
-
-        {/* Mode toggle */}
-        <div style={{ display: 'flex', gap: 4, marginLeft: 12, background: 'var(--surface-1)', borderRadius: 'var(--radius)', padding: 3 }}>
-          {(['pos', 'admin'] as const).map(m => (
-            <button key={m} onClick={() => switchMode(m)}
-              style={{ padding: '5px 14px', fontSize: 12, fontWeight: 500, border: 'none', borderRadius: 'calc(var(--radius) - 2px)', cursor: 'pointer', background: mode === m ? 'var(--fill-accent)' : 'transparent', color: mode === m ? '#fff' : 'var(--text-secondary)', transition: 'all .15s' }}>
-              <i className={`ti ${m === 'pos' ? 'ti-device-desktop' : 'ti-layout-dashboard'}`} style={{ marginRight: 5 }} />
-              {m === 'pos' ? 'POS Terminal' : 'Admin Portal'}
-            </button>
-          ))}
-        </div>
-
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="bx g"><i className="ti ti-wifi" style={{ fontSize: 11 }} /> Online</span>
-          <span className="bx g"><i className="ti ti-file-check" style={{ fontSize: 11 }} /> ZATCA Active</span>
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{user.email}</span>
-          <button className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" onClick={logout}>
-            <i className="ti ti-logout" /> Logout
-          </button>
-        </div>
-      </div>
-
-      {/* ── Body ──────────────────────────────────── */}
-      <div className="app-body">
-
-        {/* ── Sidebar ───────────────────────────────── */}
-        <div className="app-sidebar" style={mode==='pos'?{display:'none'}:{}}>
-          {mode === 'pos' ? (
-            <>
+  if (mode === 'pos') {
+    return (
+      <div className="nux-pos-root">
+        {/* POS Top bar */}
+        <div className="nux-pos-bar">
+          <div className="d-flex align-items-center gap-3">
+            <div className="nux-brand-pill"><i className="ti ti-hanger"/> NuxFashion POS</div>
+            <div className="nux-pos-nav">
               {POS_NAV.map(n => (
-                <div key={n.id} title={n.l} onClick={() => setScreen(n.id)}
-                  style={{width:48,height:48,borderRadius:12,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',cursor:'pointer',background:screen===n.id?'var(--fill-accent)':'transparent',color:screen===n.id?'#fff':'var(--text-secondary)',marginBottom:4,gap:3,fontSize:9,fontWeight:600,border:'none',transition:'all .15s'}}>
-                  <i className={`ti ${n.i}`} style={{fontSize:18}}/>
-                  <span style={{fontSize:8,lineHeight:1,textAlign:'center',maxWidth:52,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{n.l.replace('New sale','Sale').replace('Held orders','Hold').replace('Z-report','Z-Rep')}</span>
-                </div>
+                <button key={n.id} onClick={() => setScreen(n.id)} className={`nux-pos-btn${screen===n.id?' active':''}`}>
+                  <i className={`ti ${n.icon}`}/> {n.l}
+                </button>
               ))}
-              <div style={{marginTop:'auto',display:'flex',flexDirection:'column',gap:4}}>
-                {[{icon:'ti-user-plus',label:'Add Cust',action:()=>setScreen('ad-crm')},{icon:'ti-gift',label:'Gift Card',action:()=>{}},{icon:'ti-percentage',label:'Discount',action:()=>setScreen('pos-sale')}].map(a=>(
-                  <div key={a.label} title={a.label} onClick={a.action} style={{width:48,height:48,borderRadius:12,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'var(--text-secondary)',gap:3,fontSize:8,fontWeight:600}}>
-                    <i className={`ti ${a.icon}`} style={{fontSize:16}}/><span>{a.label}</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <>
-              {groups.map(group => {
-                const items = ADMIN_NAV.filter(n => n.group === group);
-                return (
-                  <div key={group}>
-                    <div className="sep">{group}</div>
-                    {items.map(n => (
-                      <div key={n.id} className={`ni ${screen === n.id ? 'on' : ''}`} onClick={() => setScreen(n.id)}>
-                        <i className={`ti ${n.i}`} /> {n.l}
-                      </div>
-                    ))}
-                  </div>
-                );
-              })}
-            </>
-          )}
-        </div>
-
-        {/* ── POS top nav strip ─────────────────────── */}
-        {mode === 'pos' && (
-          <div style={{position:'absolute',top:'var(--topbar-height)',left:0,right:0,display:'flex',alignItems:'center',gap:4,padding:'6px 16px',background:'#1e1b4b',zIndex:50,borderBottom:'1px solid rgba(255,255,255,.1)'}}>
-            {POS_NAV.map(n=>(
-              <button key={n.id} onClick={()=>setScreen(n.id)} style={{display:'flex',alignItems:'center',gap:7,padding:'8px 18px',borderRadius:10,border:'none',cursor:'pointer',fontSize:13,fontWeight:600,background:screen===n.id?'rgba(255,255,255,.18)':'transparent',color:screen===n.id?'#fff':'rgba(255,255,255,.55)',transition:'all .15s'}}>
-                <i className={`ti ${n.i}`} style={{fontSize:15}}/>{n.l}
-              </button>
-            ))}
-            <div style={{marginLeft:'auto',display:'flex',gap:8}}>
-              <button onClick={()=>setScreen('ad-crm')} style={{display:'flex',alignItems:'center',gap:6,padding:'7px 14px',borderRadius:10,border:'1px solid rgba(255,255,255,.2)',background:'transparent',color:'rgba(255,255,255,.7)',cursor:'pointer',fontSize:12,fontWeight:600}}><i className="ti ti-user-plus" style={{fontSize:14}}/>New Customer</button>
             </div>
           </div>
-        )}
-        {/* ── Main content ──────────────────────────── */}
-        <div className="app-main" style={mode === 'pos' ? {padding:0,overflow:'hidden',display:'flex',flexDirection:'column',marginTop:'var(--topbar-height)'} : {}}>
-          <Screen />
+          <div className="d-flex align-items-center gap-2">
+            <span className="nux-badge-green"><i className="ti ti-wifi" style={{fontSize:10}}/> Online</span>
+            <span className="nux-badge-blue"><i className="ti ti-file-check" style={{fontSize:10}}/> ZATCA</span>
+            <button className="nux-icon-btn" onClick={() => { setMode('admin'); setScreen('ad-dash'); }} title="Admin Portal">
+              <i className="ti ti-layout-dashboard"/>
+            </button>
+            <button className="nux-icon-btn" onClick={logout} title="Logout"><i className="ti ti-logout"/></button>
+          </div>
         </div>
+        <div style={{flex:1,overflow:'hidden'}}><Screen /></div>
       </div>
+    );
+  }
 
+  // Admin layout
+  const groups = ['Main','Finance','People','System'];
+  return (
+    <div className="nux-admin-root">
+      {/* ── Sidebar overlay (mobile) ── */}
+      {sideOpen && <div className="nux-overlay" onClick={() => setSideOpen(false)}/>}
+
+      {/* ── Sidebar ── */}
+      <aside className={`nux-sidebar${sideOpen?' open':''}`}>
+        {/* Brand */}
+        <div className="nux-sidebar-brand">
+          <div className="nux-logo"><i className="ti ti-hanger"/></div>
+          <div>
+            <div className="nux-brand-name">NuxFashion</div>
+            <div className="nux-brand-sub">ERP Platform</div>
+          </div>
+          <button className="nux-sidebar-close d-lg-none" onClick={() => setSideOpen(false)}><i className="ti ti-x"/></button>
+        </div>
+
+        {/* Nav */}
+        <nav className="nux-nav">
+          {groups.map(g => {
+            const items = ADMIN_NAV.filter(n => n.group === g);
+            return (
+              <div key={g} className="nux-nav-group">
+                <div className="nux-nav-label">{g}</div>
+                {items.map(n => (
+                  <button key={n.id} onClick={() => { setScreen(n.id); setSideOpen(false); }} className={`nux-nav-item${screen===n.id?' active':''}`}>
+                    <i className={`ti ${n.icon}`}/>
+                    <span>{n.l}</span>
+                    {screen===n.id && <div className="nux-nav-indicator"/>}
+                  </button>
+                ))}
+              </div>
+            );
+          })}
+        </nav>
+
+        {/* User info at bottom */}
+        <div className="nux-sidebar-footer">
+          <div className="nux-user-avatar">{user.name?.slice(0,2).toUpperCase()||'A'}</div>
+          <div className="nux-user-info">
+            <div className="nux-user-name">{user.name||'Admin'}</div>
+            <div className="nux-user-email">{user.email}</div>
+          </div>
+          <button className="nux-icon-btn-dark" onClick={logout} title="Logout"><i className="ti ti-logout"/></button>
+        </div>
+      </aside>
+
+      {/* ── Main area ── */}
+      <div className="nux-main-wrap">
+        {/* Topbar */}
+        <header className="nux-topbar">
+          <div className="d-flex align-items-center gap-3">
+            <button className="nux-hamburger d-lg-none" onClick={() => setSideOpen(true)}><i className="ti ti-menu-2"/></button>
+            <div>
+              <div className="nux-page-title">{PAGE_TITLES[screen]||screen}</div>
+            </div>
+          </div>
+          <div className="d-flex align-items-center gap-2">
+            <span className="nux-badge-green d-none d-sm-inline-flex"><i className="ti ti-wifi" style={{fontSize:10}}/> Online</span>
+            <span className="nux-badge-blue d-none d-sm-inline-flex"><i className="ti ti-file-check" style={{fontSize:10}}/> ZATCA Active</span>
+            <button className="nux-pos-switch" onClick={() => { setMode('pos'); setScreen('pos-sale'); }}>
+              <i className="ti ti-device-desktop"/> Switch to POS
+            </button>
+            <button className="nux-icon-btn-outline" title="Notifications"><i className="ti ti-bell"/></button>
+          </div>
+        </header>
+
+        {/* Page content */}
+        <main className="nux-content">
+          <Screen />
+        </main>
+      </div>
     </div>
   );
 }
