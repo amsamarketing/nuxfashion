@@ -1,8 +1,9 @@
+import { api } from '../../lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 export default function Loyalty(){
   const [tab,setTab]=useState('members');
-  const {data}=useQuery({queryKey:['loyalty'],queryFn:async()=>{const r=await fetch('/api/loyalty/summary');if(!r.ok)return{};return r.json();}});
+  const {data}=useQuery({queryKey:['loyalty'],queryFn:async()=>{const r=await api.get('/customers?limit=100'); return r.data;}});
   return(<div>
     <div className="nx-page-head">
       <div><h1 className="nx-page-title">Loyalty & Promos</h1><p className="nx-page-sub">Points, tiers, and promotional campaigns</p></div>

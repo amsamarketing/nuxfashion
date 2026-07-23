@@ -1,8 +1,9 @@
+import { api } from '../../lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 export default function Inventory(){
   const [q,setQ]=useState('');
-  const {data,isLoading}=useQuery({queryKey:['inventory'],queryFn:async()=>{const r=await fetch('/api/inventory?limit=100');if(!r.ok)return{items:[]};return r.json();}});
+  const {data,isLoading}=useQuery({queryKey:['inventory'],queryFn:async()=>{const r=await api.get('/inventory?limit=100'); return r.data;}});
   const items:any[]=(data?.items||data?.data||[]).filter((i:any)=>!q||(i.product_name||i.name||'').toLowerCase().includes(q.toLowerCase()));
   return(<div>
     <div className="nx-page-head">

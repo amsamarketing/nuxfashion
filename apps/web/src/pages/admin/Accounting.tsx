@@ -1,10 +1,11 @@
+import { api } from '../../lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 const fmt=(n:number)=>'SAR '+n.toLocaleString('en-SA',{minimumFractionDigits:2,maximumFractionDigits:2});
 export default function Accounting(){
   const [tab,setTab]=useState('transactions');
-  const {data}=useQuery({queryKey:['accounting'],queryFn:async()=>{const r=await fetch('/api/accounting/summary');if(!r.ok)return{};return r.json();}});
-  const {data:txns}=useQuery({queryKey:['transactions'],queryFn:async()=>{const r=await fetch('/api/accounting/transactions?limit=50');if(!r.ok)return{transactions:[]};return r.json();}});
+  const {data}=useQuery({queryKey:['accounting'],queryFn:async()=>{const r=await api.get('/finance/accounts'); return r.data;}});
+  const {data:txns}=useQuery({queryKey:['transactions'],queryFn:async()=>{const r=await api.get('/finance/journal?limit=50'); return r.data;}});
   const items:any[]=txns?.transactions||txns?.data||[];
   return(<div>
     <div className="nx-page-head">

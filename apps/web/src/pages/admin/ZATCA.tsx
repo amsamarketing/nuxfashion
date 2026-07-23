@@ -1,11 +1,12 @@
+import { api } from '../../lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 const fmt=(n:number)=>'SAR '+parseFloat(n+'').toFixed(2);
 const SC:Record<string,string>={reported:'active',cleared:'active',pending:'pending',failed:'danger',cancelled:'inactive'};
 export default function ZATCA(){
   const [tab,setTab]=useState('invoices');
-  const {data}=useQuery({queryKey:['zatca-summary'],queryFn:async()=>{const r=await fetch('/api/zatca/summary');if(!r.ok)return{};return r.json();}});
-  const {data:invs}=useQuery({queryKey:['zatca-invoices'],queryFn:async()=>{const r=await fetch('/api/zatca/invoices?limit=50');if(!r.ok)return{invoices:[]};return r.json();}});
+  const {data}=useQuery({queryKey:['zatca-summary'],queryFn:async()=>{const r=await api.get('/finance/reports/vat'); return r.data;}});
+  const {data:invs}=useQuery({queryKey:['zatca-invoices'],queryFn:async()=>{const r=await api.get('/sales/orders?limit=50'); return r.data;}});
   const items:any[]=invs?.invoices||invs?.data||[];
   return(<div>
     <div className="nx-page-head">

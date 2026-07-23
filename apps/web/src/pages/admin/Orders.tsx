@@ -1,10 +1,11 @@
+import { api } from '../../lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 const fmt=(n:number)=>'SAR '+n.toLocaleString('en-SA',{minimumFractionDigits:2,maximumFractionDigits:2});
 const SC:Record<string,string>={completed:'active',paid:'active',pending:'pending',cancelled:'danger',draft:'inactive'};
 export default function Orders(){
   const [q,setQ]=useState('');const [tab,setTab]=useState('all');
-  const {data,isLoading}=useQuery({queryKey:['orders',tab],queryFn:async()=>{const r=await fetch('/api/orders?limit=50&sort=desc');if(!r.ok)return{orders:[]};return r.json();}});
+  const {data,isLoading}=useQuery({queryKey:['orders',tab],queryFn:async()=>{const r=await api.get('/sales/orders?limit=50&sort=desc'); return r.data;}});
   const orders:any[]=(data?.orders||data?.data||[]).filter((o:any)=>!q||(o.order_number||'').toLowerCase().includes(q.toLowerCase())||(o.customer_name||'').toLowerCase().includes(q.toLowerCase())).filter((o:any)=>tab==='all'||o.status===tab);
   return(<div>
     <div className="nx-page-head">

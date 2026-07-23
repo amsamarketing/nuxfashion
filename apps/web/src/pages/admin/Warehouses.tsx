@@ -1,6 +1,7 @@
+import { api } from '../../lib/api';
 import { useQuery } from '@tanstack/react-query';
 export default function Warehouses(){
-  const {data,isLoading}=useQuery({queryKey:['warehouses'],queryFn:async()=>{const r=await fetch('/api/warehouses');if(!r.ok)return{warehouses:[]};return r.json();}});
+  const {data,isLoading}=useQuery({queryKey:['warehouses'],queryFn:async()=>{const r=await api.get('/inventory/warehouses'); return r.data;}});
   const items:any[]=data?.warehouses||data?.data||[];
   return(<div>
     <div className="nx-page-head">

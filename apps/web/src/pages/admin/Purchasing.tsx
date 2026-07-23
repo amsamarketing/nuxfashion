@@ -1,10 +1,11 @@
+import { api } from '../../lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 const fmt=(n:number)=>'SAR '+n.toLocaleString('en-SA',{minimumFractionDigits:2,maximumFractionDigits:2});
 const SC:Record<string,string>={received:'active',ordered:'pending',cancelled:'danger',draft:'inactive'};
 export default function Purchasing(){
   const [tab,setTab]=useState('all');
-  const {data,isLoading}=useQuery({queryKey:['purchase-orders'],queryFn:async()=>{const r=await fetch('/api/purchase-orders?limit=50');if(!r.ok)return{orders:[]};return r.json();}});
+  const {data,isLoading}=useQuery({queryKey:['purchase-orders'],queryFn:async()=>{const r=await api.get('/purchasing/orders?limit=50'); return r.data;}});
   const items:any[]=(data?.orders||data?.data||[]).filter((o:any)=>tab==='all'||o.status===tab);
   return(<div>
     <div className="nx-page-head">

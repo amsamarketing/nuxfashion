@@ -1,3 +1,4 @@
+import { api } from '../../lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
@@ -9,7 +10,7 @@ export default function Products() {
   const { data, isLoading } = useQuery({
     queryKey: ['products'],
     queryFn: async () => {
-      const r = await fetch('/api/products?limit=200');
+      const r = await api.get('/catalog/products?limit=200');
       if (!r.ok) return { products: [] };
       return r.json();
     }

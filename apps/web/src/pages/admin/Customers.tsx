@@ -1,9 +1,10 @@
+import { api } from '../../lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 const fmt=(n:number)=>'SAR '+parseFloat(n+'').toFixed(2);
 export default function Customers(){
   const [q,setQ]=useState('');
-  const {data,isLoading}=useQuery({queryKey:['customers'],queryFn:async()=>{const r=await fetch('/api/customers?limit=100');if(!r.ok)return{customers:[]};return r.json();}});
+  const {data,isLoading}=useQuery({queryKey:['customers'],queryFn:async()=>{const r=await api.get('/customers?limit=100'); return r.data;}});
   const items:any[]=(data?.customers||data?.data||[]).filter((c:any)=>!q||(c.name||'').toLowerCase().includes(q.toLowerCase())||(c.phone||'').includes(q)||(c.email||'').toLowerCase().includes(q.toLowerCase()));
   return(<div>
     <div className="nx-page-head">
