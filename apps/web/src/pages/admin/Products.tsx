@@ -16,6 +16,14 @@ const slugify=(s:string)=>s.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-
 const NO_POS='channel:no-pos';
 const NO_ECOM='channel:no-ecommerce';
 const csvCell=(v:any)=>`"${String(v??'').replace(/"/g,'""')}"`;
+const autoBarcode=(seed:string)=>{
+  let hash=2166136261;
+  for(let i=0;i<seed.length;i++){hash^=seed.charCodeAt(i);hash=Math.imul(hash,16777619);}
+  let digits='';
+  for(let i=0;i<12;i++){hash^=hash<<13;hash^=hash>>>17;hash^=hash<<5;digits+=String((hash>>>0)%10);}
+  const sum=digits.split('').reduce((total,digit,index)=>total+Number(digit)*(index%2===0?1:3),0);
+  return digits+String((10-(sum%10))%10);
+};
 const parseCsv=(text:string)=>text.trim().split(/\r?\n/).map(line=>{
   const cells:string[]=[];let cur='';let quoted=false;
   for(let i=0;i<line.length;i++){const c=line[i];if(c==='"'&&line[i+1]==='"'&&quoted){cur+='"';i++;}else if(c==='"'){quoted=!quoted;}else if(c===','&&!quoted){cells.push(cur);cur='';}else cur+=c;}cells.push(cur);return cells;
@@ -108,10 +116,11 @@ function VariantModal({productId,variant,onClose}:{productId:string;variant:any;
   const qc=useQueryClient();
   const [form,setForm]=useState({name:variant?.name||'',name_ar:variant?.name_ar||'',sku:variant?.sku||'',barcode:variant?.barcode||'',size:variant?.size||'',color:variant?.color||'',cost_price:String(variant?.cost_price||''),selling_price:String(variant?.selling_price||''),compare_price:String(variant?.compare_price||''),stock_quantity:String(variant?.stock_quantity||0),low_stock_threshold:String(variant?.low_stock_threshold||5)});
   const F=(k:string,v:any)=>setForm(f=>({...f,[k]:v}));
+  const generatedBarcode=autoBarcode(`${productId}|${form.sku}|${form.color}|${form.size}`);
   const save=useMutation({
     mutationFn:()=>variant?.id
       ?api.patch(`/catalog/products/variants/${variant.id}`,{...form,cost_price:parseFloat(form.cost_price)||undefined,selling_price:parseFloat(form.selling_price)||undefined,compare_price:parseFloat(form.compare_price)||undefined,stock_quantity:parseInt(form.stock_quantity)||0,low_stock_threshold:parseInt(form.low_stock_threshold)||5})
-      :api.post(`/catalog/products/${productId}/variants`,{...form,cost_price:parseFloat(form.cost_price)||undefined,selling_price:parseFloat(form.selling_price)||undefined,compare_price:parseFloat(form.compare_price)||undefined,stock_quantity:parseInt(form.stock_quantity)||0,low_stock_threshold:parseInt(form.low_stock_threshold)||5}),
+      :api.post(`/catalog/products/${productId}/variants`,{...form,barcode:form.barcode||generatedBarcode,cost_price:parseFloat(form.cost_price)||undefined,selling_price:parseFloat(form.selling_price)||undefined,compare_price:parseFloat(form.compare_price)||undefined,stock_quantity:parseInt(form.stock_quantity)||0,low_stock_threshold:parseInt(form.low_stock_threshold)||5}),
     onSuccess:()=>{qc.invalidateQueries({queryKey:['products']});qc.invalidateQueries({queryKey:['product',productId]});onClose();},
   });
   return(
@@ -132,7 +141,7 @@ function VariantModal({productId,variant,onClose}:{productId:string;variant:any;
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
             {inp('SKU',<input className="nx-input" style={{width:'100%',fontFamily:'monospace'}} value={form.sku} onChange={e=>F('sku',e.target.value)} placeholder="PROD-BLK-L"/>)}
-            {inp('Barcode',<input className="nx-input" style={{width:'100%',fontFamily:'monospace'}} value={form.barcode} onChange={e=>F('barcode',e.target.value)}/>)}
+            {inp('Barcode (auto)',<input className="nx-input" style={{width:'100%',fontFamily:'monospace'}} value={form.barcode||generatedBarcode} onChange={e=>F('barcode',e.target.value)} title="Automatically generated from SKU, color and size"/>)}
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
             {inp('Cost Price (SAR)',<input className="nx-input" type="number" style={{width:'100%'}} value={form.cost_price} onChange={e=>F('cost_price',e.target.value)}/>)}
@@ -147,6 +156,83 @@ function VariantModal({productId,variant,onClose}:{productId:string;variant:any;
         <div style={{padding:'14px 20px',borderTop:'1px solid var(--bd)',display:'flex',gap:8,justifyContent:'flex-end'}}>
           <button className="btn-nx ghost" onClick={onClose}>Cancel</button>
           <button className="btn-nx primary" onClick={()=>save.mutate()} disabled={save.isPending}>{save.isPending?'Saving...':'Save Variant'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Bulk Variant Modal ──────────────────────────────────── */
+function BulkVariantModal({product,existing,onClose}:{product:any;existing:any[];onClose:()=>void}){
+  const qc=useQueryClient();
+  const [sizes,setSizes]=useState<string[]>([]);
+  const [colors,setColors]=useState<string[]>([]);
+  const [customSizes,setCustomSizes]=useState('');
+  const [customColors,setCustomColors]=useState('');
+  const [form,setForm]=useState({model:String(product.sku_prefix||''),cost_price:'',selling_price:'',compare_price:'',stock_quantity:'0',low_stock_threshold:'5'});
+  const toggle=(list:string[],value:string,setter:(v:string[])=>void)=>setter(list.includes(value)?list.filter(v=>v!==value):[...list,value]);
+  const cleanList=(preset:string[],custom:string)=>[...new Set([...preset,...custom.split(',').map(v=>v.trim()).filter(Boolean)])];
+  const allSizes=cleanList(sizes,customSizes);
+  const allColors=cleanList(colors,customColors);
+  const combinations=(allSizes.length?allSizes:['']).flatMap(size=>(allColors.length?allColors:['']).map(color=>({size,color})));
+  const save=useMutation({
+    mutationFn:async()=>{
+      const current=new Set(existing.map(v=>`${String(v.size||'').toLowerCase()}|${String(v.color||'').toLowerCase()}`));
+      const prefix=String(form.model||product.sku_prefix||product.name||'PROD').toUpperCase().replace(/[^A-Z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,20)||'PROD';
+      let created=0,skipped=0;
+      for(const item of combinations){
+        const key=`${item.size.toLowerCase()}|${item.color.toLowerCase()}`;
+        if(current.has(key)){skipped++;continue;}
+        const suffix=[item.color,item.size].filter(Boolean).map(v=>v.toUpperCase().replace(/[^A-Z0-9]+/g,'-').replace(/^-|-$/g,'')).join('-');
+        const sku=`${prefix}-${suffix||'STD'}`;
+        await api.post(`/catalog/products/${product.id}/variants`,{
+          name:[item.color,item.size].filter(Boolean).join(' / ')||'Standard',
+          size:item.size||undefined,color:item.color||undefined,sku,barcode:autoBarcode(`${product.id}|${sku}|${item.color}|${item.size}`),
+          cost_price:parseFloat(form.cost_price)||0,selling_price:parseFloat(form.selling_price)||0,
+          compare_price:parseFloat(form.compare_price)||undefined,stock_quantity:parseInt(form.stock_quantity)||0,
+          low_stock_threshold:parseInt(form.low_stock_threshold)||5,
+        });
+        current.add(key);created++;
+      }
+      return {created,skipped};
+    },
+    onSuccess:async result=>{await qc.invalidateQueries({queryKey:['products']});await qc.invalidateQueries({queryKey:['product',product.id]});alert(`${result.created} variants added${result.skipped?` · ${result.skipped} duplicates skipped`:''}`);onClose();},
+  });
+  const chip=(value:string,active:boolean,onClick:()=>void)=><button key={value} type="button" className={`btn-nx ${active?'primary':'ghost'} sm`} onClick={onClick}>{value}</button>;
+  return(
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.65)',zIndex:1200,display:'flex',alignItems:'center',justifyContent:'center',padding:16}} onClick={onClose}>
+      <div style={{width:'min(760px,100%)',maxHeight:'92vh',background:'var(--cd)',borderRadius:16,overflow:'hidden',display:'flex',flexDirection:'column'}} onClick={e=>e.stopPropagation()}>
+        <div style={{padding:'18px 22px',borderBottom:'1px solid var(--bd)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div><h2 style={{margin:0,fontSize:17,fontWeight:700}}>Bulk Add Sizes & Colors</h2><div style={{fontSize:12,color:'var(--mu)',marginTop:3}}>{product.name} · Select multiple options to create every combination</div></div>
+          <button className="btn-nx ghost sm" onClick={onClose}><i className="ti ti-x"/></button>
+        </div>
+        <div style={{padding:20,overflowY:'auto',display:'grid',gap:18}}>
+          <div>
+            <div style={{fontWeight:700,fontSize:13,marginBottom:10}}>1. Select sizes</div>
+            {SIZE_GROUPS.map(group=><div key={group.name} style={{marginBottom:10}}><div style={{fontSize:11,color:'var(--mu)',marginBottom:6}}>{group.name}</div><div style={{display:'flex',gap:6,flexWrap:'wrap'}}>{group.sizes.map(size=>chip(size,sizes.includes(size),()=>toggle(sizes,size,setSizes)))}</div></div>)}
+            <input className="nx-input" style={{width:'100%',marginTop:4}} value={customSizes} onChange={e=>setCustomSizes(e.target.value)} placeholder="Other sizes, comma-separated (optional)"/>
+          </div>
+          <div>
+            <div style={{fontWeight:700,fontSize:13,marginBottom:10}}>2. Select colors</div>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>{COLORS.map(color=><button key={color} type="button" className={`btn-nx ${colors.includes(color)?'primary':'ghost'} sm`} onClick={()=>toggle(colors,color,setColors)}><span style={{width:12,height:12,borderRadius:'50%',background:COLOR_DOT[color],border:'1px solid rgba(0,0,0,.15)'}}/>{color}</button>)}</div>
+            <input className="nx-input" style={{width:'100%',marginTop:10}} value={customColors} onChange={e=>setCustomColors(e.target.value)} placeholder="Other colors, comma-separated (optional)"/>
+          </div>
+          <div>
+            <div style={{fontWeight:700,fontSize:13,marginBottom:10}}>3. Common price and stock</div>
+            {inp('Model / SKU Prefix *',<input className="nx-input" style={{width:'100%',marginBottom:10,fontFamily:'monospace'}} value={form.model} onChange={e=>setForm(f=>({...f,model:e.target.value.toUpperCase()}))} placeholder="Example: NK-AIR90"/>)}
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))',gap:8}}>
+              {inp('Cost (SAR)',<input className="nx-input" type="number" style={{width:'100%'}} value={form.cost_price} onChange={e=>setForm(f=>({...f,cost_price:e.target.value}))}/>)}
+              {inp('Selling (SAR)',<input className="nx-input" type="number" style={{width:'100%'}} value={form.selling_price} onChange={e=>setForm(f=>({...f,selling_price:e.target.value}))}/>)}
+              {inp('Compare (SAR)',<input className="nx-input" type="number" style={{width:'100%'}} value={form.compare_price} onChange={e=>setForm(f=>({...f,compare_price:e.target.value}))}/>)}
+              {inp('Stock per variant',<input className="nx-input" type="number" style={{width:'100%'}} value={form.stock_quantity} onChange={e=>setForm(f=>({...f,stock_quantity:e.target.value}))}/>)}
+              {inp('Low stock alert',<input className="nx-input" type="number" style={{width:'100%'}} value={form.low_stock_threshold} onChange={e=>setForm(f=>({...f,low_stock_threshold:e.target.value}))}/>)}
+            </div>
+          </div>
+          <div style={{padding:'11px 13px',borderRadius:9,background:'var(--acg)',color:'var(--ac)',fontSize:13,fontWeight:600}}>{allSizes.length||'No'} size(s) × {allColors.length||'No'} color(s) = {(allSizes.length||1)*(allColors.length||1)} variant(s)</div>
+        </div>
+        <div style={{padding:'14px 20px',borderTop:'1px solid var(--bd)',display:'flex',gap:8,justifyContent:'flex-end'}}>
+          <button className="btn-nx ghost" onClick={onClose}>Cancel</button>
+          <button className="btn-nx primary" onClick={()=>save.mutate()} disabled={!form.model.trim()||(!allSizes.length&&!allColors.length)||save.isPending}>{save.isPending?'Adding variants...':`Add ${combinations.length} Variants`}</button>
         </div>
       </div>
     </div>
@@ -248,6 +334,7 @@ export default function Products(){
   const [showProd,setShowProd]=useState(false);
   const [editProd,setEditProd]=useState<any>(null);
   const [showVariant,setShowVariant]=useState(false);
+  const [showBulkVariants,setShowBulkVariants]=useState(false);
   const [editVariant,setEditVariant]=useState<any>(null);
   const importRef=useRef<HTMLInputElement>(null);
   const [showCat,setShowCat]=useState(false);
@@ -499,7 +586,10 @@ export default function Products(){
         </div>)}
 
         {detailTab==='variants'&&(<div style={{padding:16}}>
-          <button className="btn-nx primary sm" style={{width:'100%',justifyContent:'center',marginBottom:12}} onClick={()=>{setEditVariant(null);setShowVariant(true);}}><i className="ti ti-plus"/> Add Variant</button>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+            <button className="btn-nx ghost sm" style={{justifyContent:'center'}} onClick={()=>{setEditVariant(null);setShowVariant(true);}}><i className="ti ti-plus"/> Add One</button>
+            <button className="btn-nx primary sm" style={{justifyContent:'center'}} onClick={()=>setShowBulkVariants(true)}><i className="ti ti-table-plus"/> Bulk Add</button>
+          </div>
           {variants.length===0?<div style={{textAlign:'center',padding:32,color:'var(--mu)'}}><i className="ti ti-layers-subtract" style={{fontSize:32,display:'block',opacity:.3,marginBottom:8}}/><p style={{fontSize:13}}>No variants yet</p></div>:(
             <div style={{display:'grid',gap:8}}>
               {variants.map((v:any)=>{
@@ -540,6 +630,7 @@ export default function Products(){
 
     {showProd&&<ProductModal prod={editProd} categories={categories} brands={brands} onClose={()=>{setShowProd(false);setEditProd(null);}}/>}
     {showVariant&&selected&&<VariantModal productId={selected.id} variant={editVariant} onClose={()=>{setShowVariant(false);setEditVariant(null);}}/>}
+    {showBulkVariants&&selected&&<BulkVariantModal product={selected} existing={variants} onClose={()=>setShowBulkVariants(false)}/>}
     {showCat&&<CategoryModal cat={editCat} categories={categories} onClose={()=>{setShowCat(false);setEditCat(null);}}/>}
     {showBrand&&<BrandModal brand={editBrand} onClose={()=>{setShowBrand(false);setEditBrand(null);}}/>}
   </div>);
