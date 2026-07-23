@@ -423,7 +423,7 @@ export default function Loyalty(){
       </div>
       {discLoading?<div style={{padding:40,textAlign:'center',color:'var(--mu)'}}>Loading...</div>:filteredDiscounts.length===0?<div className="nx-card" style={{textAlign:'center',padding:'48px 0',color:'var(--mu)'}}><div style={{fontSize:40,marginBottom:8}}>🏷</div><p style={{fontWeight:600}}>No discounts found</p></div>:(
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:14}}>
-          {filteredDiscounts.map((d:any)=><DiscountCard key={d.id} d={d} cats={categories} prods={products} onEdit={()=>{setEditDisc(d);setShowDisc(true);}}/>)}
+          {filteredDiscounts.map((d:any)=><DiscountCard key={d.id} d={d} cats={categories} onEdit={()=>{setEditDisc(d);setShowDisc(true);}}/>)}
         </div>
       )}
     </div>)}
