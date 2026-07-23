@@ -2,7 +2,13 @@ import { api } from '../../lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useMemo, useRef } from 'react';
 
-const SIZES=['XS','S','M','L','XL','XXL','3XL','4XL','One Size','28','30','32','34','36','38','40','42','44'];
+const SIZE_GROUPS=[
+  {name:'Clothing',icon:'ti-shirt',sizes:['XXS','XS','S','M','L','XL','XXL','3XL','4XL','5XL','28','30','32','34','36','38','40','42','44']},
+  {name:'Shoes (EU)',icon:'ti-shoe',sizes:['35','36','37','38','39','40','41','42','43','44','45','46','47','48']},
+  {name:'Accessories',icon:'ti-watch',sizes:['One Size','Adjustable','Small','Medium','Large']},
+  {name:'Bags',icon:'ti-briefcase',sizes:['Mini','Small','Medium','Large','Extra Large','One Size']},
+];
+const SIZES=[...new Set(SIZE_GROUPS.flatMap(group=>group.sizes))];
 const COLORS=['Black','White','Navy','Grey','Beige','Brown','Red','Pink','Blue','Green','Yellow','Orange','Purple','Gold','Silver','Multicolor'];
 const COLOR_DOT:Record<string,string>={Black:'#111',White:'#f5f5f5',Navy:'#1e3a5f',Grey:'#9ca3af',Beige:'#d4b896',Brown:'#7c4a03',Red:'#ef4444',Pink:'#f472b6',Blue:'#3b82f6',Green:'#22c55e',Yellow:'#eab308',Orange:'#f97316',Purple:'#a855f7',Gold:'#f59e0b',Silver:'#aaa',Multicolor:'linear-gradient(135deg,#ef4444,#3b82f6,#22c55e)'};
 
@@ -121,8 +127,8 @@ function VariantModal({productId,variant,onClose}:{productId:string;variant:any;
             {inp('Variant Name (AR)',<input className="nx-input" style={{width:'100%',direction:'rtl'}} value={form.name_ar} onChange={e=>F('name_ar',e.target.value)}/>)}
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-            {inp('Size',<select className="nx-select" style={{width:'100%'}} value={form.size} onChange={e=>F('size',e.target.value)}><option value="">—</option>{SIZES.map(s=><option key={s}>{s}</option>)}</select>)}
-            {inp('Color',<select className="nx-select" style={{width:'100%'}} value={form.color} onChange={e=>F('color',e.target.value)}><option value="">—</option>{COLORS.map(c=><option key={c}>{c}</option>)}</select>)}
+            {inp('Size',<><input className="nx-input" list="product-size-options" style={{width:'100%'}} value={form.size} onChange={e=>F('size',e.target.value)} placeholder="Select or type a size"/><datalist id="product-size-options">{SIZES.map(s=><option key={s} value={s}/>)}</datalist></>)}
+            {inp('Color',<><input className="nx-input" list="product-color-options" style={{width:'100%'}} value={form.color} onChange={e=>F('color',e.target.value)} placeholder="Select or type a color"/><datalist id="product-color-options">{COLORS.map(c=><option key={c} value={c}/>)}</datalist></>)}
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
             {inp('SKU',<input className="nx-input" style={{width:'100%',fontFamily:'monospace'}} value={form.sku} onChange={e=>F('sku',e.target.value)} placeholder="PROD-BLK-L"/>)}
@@ -319,7 +325,7 @@ export default function Products(){
       </div>
 
       <div style={{display:'flex',gap:4,marginBottom:14,borderBottom:'1px solid var(--bd)'}}>
-        {[['products','📦 Products'],['categories','📂 Categories'],['brands','🏷 Brands']].map(([id,l])=>(
+        {[['products','📦 Products'],['sizes-colors','📐 Sizes & Colors'],['categories','📂 Categories'],['brands','🏷 Brands']].map(([id,l])=>(
           <button key={id} onClick={()=>setTab(id)} style={{padding:'8px 16px',border:'none',background:'none',borderBottom:tab===id?'2px solid var(--ac)':'2px solid transparent',color:tab===id?'var(--ac)':'var(--mu)',fontWeight:tab===id?600:400,cursor:'pointer',fontSize:13}}>{l}</button>
         ))}
       </div>
@@ -371,6 +377,37 @@ export default function Products(){
             })}
           </div>
         )}
+      </div>)}
+
+      {/* SIZES & COLORS TAB */}
+      {tab==='sizes-colors'&&(<div style={{display:'grid',gap:16}}>
+        <div className="nx-card">
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
+            <div className="nx-stat-icon indigo" style={{width:40,height:40}}><i className="ti ti-ruler"/></div>
+            <div><div style={{fontWeight:700,fontSize:16}}>Size presets</div><div style={{fontSize:12,color:'var(--mu)'}}>Available when adding a variant. You can also type any custom size.</div></div>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:12}}>
+            {SIZE_GROUPS.map(group=><div key={group.name} style={{padding:14,border:'1px solid var(--bd)',borderRadius:10,background:'var(--bg)'}}>
+              <div style={{fontWeight:700,marginBottom:10,display:'flex',alignItems:'center',gap:7}}><i className={`ti ${group.icon}`} style={{color:'var(--ac)',fontSize:18}}/>{group.name}</div>
+              <div style={{display:'flex',flexWrap:'wrap',gap:6}}>{group.sizes.map(size=><span key={size} className="nx-badge blue">{size}</span>)}</div>
+            </div>)}
+          </div>
+        </div>
+        <div className="nx-card">
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
+            <div className="nx-stat-icon rose" style={{width:40,height:40}}><i className="ti ti-palette"/></div>
+            <div><div style={{fontWeight:700,fontSize:16}}>Color presets</div><div style={{fontSize:12,color:'var(--mu)'}}>Available for clothing, shoes, accessories and bags. Custom colors are also supported.</div></div>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))',gap:8}}>
+            {COLORS.map(color=><div key={color} style={{display:'flex',alignItems:'center',gap:8,padding:'9px 11px',border:'1px solid var(--bd)',borderRadius:9}}>
+              <span style={{width:20,height:20,borderRadius:'50%',background:COLOR_DOT[color],border:'1px solid var(--bd)',flexShrink:0}}/>
+              <span style={{fontSize:12,fontWeight:600}}>{color}</span>
+            </div>)}
+          </div>
+        </div>
+        <div style={{padding:'12px 14px',background:'var(--acg)',border:'1px solid var(--ac)',borderRadius:10,color:'var(--ac)',fontSize:12}}>
+          <i className="ti ti-info-circle" style={{marginRight:6}}/>To assign size and color: open a product, choose <strong>Variants</strong>, then add or edit a variant.
+        </div>
       </div>)}
 
       {/* CATEGORIES TAB */}
