@@ -20,111 +20,43 @@ import Loyalty from './pages/admin/Loyalty';
 import HR from './pages/admin/HR';
 import Reports from './pages/admin/Reports';
 import Settings from './pages/admin/Settings';
+import Ecommerce from './pages/admin/Ecommerce';
 
-const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30000 } } });
+const qc = new QueryClient({ defaultOptions:{ queries:{ retry:1, staleTime:30000 }}});
 
-const POS_NAV = [
-  { id:'pos-sale',    l:'New Sale',    icon:'ti-shopping-cart' },
-  { id:'pos-return',  l:'Returns',     icon:'ti-arrow-back' },
-  { id:'pos-held',    l:'Held Orders', icon:'ti-player-pause' },
-  { id:'pos-zreport', l:'Z-Report',    icon:'ti-report' },
+const NAV = [
+  { id:'ad-dash',   label:'Dashboard',     icon:'ti-layout-dashboard',  sec:'Main' },
+  { id:'ad-orders', label:'Orders',        icon:'ti-shopping-cart',      sec:'Main' },
+  { id:'ad-prod',   label:'Products',      icon:'ti-tag',                sec:'Catalog' },
+  { id:'ad-inv',    label:'Inventory',     icon:'ti-package',            sec:'Catalog' },
+  { id:'ad-wh',     label:'Warehouses',    icon:'ti-building-warehouse', sec:'Catalog' },
+  { id:'ad-purch',  label:'Purchasing',    icon:'ti-truck',              sec:'Catalog' },
+  { id:'ad-ecom',   label:'E-commerce',    icon:'ti-world',              sec:'Channels' },
+  { id:'ad-crm',    label:'Customers',     icon:'ti-users',              sec:'Channels' },
+  { id:'ad-loyal',  label:'Loyalty',       icon:'ti-star',               sec:'Channels' },
+  { id:'ad-hr',     label:'HR & Payroll',  icon:'ti-id',                 sec:'People' },
+  { id:'ad-acct',   label:'Accounting',    icon:'ti-report-money',       sec:'Finance' },
+  { id:'ad-zatca',  label:'ZATCA',         icon:'ti-file-check',         sec:'Finance' },
+  { id:'ad-rep',    label:'Reports',       icon:'ti-chart-bar',          sec:'Finance' },
+  { id:'ad-set',    label:'Settings',      icon:'ti-settings',           sec:'System' },
 ];
 
-const ADMIN_NAV = [
-  { id:'ad-dash',   l:'Dashboard',        icon:'ti-layout-dashboard', group:'Main' },
-  { id:'ad-orders', l:'Orders',           icon:'ti-shopping-cart',    group:'Main' },
-  { id:'ad-prod',   l:'Products',         icon:'ti-tag',              group:'Inventory' },
-  { id:'ad-inv',    l:'Inventory',        icon:'ti-package',          group:'Inventory' },
-  { id:'ad-wh',     l:'Warehouses',       icon:'ti-building-warehouse',group:'Inventory' },
-  { id:'ad-purch',  l:'Purchasing',       icon:'ti-truck',            group:'Inventory' },
-  { id:'ad-acct',   l:'Accounting',       icon:'ti-report-money',     group:'Finance' },
-  { id:'ad-zatca',  l:'ZATCA Invoices',   icon:'ti-file-check',       group:'Finance' },
-  { id:'ad-crm',    l:'Customers',        icon:'ti-users',            group:'People' },
-  { id:'ad-loyal',  l:'Loyalty & Promos', icon:'ti-star',             group:'People' },
-  { id:'ad-hr',     l:'HR & Payroll',     icon:'ti-id',               group:'People' },
-  { id:'ad-rep',    l:'Reports',          icon:'ti-chart-bar',        group:'System' },
-  { id:'ad-set',    l:'Settings',         icon:'ti-settings',         group:'System' },
+const POS_TABS = [
+  { id:'pos-sale',    label:'New Sale',    icon:'ti-shopping-cart' },
+  { id:'pos-return',  label:'Returns',     icon:'ti-arrow-back' },
+  { id:'pos-held',    label:'Held Orders', icon:'ti-player-pause' },
+  { id:'pos-zreport', label:'Z-Report',    icon:'ti-report' },
 ];
 
-const SCREENS: Record<string, React.ComponentType> = {
-  'pos-sale': POSSale, 'pos-return': POSReturn, 'pos-held': POSHeld, 'pos-zreport': ZReport,
-  'ad-dash': Dashboard, 'ad-orders': Orders, 'ad-wh': Warehouses, 'ad-inv': Inventory,
-  'ad-prod': Products, 'ad-purch': Purchasing, 'ad-acct': Accounting, 'ad-zatca': ZATCA,
-  'ad-crm': Customers, 'ad-loyal': Loyalty, 'ad-hr': HR, 'ad-rep': Reports, 'ad-set': Settings,
+const SCREENS: Record<string,React.ComponentType> = {
+  'pos-sale':POSSale,'pos-return':POSReturn,'pos-held':POSHeld,'pos-zreport':ZReport,
+  'ad-dash':Dashboard,'ad-orders':Orders,'ad-wh':Warehouses,'ad-inv':Inventory,
+  'ad-prod':Products,'ad-purch':Purchasing,'ad-acct':Accounting,'ad-zatca':ZATCA,
+  'ad-crm':Customers,'ad-loyal':Loyalty,'ad-hr':HR,'ad-rep':Reports,'ad-set':Settings,
+  'ad-ecom':Ecommerce,
 };
 
-const GROUPS = ['Main','Inventory','Finance','People','System'];
-
-function AdminSidebar({ screen, setScreen, user, logout, sideOpen, setSideOpen }: any) {
-  const [expanded, setExpanded] = useState<Record<string,boolean>>({ Main:true, Inventory:true, Finance:true, People:true, System:true });
-  const toggleGroup = (g: string) => setExpanded(p => ({ ...p, [g]: !p[g] }));
-  const initials = (user?.name || user?.email || 'A').slice(0,2).toUpperCase();
-  const today = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
-
-  return (
-    <>
-      {sideOpen && <div className="nux-overlay" onClick={() => setSideOpen(false)}/>}
-      <aside className={`nux-sidebar${sideOpen ? ' open' : ''}`}>
-        {/* Logo */}
-        <div className="nux-sb-logo">
-          <div className="nux-sb-logo-icon"><i className="ti ti-hanger"/></div>
-          <div>
-            <div className="nux-sb-logo-name">NuxFashion</div>
-            <div className="nux-sb-logo-sub">POS & ERP</div>
-          </div>
-          <button className="nux-sb-close d-lg-none" onClick={() => setSideOpen(false)}><i className="ti ti-x"/></button>
-        </div>
-
-        {/* User card */}
-        <div className="nux-sb-user">
-          <div className="nux-sb-avatar">{initials}</div>
-          <div className="nux-sb-user-info">
-            <div className="nux-sb-user-name">{user?.name || 'Admin'}</div>
-            <div className="nux-sb-user-role"><span className="nux-dot-green"/>System Admin</div>
-          </div>
-        </div>
-
-        {/* Quick actions */}
-        <div className="nux-sb-quick">
-          {[
-            { icon:'ti-layout-dashboard', tip:'Dashboard', action:()=>setScreen('ad-dash') },
-            { icon:'ti-bell',             tip:'Notifications', action:()=>{} },
-            { icon:'ti-chart-bar',        tip:'Reports', action:()=>setScreen('ad-rep') },
-            { icon:'ti-settings',         tip:'Settings', action:()=>setScreen('ad-set') },
-            { icon:'ti-logout',           tip:'Logout', action:logout },
-          ].map((a,i) => (
-            <button key={i} title={a.tip} onClick={a.action} className="nux-quick-btn"><i className={`ti ${a.icon}`}/></button>
-          ))}
-        </div>
-
-        {/* Nav */}
-        <nav className="nux-sb-nav">
-          {GROUPS.map(g => {
-            const items = ADMIN_NAV.filter(n => n.group === g);
-            return (
-              <div key={g} className="nux-sb-group">
-                <button className="nux-sb-group-hd" onClick={() => toggleGroup(g)}>
-                  <span>{g}</span>
-                  <i className={`ti ${expanded[g] ? 'ti-chevron-down' : 'ti-chevron-right'}`}/>
-                </button>
-                {expanded[g] && items.map(n => (
-                  <button key={n.id} onClick={() => { setScreen(n.id); setSideOpen(false); }}
-                    className={`nux-sb-item${screen === n.id ? ' active' : ''}`}>
-                    <span className="nux-sb-dot"/>
-                    <i className={`ti ${n.icon}`}/>
-                    <span>{n.l}</span>
-                  </button>
-                ))}
-              </div>
-            );
-          })}
-        </nav>
-
-        <div className="nux-sb-footer"><i className="ti ti-calendar-event" style={{fontSize:12,marginRight:6}}/>{today}</div>
-      </aside>
-    </>
-  );
-}
+const SECS = ['Main','Catalog','Channels','People','Finance','System'];
 
 function App() {
   const { user, logout } = useAuth();
@@ -132,91 +64,124 @@ function App() {
   const [screen, setScreen] = useState('pos-sale');
   const [sideOpen, setSideOpen] = useState(false);
 
-  useEffect(() => {
-    const h1 = () => { setMode('pos'); setScreen('pos-sale'); };
-    const h2 = (e: any) => { setMode('admin'); setScreen(e.detail); };
-    window.addEventListener('resume-held', h1);
-    window.addEventListener('nav', h2);
-    return () => { window.removeEventListener('resume-held', h1); window.removeEventListener('nav', h2); };
-  }, []);
+  useEffect(()=>{
+    const h=(e:any)=>{ setMode('admin'); setScreen(e.detail); };
+    const h2=()=>{ setMode('pos'); setScreen('pos-sale'); };
+    window.addEventListener('nav',h);
+    window.addEventListener('resume-held',h2);
+    return ()=>{ window.removeEventListener('nav',h); window.removeEventListener('resume-held',h2); };
+  },[]);
 
-  if (!user) return <Login onLogin={() => setScreen('pos-sale')} />;
+  if(!user) return <Login onLogin={()=>setScreen('pos-sale')}/>;
+
   const Screen = SCREENS[screen] || Dashboard;
-  const now = new Date();
-  const dateStr = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+  const initials=(user.name||user.email||'A').slice(0,2).toUpperCase();
+  const firstName=user.name?.split(' ')[0]||'Admin';
+  const today=new Date().toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+  const curLabel=NAV.find(n=>n.id===screen)?.label||'Dashboard';
 
-  if (mode === 'pos') {
-    return (
-      <div className="nux-pos-root">
-        <div className="nux-pos-bar">
-          <div className="d-flex align-items-center gap-3">
-            <div className="nux-sb-logo-icon" style={{width:32,height:32,fontSize:16}}><i className="ti ti-hanger"/></div>
-            <span style={{fontWeight:800,fontSize:14,color:'#fff'}}>NuxFashion <span style={{color:'#fb923c',fontSize:11,fontWeight:600}}>POS</span></span>
-            <div className="nux-pos-nav">
-              {POS_NAV.map(n => (
-                <button key={n.id} onClick={() => setScreen(n.id)} className={`nux-pos-btn${screen===n.id?' active':''}`}>
-                  <i className={`ti ${n.icon}`}/> {n.l}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="d-flex align-items-center gap-2">
-            <span className="nux-badge-green"><i className="ti ti-wifi" style={{fontSize:10}}/> Online</span>
-            <span className="nux-badge-orange"><i className="ti ti-file-check" style={{fontSize:10}}/> ZATCA</span>
-            <button className="nux-pos-switch-btn" onClick={() => { setMode('admin'); setScreen('ad-dash'); }}>
-              <i className="ti ti-layout-dashboard"/> Admin Portal
-            </button>
-            <button className="nux-icon-btn" onClick={logout}><i className="ti ti-logout"/></button>
-          </div>
+  if(mode==='pos') return (
+    <div className="p-pos-shell">
+      <div className="p-pos-bar">
+        <div className="p-pos-brand">
+          <div className="p-logo"><i className="ti ti-hanger"/></div>
+          <span>NuxFashion <em>POS</em></span>
         </div>
-        <div style={{flex:1,overflow:'hidden'}}><Screen /></div>
+        <div className="p-pos-nav">
+          {POS_TABS.map(t=>(
+            <button key={t.id} className={`p-pos-tab${screen===t.id?' on':''}`} onClick={()=>setScreen(t.id)}>
+              <i className={`ti ${t.icon}`}/>{t.label}
+            </button>
+          ))}
+        </div>
+        <div className="p-pos-right">
+          <span className="p-chip green"><i className="ti ti-wifi"/>Online</span>
+          <span className="p-chip amber"><i className="ti ti-file-check"/>ZATCA</span>
+          <button className="p-action-btn" onClick={()=>{ setMode('admin'); setScreen('ad-dash'); }}>
+            <i className="ti ti-layout-dashboard"/> Admin
+          </button>
+          <button className="p-icon-btn" onClick={logout}><i className="ti ti-logout"/></button>
+        </div>
       </div>
-    );
-  }
-
-  const firstName = user?.name?.split(' ')[0] || 'Admin';
+      <div style={{flex:1,overflow:'hidden'}}><Screen/></div>
+    </div>
+  );
 
   return (
-    <div className="nux-admin-root">
-      <AdminSidebar screen={screen} setScreen={setScreen} user={user} logout={logout} sideOpen={sideOpen} setSideOpen={setSideOpen}/>
-
-      <div className="nux-main-wrap">
-        {/* Topbar */}
-        <header className="nux-topbar">
-          <div className="d-flex align-items-center gap-3">
-            <button className="nux-hamburger d-lg-none" onClick={() => setSideOpen(true)}><i className="ti ti-menu-2"/></button>
-            <div>
-              <div className="nux-welcome">Welcome, <span className="nux-welcome-name">{firstName}</span></div>
-              <div className="nux-welcome-sub">
-                <span className="nux-badge-orange" style={{fontSize:10,padding:'1px 8px'}}>ZATCA Active</span>
-                <span className="nux-badge-green" style={{fontSize:10,padding:'1px 8px'}}><i className="ti ti-wifi" style={{fontSize:9}}/> Live</span>
-              </div>
-            </div>
+    <div className="p-shell">
+      {sideOpen && <div className="p-overlay" onClick={()=>setSideOpen(false)}/>}
+      <aside className={`p-side${sideOpen?' open':''}`}>
+        <div className="p-brand">
+          <div className="p-logo"><i className="ti ti-hanger"/></div>
+          <div>
+            <div className="p-brand-name">NuxFashion</div>
+            <div className="p-brand-sub">ERP · POS · E-commerce</div>
           </div>
-          <div className="d-flex align-items-center gap-2">
-            <div className="nux-date-pill"><i className="ti ti-calendar-event"/>{dateStr}</div>
-            <button className="nux-pos-switch" onClick={() => { setMode('pos'); setScreen('pos-sale'); }}>
+        </div>
+        <nav className="p-nav">
+          {SECS.map(sec=>{
+            const items=NAV.filter(n=>n.sec===sec);
+            return (
+              <div key={sec} className="p-nav-group">
+                <div className="p-nav-label">{sec}</div>
+                {items.map(n=>(
+                  <button key={n.id} className={`p-nav-item${screen===n.id?' active':''}`}
+                    onClick={()=>{ setScreen(n.id); setSideOpen(false); }}>
+                    <i className={`ti ${n.icon} p-nav-ic`}/>
+                    <span>{n.label}</span>
+                    {n.id==='ad-ecom' && <span className="p-new-badge">New</span>}
+                  </button>
+                ))}
+              </div>
+            );
+          })}
+        </nav>
+        <div className="p-side-foot">
+          <div className="p-user-row">
+            <div className="p-avatar">{initials}</div>
+            <div className="p-user-meta">
+              <div className="p-uname">{user.name||'Admin'}</div>
+              <div className="p-uemail">{user.email}</div>
+            </div>
+            <button className="p-icon-btn" onClick={logout}><i className="ti ti-logout"/></button>
+          </div>
+        </div>
+      </aside>
+      <div className="p-main">
+        <header className="p-top">
+          <div className="p-top-l">
+            <button className="p-burger" onClick={()=>setSideOpen(true)}><i className="ti ti-menu-2"/></button>
+            <nav className="p-crumb">
+              <i className="ti ti-home-2 p-crumb-home"/>
+              <i className="ti ti-chevron-right p-crumb-sep"/>
+              <span className="p-crumb-cur">{curLabel}</span>
+            </nav>
+          </div>
+          <div className="p-top-r">
+            <span className="p-top-date"><i className="ti ti-calendar"/>{today}</span>
+            <div className="p-vline"/>
+            <span className="p-dot green"/><span className="p-dot-lbl">Live</span>
+            <span className="p-dot amber"/><span className="p-dot-lbl">ZATCA</span>
+            <div className="p-vline"/>
+            <button className="p-action-btn" onClick={()=>{ setMode('pos'); setScreen('pos-sale'); }}>
               <i className="ti ti-device-desktop"/> POS Terminal
             </button>
-            <button className="nux-icon-btn-outline" title="Notifications"><i className="ti ti-bell"/></button>
-            <button className="nux-icon-btn-outline" onClick={logout} title="Logout"><i className="ti ti-logout"/></button>
+            <div className="p-top-user">
+              <div className="p-avatar sm">{initials}</div>
+              <span>{firstName}</span>
+            </div>
           </div>
         </header>
-
-        <main className="nux-content"><Screen /></main>
+        <main className="p-body"><Screen/></main>
       </div>
     </div>
   );
 }
 
-export default function Root() {
-  return (
+export default function Root(){
+  return(
     <QueryClientProvider client={qc}>
-      <ToastProvider>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </ToastProvider>
+      <ToastProvider><AuthProvider><App/></AuthProvider></ToastProvider>
     </QueryClientProvider>
   );
 }

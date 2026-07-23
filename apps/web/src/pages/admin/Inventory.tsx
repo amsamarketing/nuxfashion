@@ -1,125 +1,38 @@
+import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import api from '../../lib/api';
-import { useToast } from '../../components/Toast';
-import { getErr } from '../../lib/err';
-import Modal, { Field, Inp, Sel, SaveBtn } from '../../components/Modal';
-
-export default function Inventory() {
-  const { toast } = useToast();
-  const qc = useQueryClient();
-  const [filter, setFilter] = useState('all');
-  const [adjItem, setAdjItem] = useState<any>(null);
-  const [adjForm, setAdjForm] = useState({ quantity:'', type:'add', reason:'' });
-
-  const { data:inv=[], isLoading } = useQuery({ queryKey:['inventory'], queryFn:()=>api.get('/inventory').then(r=>r.data) });
-  const { data:warehouses=[] } = useQuery({ queryKey:['warehouses'], queryFn:()=>Promise.resolve([]) });
-
-  const filtered = inv.filter((i:any)=> {
-    if (filter==='low') return i.quantity<=i.reorder_point;
-    if (filter==='out') return i.quantity<=0;
-    return true;
-  });
-
-  const adjMut = useMutation({
-    mutationFn: () => {
-      const qty = parseFloat(adjForm.quantity);
-      const newQty = adjForm.type==='set' ? qty : adjForm.type==='add' ? adjItem.quantity+qty : Math.max(0, adjItem.quantity-qty);
-      return api.patch('/inventory/' + adjItem.id, { quantity: newQty, reason: adjForm.reason });
-    },
-    onSuccess: () => {
-      toast('Stock adjusted!', 'success');
-      qc.invalidateQueries({ queryKey:['inventory'] });
-      setAdjItem(null);
-      setAdjForm({ quantity:'', type:'add', reason:'' });
-    },
-    onError: (e:any) => toast(getErr(e), 'error')
-  });
-
-  const sa=(k:string,v:string)=>setAdjForm(p=>({...p,[k]:v}));
-
-  return (
-    <div>
-      <div className="d-flex align-items-center justify-content-between mb-3">
-        <div>
-          <div style={{ fontSize:14, fontWeight:700 }}>Inventory</div>
-          <div style={{ fontSize:11, color:'var(--text-secondary)' }}>{inv.length} SKUs · {warehouses.length} locations</div>
-        </div>
-        <div className="d-flex gap-2">
-          <button className="bt"><i className="ti ti-download" /> Export</button>
-        </div>
+export default function Inventory(){
+  const [q,setQ]=useState('');
+  const {data,isLoading}=useQuery({queryKey:['inventory'],queryFn:async()=>{const r=await fetch('/api/inventory?limit=100');if(!r.ok)return{items:[]};return r.json();}});
+  const items:any[]=(data?.items||data?.data||[]).filter((i:any)=>!q||(i.product_name||i.name||'').toLowerCase().includes(q.toLowerCase()));
+  return(<div>
+    <div className="nx-page-head">
+      <div><h1 className="nx-page-title">Inventory</h1><p className="nx-page-sub">Stock levels across all branches</p></div>
+      <div style={{display:'flex',gap:8}}>
+        <button className="btn-nx ghost"><i className="ti ti-adjustments"/> Adjust Stock</button>
+        <button className="btn-nx primary"><i className="ti ti-transfer"/> Transfer</button>
       </div>
-
-      <div className="d-flex gap-2 mb-3">
-        {[['all','All items'],['low','Low stock'],['out','Out of stock']].map(([v,l])=>(
-          <button key={v} className={'snb'+(filter===v?' on':'')} onClick={()=>setFilter(v)}>{l}</button>
-        ))}
-      </div>
-
-      {isLoading ? <div className="d-flex justify-content-center py-5"><div className="spinner-border text-primary"/></div> : (
-        <div className="card" style={{ padding:0, overflow:'hidden' }}>
-          <div className="tr th" style={{ gridTemplateColumns:'1fr 80px 80px 120px 80px 100px' }}>
-            {['Product / SKU','In stock','Reorder at','Location','Status','Action'].map(h=><span key={h}>{h}</span>)}
-          </div>
-          {filtered.map((i:any) => {
-            const low = i.quantity <= i.reorder_point;
-            const out = i.quantity <= 0;
-            return (
-              <div key={i.id} className="tr" style={{ gridTemplateColumns:'1fr 80px 80px 120px 80px 100px', background:out?'#fff1f2':low?'#fffbeb':'' }}>
-                <span>
-                  <div style={{ fontWeight:600 }}>{i.product_name}</div>
-                  <div style={{ fontSize:10, color:'var(--text-muted-custom)' }}>{i.sku}</div>
-                </span>
-                <span style={{ fontWeight:800, fontSize:15, color:out?'var(--text-danger-custom)':low?'var(--text-warning-custom)':'var(--text-primary)' }}>{i.quantity}</span>
-                <span style={{ color:'var(--text-secondary)' }}>{i.reorder_point}</span>
-                <span style={{ fontSize:11, color:'var(--text-secondary)' }}>{i.warehouse_name||'Main warehouse'}</span>
-                <span><span className={'bx '+(out?'r':low?'a':'g')}>{out?'Out':'In stock'}</span></span>
-                <span>
-                  <button className="bt" style={{ fontSize:10 }} onClick={()=>{ setAdjItem(i); setAdjForm({ quantity:'', type:'add', reason:'' }); }}>
-                    <i className="ti ti-adjustments" /> Adjust
-                  </button>
-                </span>
-              </div>
-            );
-          })}
-          {filtered.length===0 && <div style={{ padding:32, textAlign:'center', color:'var(--text-muted-custom)' }}>No inventory records found</div>}
-        </div>
-      )}
-
-      {adjItem && (
-        <Modal title={'Adjust stock — ' + adjItem.product_name} onClose={()=>setAdjItem(null)}>
-          <div style={{ padding:'10px 12px', background:'var(--surface-1)', borderRadius:'var(--radius)', marginBottom:16, display:'flex', justifyContent:'space-between' }}>
-            <span style={{ fontSize:12, color:'var(--text-secondary)' }}>Current stock</span>
-            <span style={{ fontSize:18, fontWeight:800 }}>{adjItem.quantity} units</span>
-          </div>
-          <Field label="Adjustment type" required>
-            <Sel value={adjForm.type} onChange={v=>sa('type',v)}>
-              <option value="add">Add stock (receive goods)</option>
-              <option value="remove">Remove stock (damage / loss)</option>
-              <option value="set">Set to exact quantity</option>
-            </Sel>
-          </Field>
-          <Field label="Quantity" required>
-            <Inp type="number" value={adjForm.quantity} onChange={v=>sa('quantity',v)} placeholder="Enter quantity" />
-          </Field>
-          {adjForm.quantity && (
-            <div style={{ padding:'10px 12px', background:'var(--bg-accent)', borderRadius:'var(--radius)', marginBottom:14, fontSize:12, color:'var(--text-accent)' }}>
-              New quantity: <strong>
-                {adjForm.type==='set' ? adjForm.quantity :
-                 adjForm.type==='add' ? adjItem.quantity+parseFloat(adjForm.quantity||'0') :
-                 Math.max(0, adjItem.quantity-parseFloat(adjForm.quantity||'0'))} units
-              </strong>
-            </div>
-          )}
-          <Field label="Reason / notes">
-            <Inp value={adjForm.reason} onChange={v=>sa('reason',v)} placeholder="e.g. Received from supplier" />
-          </Field>
-          <div className="d-flex gap-2 justify-content-end">
-            <button className="bt" onClick={()=>setAdjItem(null)}>Cancel</button>
-            <SaveBtn label="Apply adjustment" loading={adjMut.isPending} disabled={!adjForm.quantity} onClick={()=>adjMut.mutate()} />
-          </div>
-        </Modal>
-      )}
     </div>
-  );
+    <div className="nx-stats cols-3">
+      <div className="nx-stat"><div className="nx-stat-icon indigo"><i className="ti ti-package"/></div><div className="nx-stat-body"><div className="nx-stat-val">{items.length}</div><div className="nx-stat-lbl">Total SKUs</div></div></div>
+      <div className="nx-stat"><div className="nx-stat-icon red"><i className="ti ti-alert-triangle"/></div><div className="nx-stat-body"><div className="nx-stat-val">{items.filter((i:any)=>(i.quantity||0)<10).length}</div><div className="nx-stat-lbl">Low Stock</div></div></div>
+      <div className="nx-stat"><div className="nx-stat-icon amber"><i className="ti ti-circle-x"/></div><div className="nx-stat-body"><div className="nx-stat-val">{items.filter((i:any)=>(i.quantity||0)===0).length}</div><div className="nx-stat-lbl">Out of Stock</div></div></div>
+    </div>
+    <div className="nx-toolbar">
+      <div className="nx-search"><i className="ti ti-search"/><input className="nx-input" placeholder="Search product..." value={q} onChange={e=>setQ(e.target.value)}/></div>
+    </div>
+    <div className="nx-table-wrap"><table className="nx-table">
+      <thead><tr><th>Product</th><th>SKU</th><th>Warehouse</th><th>Quantity</th><th>Min Stock</th><th>Status</th></tr></thead>
+      <tbody>{isLoading?<tr><td colSpan={6} style={{textAlign:'center',padding:'32px 0',color:'var(--muted)'}}>Loading...</td></tr>:items.length===0?<tr><td colSpan={6} style={{textAlign:'center',padding:'32px 0',color:'var(--muted)'}}>No inventory records</td></tr>:items.map((i:any)=>{
+        const qty=i.quantity||i.stock_quantity||0;const min=i.min_stock||i.reorder_level||10;
+        return(<tr key={i.id}>
+          <td style={{fontWeight:600}}>{i.product_name||i.name}</td>
+          <td style={{color:'var(--muted)',fontFamily:'monospace',fontSize:12}}>{i.sku||'—'}</td>
+          <td style={{color:'var(--muted)'}}>{i.warehouse_name||i.branch_name||'—'}</td>
+          <td style={{fontWeight:600,color:qty===0?'var(--red)':qty<min?'var(--amber)':'inherit'}}>{qty}</td>
+          <td style={{color:'var(--muted)'}}>{min}</td>
+          <td><span className={`nx-badge ${qty===0?'danger':qty<min?'pending':'active'}`}>{qty===0?'Out of Stock':qty<min?'Low Stock':'In Stock'}</span></td>
+        </tr>);
+      })}</tbody>
+    </table></div>
+  </div>);
 }
