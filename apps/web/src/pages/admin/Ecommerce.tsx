@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-const nav = (s: string) => window.dispatchEvent(new CustomEvent('nav', { detail: s }));
+// const nav = (s: string) => window.dispatchEvent(new CustomEvent('nav', { detail: s }));
 
 const CHANNELS = [
   { id:'website',   name:'Own Website',     icon:'ti-world',          color:'indigo', status:'live',       orders:124, revenue:48200 },
