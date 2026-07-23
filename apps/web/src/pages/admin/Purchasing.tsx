@@ -9,7 +9,7 @@ const STATUS_COLOR: Record<string, string> = { draft: 'grey', pending: 'amber', 
 function SupplierModal({ sup, onClose }: { sup: any; onClose: () => void }) {
   const qc = useQueryClient();
   const isEdit = !!sup?.id;
-  const [form, setForm] = useState({ name: sup?.name || '', contact_name: sup?.contact_name || '', email: sup?.email || '', phone: sup?.phone || '', address: sup?.address || '', city: sup?.city || '', country: sup?.country || 'Saudi Arabia', tax_number: sup?.tax_number || '', payment_terms: sup?.payment_terms || '30', notes: sup?.notes || '' });
+  const [form, setForm] = useState({ name: sup?.name || '', contact_person: sup?.contact_person || '', email: sup?.email || '', phone: sup?.phone || '', address: sup?.address || '', city: sup?.city || '', country: sup?.country || 'Saudi Arabia', tax_number: sup?.tax_number || '', payment_terms: sup?.payment_terms || '30', notes: sup?.notes || '' });
   const F = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
   const save = useMutation({
     mutationFn: () => isEdit ? api.patch(`/purchasing/suppliers/${sup.id}`, form) : api.post('/purchasing/suppliers', form),
@@ -25,7 +25,7 @@ function SupplierModal({ sup, onClose }: { sup: any; onClose: () => void }) {
         <div style={{ padding: 24, display: 'grid', gap: 12, maxHeight: '70vh', overflowY: 'auto' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div><label style={{ fontSize: 12, color: 'var(--mu)', display: 'block', marginBottom: 4 }}>Company Name *</label><input className="nx-input" style={{ width: '100%' }} value={form.name} onChange={e => F('name', e.target.value)} placeholder="Al-Noor Textiles" /></div>
-            <div><label style={{ fontSize: 12, color: 'var(--mu)', display: 'block', marginBottom: 4 }}>Contact Name</label><input className="nx-input" style={{ width: '100%' }} value={form.contact_name} onChange={e => F('contact_name', e.target.value)} placeholder="Ahmed Ali" /></div>
+            <div><label style={{ fontSize: 12, color: 'var(--mu)', display: 'block', marginBottom: 4 }}>Contact Name</label><input className="nx-input" style={{ width: '100%' }} value={form.contact_person} onChange={e => F('contact_person', e.target.value)} placeholder="Ahmed Ali" /></div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div><label style={{ fontSize: 12, color: 'var(--mu)', display: 'block', marginBottom: 4 }}>Email</label><input className="nx-input" type="email" style={{ width: '100%' }} value={form.email} onChange={e => F('email', e.target.value)} /></div>
@@ -66,16 +66,16 @@ function POModal({ onClose }: { onClose: () => void }) {
   const [suppId, setSuppId] = useState('');
   const [expectedDate, setExpectedDate] = useState('');
   const [notes, setNotes] = useState('');
-  const [lines, setLines] = useState<any[]>([{ product_id: '', variant_id: '', size: '', color: '', qty: 1, unit_cost: '' }]);
+  const [lines, setLines] = useState<any[]>([{ product_id: '', variant_id: '', size: '', color: '', quantity_ordered: 1, unit_cost: '', tax_rate: 15 }]);
 
-  const addLine = () => setLines(l => [...l, { product_id: '', variant_id: '', size: '', color: '', qty: 1, unit_cost: '' }]);
+  const addLine = () => setLines(l => [...l, { product_id: '', variant_id: '', size: '', color: '', quantity_ordered: 1, unit_cost: '', tax_rate: 15 }]);
   const delLine = (i: number) => setLines(l => l.filter((_, j) => j !== i));
   const setLine = (i: number, k: string, v: any) => setLines(l => l.map((r, j) => j === i ? { ...r, [k]: v } : r));
 
-  const total = lines.reduce((s, l) => s + (parseFloat(l.unit_cost) || 0) * (parseInt(l.qty) || 0), 0);
+  const total = lines.reduce((s, l) => s + (parseFloat(l.unit_cost) || 0) * (parseInt(l.quantity_ordered) || 0), 0);
 
   const save = useMutation({
-    mutationFn: () => api.post('/purchasing/orders', { supplier_id: suppId, expected_date: expectedDate, notes, items: lines.filter(l => l.product_id && l.qty && l.unit_cost) }),
+    mutationFn: () => api.post('/purchasing/orders', { supplier_id: suppId, expected_date: expectedDate, notes, lines: lines.filter(l => l.product_id && l.quantity_ordered && l.unit_cost) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['po'] }); onClose(); },
   });
 
@@ -120,7 +120,7 @@ function POModal({ onClose }: { onClose: () => void }) {
                     <option value="">Color</option>
                     {COLORS.map(c => <option key={c}>{c}</option>)}
                   </select>
-                  <input className="nx-input" type="number" min="1" value={line.qty} onChange={e => setLine(i, 'qty', e.target.value)} placeholder="Qty" />
+                  <input className="nx-input" type="number" min="1" value={line.quantity_ordered} onChange={e => setLine(i, 'quantity_ordered', e.target.value)} placeholder="Qty" />
                   <input className="nx-input" type="number" step="0.01" value={line.unit_cost} onChange={e => setLine(i, 'unit_cost', e.target.value)} placeholder="Unit cost" />
                   <button className="btn-nx ghost sm" style={{ color: '#ef4444', padding: '0 8px' }} onClick={() => delLine(i)}><i className="ti ti-trash" /></button>
                 </div>
@@ -301,7 +301,7 @@ export default function Purchasing() {
                 <span className="nx-badge green">Active</span>
               </div>
               <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 2 }}>{s.name}</div>
-              <div style={{ fontSize: 12, color: 'var(--mu)', marginBottom: 10 }}>{s.contact_name || '—'}</div>
+              <div style={{ fontSize: 12, color: 'var(--mu)', marginBottom: 10 }}>{s.contact_person || '—'}</div>
               <div style={{ display: 'grid', gap: 4, marginBottom: 12 }}>
                 {s.phone && <div style={{ fontSize: 12 }}><i className="ti ti-phone" style={{ marginRight: 6, color: 'var(--mu)' }} />{s.phone}</div>}
                 {s.email && <div style={{ fontSize: 12 }}><i className="ti ti-mail" style={{ marginRight: 6, color: 'var(--mu)' }} />{s.email}</div>}
