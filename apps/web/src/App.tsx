@@ -160,8 +160,8 @@ function App() {
         <header className="nux-topbar">
           <div className="d-flex align-items-center gap-3">
             <button className="nux-hamburger d-lg-none" onClick={() => setSideOpen(true)}><i className="ti ti-menu-2"/></button>
-            <div>
-              <div className="nux-page-title">{PAGE_TITLES[screen]||screen}</div>
+            <div className="nux-topbar-brand d-none d-lg-flex align-items-center gap-2">
+              <span className="nux-topbar-title">{PAGE_TITLES[screen]||screen}</span>
             </div>
           </div>
           <div className="d-flex align-items-center gap-2">

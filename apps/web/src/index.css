@@ -186,7 +186,7 @@ body {
 .nux-icon-btn:hover { background:rgba(255,255,255,.14); color:#fff; }
 
 /* ─── Content ────────────────────────────────────────────────── */
-.nux-content { flex:1; overflow-y:auto; background:var(--content-bg); }
+.nux-content { flex:1; overflow-y:auto; background:var(--content-bg); padding:0; }
 
 /* ─── Badges ─────────────────────────────────────────────────── */
 .nux-badge-green {
@@ -250,3 +250,28 @@ select:focus { border-color:#6366f1; box-shadow:0 0 0 3px rgba(99,102,241,.12); 
   .nux-page-title { font-size:15px; }
   .nux-content { padding:0; }
 }
+
+/* ─── Topbar brand ───────────────────────────────────────────── */
+.nux-topbar-title {
+  font-size:15px; font-weight:700; color:var(--text-main);
+  letter-spacing:-.2px;
+}
+.nux-topbar-brand::before {
+  content:''; display:block; width:1px; height:18px;
+  background:var(--border); margin-right:4px;
+}
+
+/* ─── Fix sidebar active color to match content accent ───────── */
+.nux-nav-item.active { background:rgba(99,102,241,.15); color:#818cf8; font-weight:600; }
+.nux-nav-indicator { background:#6366f1; }
+
+/* ─── Content page wrapper ───────────────────────────────────── */
+.page-wrap { padding:24px 28px; min-height:100%; }
+@media (max-width:768px) { .page-wrap { padding:16px; } }
+
+/* ─── Topbar shadow ──────────────────────────────────────────── */
+.nux-topbar { box-shadow:0 1px 3px rgba(0,0,0,.06); }
+
+/* ─── Fix sidebar brand alignment ───────────────────────────── */
+.nux-sidebar-brand { border-bottom:1px solid rgba(255,255,255,.07); }
+.nux-nav-label { color:rgba(255,255,255,.28); font-size:10px; }
