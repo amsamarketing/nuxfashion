@@ -5,11 +5,20 @@ export default function POSHeld() {
 
   useEffect(() => {
     const load = () => {
-      const TWO_HOURS = 2 * 60 * 60 * 1000;
-      const h = JSON.parse(localStorage.getItem('held_orders')||'[]');
-      const valid = h.filter((o:any) => Date.now() - (o.heldAt||0) < TWO_HOURS);
-      if (valid.length !== h.length) localStorage.setItem('held_orders', JSON.stringify(valid));
-      setHeld(valid);
+      try {
+        const TWO_HOURS = 2 * 60 * 60 * 1000;
+        const parsed = JSON.parse(localStorage.getItem('held_orders')||'[]');
+        const h = Array.isArray(parsed) ? parsed : [];
+        const normalized = h.map((o:any) => ({
+          ...o,
+          heldAt: o.heldAt || Number(String(o.id||'').match(/\d{13}/)?.[0]) || Date.now(),
+        }));
+        const valid = normalized.filter((o:any) => Date.now() - o.heldAt < TWO_HOURS);
+        localStorage.setItem('held_orders', JSON.stringify(valid));
+        setHeld(valid);
+      } catch {
+        setHeld([]);
+      }
     };
     load();
     const interval = setInterval(load, 30000); // re-check every 30s

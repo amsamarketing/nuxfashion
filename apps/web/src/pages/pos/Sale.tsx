@@ -111,6 +111,24 @@ export default function POSSale(){
   const [pickerProd,setPickerProd]=useState<any>(null);
   const [editDisc,setEditDisc]=useState<string|null>(null);
 
+  useEffect(()=>{
+    try{
+      const stored=localStorage.getItem('resume_cart');
+      if(!stored)return;
+      const held=JSON.parse(stored);
+      setCart(Array.isArray(held.cart)?held.cart:[]);
+      setCustId(held.custId||'');
+      setMethod(held.method||'Cash');
+      setDiscPct(held.discPct||'');
+      setOrderNote(held.orderNote||held.note||'');
+      localStorage.removeItem('resume_cart');
+      toast('Held order resumed','success');
+    }catch{
+      localStorage.removeItem('resume_cart');
+      toast('Unable to resume held order','error');
+    }
+  },[]);
+
   const {data:prodData=[]}=useQuery({queryKey:['products'],queryFn:()=>api.get('/catalog/products').then(r=>r.data)});
   const {data:whData=[]}=useQuery<any[]>({queryKey:['warehouses'],queryFn:()=>api.get('/inventory/warehouses').then(r=>Array.isArray(r.data)?r.data:[]).catch(()=>[])});
   const {data:custData=[]}=useQuery({queryKey:['customers'],queryFn:()=>api.get('/customers').then(r=>r.data)});
@@ -182,6 +200,7 @@ export default function POSSale(){
       const held=Array.isArray(parsed)?parsed:[];
       held.push({
         id:`HOLD-${Date.now()}`,
+        heldAt:Date.now(),
         cart,
         custId,
         method,
