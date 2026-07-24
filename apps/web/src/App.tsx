@@ -23,6 +23,7 @@ import Settings from './pages/admin/Settings';
 import Ecommerce from './pages/admin/Ecommerce';
 import Storefront from './pages/store/Storefront';
 import Branches from './pages/admin/Branches';
+import BarcodeLabels from './pages/admin/BarcodeLabels';
 
 const qc = new QueryClient({ defaultOptions:{ queries:{ retry:1, staleTime:30000 }}});
 
@@ -30,6 +31,7 @@ const NAV = [
   { id:'ad-dash',   label:'Dashboard',     icon:'ti-layout-dashboard',  sec:'Main' },
   { id:'ad-orders', label:'Orders',        icon:'ti-shopping-cart',      sec:'Main' },
   { id:'ad-prod',   label:'Products',      icon:'ti-tag',                sec:'Catalog' },
+  { id:'ad-labels', label:'Barcode Labels',icon:'ti-barcode',            sec:'Catalog' },
   { id:'ad-inv',    label:'Inventory',     icon:'ti-package',            sec:'Catalog' },
   { id:'ad-wh',     label:'Warehouses',    icon:'ti-building-warehouse', sec:'Catalog' },
   { id:'ad-branches',label:'Branches',      icon:'ti-building-store',     sec:'Main' },
@@ -58,6 +60,7 @@ const SCREENS: Record<string,React.ComponentType> = {
   'ad-crm':Customers,'ad-loyal':Loyalty,'ad-hr':HR,'ad-rep':Reports,'ad-set':Settings,
   'ad-ecom':Ecommerce,
   'ad-branches':Branches,
+  'ad-labels':BarcodeLabels,
 };
 
 const SECS = ['Main','Catalog','Channels','People','Finance','System'];
