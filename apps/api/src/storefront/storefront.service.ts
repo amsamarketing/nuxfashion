@@ -124,7 +124,11 @@ export class StorefrontService implements OnModuleInit {
     const shippingFee=Number(storeSettings.shipping_fee);
     const freeFrom=Number(storeSettings.free_shipping_from);
     return this.db.transaction(async client=>{
-      const warehouse=await client.query(`SELECT id FROM warehouses WHERE company_id=$1 ORDER BY created_at LIMIT 1`,[companyId]);
+      const warehouse=await client.query(
+        `SELECT id FROM warehouses WHERE company_id=$1 AND COALESCE(is_active,true)=true
+         ORDER BY COALESCE(ecommerce_enabled,false) DESC,COALESCE(fulfillment_priority,100),created_at LIMIT 1`,
+        [companyId],
+      );
       if(!warehouse.rows[0])throw new ServiceUnavailableException('Online order warehouse is not configured');
       const operator=await client.query(
         `SELECT u.id FROM users u JOIN user_company_roles ur ON ur.user_id=u.id

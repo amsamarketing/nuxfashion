@@ -1,12 +1,36 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { DatabaseService } from '../database/database.service';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
 import { TransferStockDto } from './dto/transfer-stock.dto';
 
 @Injectable()
-export class InventoryService {
+export class InventoryService implements OnModuleInit {
   constructor(private db: DatabaseService) {}
+
+  async onModuleInit() {
+    await this.ensureWarehouseSchema();
+  }
+
+  private async ensureWarehouseSchema() {
+    await this.db.query(`ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS warehouse_code VARCHAR(40)`);
+    await this.db.query(`ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS location TEXT`);
+    await this.db.query(`ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS address TEXT`);
+    await this.db.query(`ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS city VARCHAR(100)`);
+    await this.db.query(`ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS region VARCHAR(100)`);
+    await this.db.query(`ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS type VARCHAR(40) NOT NULL DEFAULT 'main'`);
+    await this.db.query(`ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS phone VARCHAR(40)`);
+    await this.db.query(`ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS manager_name VARCHAR(160)`);
+    await this.db.query(`ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS capacity INTEGER`);
+    await this.db.query(`ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
+    await this.db.query(`ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS pos_enabled BOOLEAN NOT NULL DEFAULT TRUE`);
+    await this.db.query(`ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS ecommerce_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
+    await this.db.query(`ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS returns_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
+    await this.db.query(`ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS fulfillment_priority INTEGER NOT NULL DEFAULT 100`);
+    await this.db.query(`ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
+    await this.db.query(`UPDATE warehouses SET warehouse_code=COALESCE(NULLIF(warehouse_code,''),'WH-'||UPPER(LEFT(id::text,6)))`);
+    await this.db.query(`CREATE UNIQUE INDEX IF NOT EXISTS warehouses_company_code_unique ON warehouses(company_id,warehouse_code)`);
+  }
 
   async getStock(companyId: string, warehouseId?: string, variantId?: string) {
     const conditions = ['p.company_id = $1'];
@@ -163,57 +187,69 @@ export class InventoryService {
   }
 
   async getWarehouses(companyId: string) {
-    try {
-      const result = await this.db.query(
-        `SELECT w.id, w.name,
-           COALESCE(w.location, '') as location,
-           COUNT(DISTINCT i.variant_id) as sku_count,
-           COALESCE(SUM(i.quantity), 0) as total_units
-         FROM warehouses w
-         LEFT JOIN inventory i ON i.warehouse_id = w.id
-         WHERE w.company_id = $1
-         GROUP BY w.id, w.name, w.location
-         ORDER BY w.name`,
-        [companyId],
-      );
-      if (result.rows.length > 0) return result.rows;
-    } catch {}
-    const fallback = await this.db.query(
-      `SELECT DISTINCT w.id, w.name, '' as location, 0 as sku_count, 0 as total_units
+    await this.ensureWarehouseSchema();
+    const result = await this.db.query(
+      `SELECT w.*,w.warehouse_code code,b.id branch_id,b.name branch_name,b.code branch_code,
+         COUNT(DISTINCT CASE WHEN i.quantity>0 THEN i.variant_id END)::int sku_count,
+         COALESCE(SUM(i.quantity),0)::numeric total_units,
+         COALESCE(SUM(i.reserved_quantity),0)::numeric reserved_units,
+         COALESCE(SUM(i.quantity-i.reserved_quantity),0)::numeric available_units,
+         COALESCE(SUM(i.quantity*pv.cost_price),0)::numeric stock_value,
+         COUNT(DISTINCT CASE WHEN i.quantity<=i.reorder_point THEN i.variant_id END)::int low_stock_count
        FROM warehouses w
-       JOIN inventory i ON i.warehouse_id = w.id
-       JOIN product_variants pv ON pv.id = i.variant_id
-       JOIN products p ON p.id = pv.product_id
-       WHERE p.company_id = $1`,
+       LEFT JOIN branches b ON b.warehouse_id=w.id
+       LEFT JOIN inventory i ON i.warehouse_id=w.id
+       LEFT JOIN product_variants pv ON pv.id=i.variant_id
+       WHERE w.company_id=$1
+       GROUP BY w.id,b.id,b.name,b.code
+       ORDER BY w.is_active DESC,w.fulfillment_priority,w.name`,
       [companyId],
     );
-    return fallback.rows;
+    return result.rows;
   }
 
-  async createWarehouse(companyId: string, dto: { name: string; location?: string; address?: string; city?: string; code?: string }) {
-    // Get actual columns from DB first
-    const cols = await this.db.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_name='warehouses'`
+  async createWarehouse(companyId: string, dto: any) {
+    await this.ensureWarehouseSchema();
+    const code=String(dto.code||`WH-${Date.now().toString().slice(-6)}`).trim().toUpperCase().replace(/\s+/g,'-');
+    const duplicate=await this.db.query(`SELECT id FROM warehouses WHERE company_id=$1 AND warehouse_code=$2`,[companyId,code]);
+    if(duplicate.rows[0])throw new BadRequestException('Warehouse code already exists');
+    const result=await this.db.query(
+      `INSERT INTO warehouses(company_id,warehouse_code,name,location,address,city,region,type,phone,manager_name,capacity,is_active,pos_enabled,ecommerce_enabled,returns_enabled,fulfillment_priority)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
+      [companyId,code,dto.name,dto.location||null,dto.address||null,dto.city||null,dto.region||null,
+       dto.type||'main',dto.phone||null,dto.manager_name||null,Number(dto.capacity)||null,
+       dto.is_active!==false,dto.pos_enabled!==false,Boolean(dto.ecommerce_enabled),
+       Boolean(dto.returns_enabled),Number(dto.fulfillment_priority)||100],
     );
-    const colNames = cols.rows.map((r: any) => r.column_name);
-    const fields: string[] = ['company_id', 'name'];
-    const vals: any[] = [companyId, dto.name];
-    if (dto.location && colNames.includes('location')) { fields.push('location'); vals.push(dto.location); }
-    if (dto.address && colNames.includes('address')) { fields.push('address'); vals.push(dto.address); }
-    if (dto.city && colNames.includes('city')) { fields.push('city'); vals.push(dto.city); }
-    if (dto.code && colNames.includes('code')) { fields.push('code'); vals.push(dto.code); }
-    const placeholders = vals.map((_,i) => `$${i+1}`).join(',');
-    const result = await this.db.query(
-      `INSERT INTO warehouses (${fields.join(',')}) VALUES (${placeholders}) RETURNING *`,
-      vals,
+    return result.rows[0];
+  }
+
+  async updateWarehouse(companyId:string,id:string,dto:any){
+    await this.ensureWarehouseSchema();
+    const current=await this.db.query(`SELECT * FROM warehouses WHERE id=$1 AND company_id=$2`,[id,companyId]);
+    if(!current.rows[0])throw new NotFoundException('Warehouse not found');
+    const code=String(dto.code||current.rows[0].warehouse_code).trim().toUpperCase().replace(/\s+/g,'-');
+    const duplicate=await this.db.query(`SELECT id FROM warehouses WHERE company_id=$1 AND warehouse_code=$2 AND id<>$3`,[companyId,code,id]);
+    if(duplicate.rows[0])throw new BadRequestException('Warehouse code already exists');
+    const result=await this.db.query(
+      `UPDATE warehouses SET warehouse_code=$1,name=$2,location=$3,address=$4,city=$5,region=$6,type=$7,
+       phone=$8,manager_name=$9,capacity=$10,is_active=$11,pos_enabled=$12,ecommerce_enabled=$13,
+       returns_enabled=$14,fulfillment_priority=$15,updated_at=NOW()
+       WHERE id=$16 AND company_id=$17 RETURNING *`,
+      [code,dto.name||current.rows[0].name,dto.location||null,dto.address||null,dto.city||null,dto.region||null,
+       dto.type||'main',dto.phone||null,dto.manager_name||null,Number(dto.capacity)||null,
+       dto.is_active!==false,dto.pos_enabled!==false,Boolean(dto.ecommerce_enabled),
+       Boolean(dto.returns_enabled),Number(dto.fulfillment_priority)||100,id,companyId],
     );
     return result.rows[0];
   }
 
   async getWarehouseStock(companyId: string, warehouseId: string) {
     const result = await this.db.query(
-      `SELECT i.id, i.variant_id, i.quantity, i.reorder_point,
-              pv.sku, pv.name as variant_name,
+      `SELECT i.id,i.variant_id,i.quantity,i.reserved_quantity,
+              (i.quantity-i.reserved_quantity) available_quantity,i.reorder_point,
+              pv.sku,pv.barcode,pv.color,pv.size,pv.cost_price,pv.selling_price,pv.name as variant_name,
+              (i.quantity*pv.cost_price) stock_value,
               p.id as product_id, p.name as product_name
        FROM inventory i
        JOIN product_variants pv ON pv.id = i.variant_id

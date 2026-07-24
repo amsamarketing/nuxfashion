@@ -53,6 +53,11 @@ export class InventoryController {
     return this.service.createWarehouse((req.user as any).companyId, body);
   }
 
+  @Patch('warehouses/:id')
+  updateWarehouse(@Param('id') id: string, @Body() body: any, @Req() req: Request) {
+    return this.service.updateWarehouse((req.user as any).companyId, id, body);
+  }
+
   @Get('warehouses/:id/stock')
   getWarehouseStock(@Req() req: Request, @Param('id') id: string) {
     return this.service.getWarehouseStock((req.user as any).companyId, id);
