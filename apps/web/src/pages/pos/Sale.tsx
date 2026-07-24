@@ -372,7 +372,7 @@ export default function POSSale(){
       <div style={{background:'#fff',borderRadius:16,width:440,maxHeight:480,display:'flex',flexDirection:'column',overflow:'hidden',boxShadow:'0 20px 60px rgba(0,0,0,.2)'}} onClick={e=>e.stopPropagation()}>
         <div style={{padding:'12px 16px',borderBottom:'1px solid #f0f0f0',display:'flex',alignItems:'center',gap:10}}>
           <i className="ti ti-search" style={{fontSize:16,color:'#999'}}/>
-          <input autoFocus value={custSearch} onChange={e=>setCustSearch(e.target.value)} placeholder="Search name or phone…" style={{flex:1,border:'none',outline:'none',fontSize:14}}/>
+          <input autoFocus value={custSearch} onChange={e=>setCustSearch(e.target.value)} onKeyDown={e=>e.stopPropagation()} placeholder="Search name or phone…" style={{flex:1,border:'none',outline:'none',fontSize:14}}/>
           <button onClick={()=>{setShowCustModal(false);setCustSearch('');}} style={{background:'none',border:'none',fontSize:22,cursor:'pointer',color:'#999'}}>×</button>
         </div>
         <div style={{overflowY:'auto',flex:1}}>
@@ -596,7 +596,7 @@ export default function POSSale(){
         <div style={{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',background:'#0f766e',color:'#fff',borderRadius:8,fontSize:12,fontWeight:700,flexShrink:0}}><i className="ti ti-clock" style={{fontSize:13}}/><Clock/></div>
         <div style={{flex:1,display:'flex',alignItems:'center',gap:8,padding:'7px 12px',background:'#f9fafb',border:'1px solid #e5e7eb',borderRadius:10}}>
           <i className="ti ti-barcode" style={{fontSize:15,color:'#9ca3af'}}/>
-          <input ref={searchRef} value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>e.key==='Enter'&&scanOrAddProduct()} placeholder="Search product or scan barcode…" autoFocus={!showPayModal} style={{border:'none',background:'transparent',outline:'none',flex:1,fontSize:13}}/>
+          <input ref={searchRef} value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>e.key==='Enter'&&scanOrAddProduct()} placeholder="Search product or scan barcode…" autoFocus={!showPayModal&&!showCustModal} style={{border:'none',background:'transparent',outline:'none',flex:1,fontSize:13}}/>
           {search&&<button onClick={()=>setSearch('')} style={{background:'none',border:'none',cursor:'pointer',color:'#9ca3af',fontSize:18}}>×</button>}
         </div>
         <button onClick={()=>setShowCustModal(true)} style={{display:'flex',alignItems:'center',gap:6,padding:'7px 12px',border:`2px solid ${custId?'#0f766e':'#e5e7eb'}`,borderRadius:10,background:custId?'#ccfbf1':'#fff',cursor:'pointer',fontSize:12,color:custId?'#0f766e':'#666',fontWeight:custId?700:400,flexShrink:0}}>
