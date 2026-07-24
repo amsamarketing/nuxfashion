@@ -11,6 +11,7 @@ export default function Branches(){
   const [editing,setEditing]=useState<any>(null);
   const [usersFor,setUsersFor]=useState<any>(null);
   const [financeFor,setFinanceFor]=useState<any>(null);
+  const [reportsOpen,setReportsOpen]=useState<string|boolean>(false);
   const {data=[],isLoading}=useQuery<any[]>({queryKey:['branches'],queryFn:()=>api.get('/branches').then(r=>r.data)});
   const {data:users=[]}=useQuery<any[]>({queryKey:['branch-users'],queryFn:()=>api.get('/branches/users').then(r=>r.data)});
   const branches=Array.isArray(data)?data:[];
@@ -28,7 +29,7 @@ export default function Branches(){
   return <div>
     <div className="nx-page-head">
       <div><h1 className="nx-page-title">Branch Management</h1><p className="nx-page-sub">One company, separate POS locations and branch performance</p></div>
-      <button className="btn-nx primary" onClick={()=>setEditing({...blank})}><i className="ti ti-plus"/> Add Branch</button>
+      <div style={{display:'flex',gap:8}}><button className="btn-nx ghost" onClick={()=>setReportsOpen(true)}><i className="ti ti-chart-bar"/> Branch Performance</button><button className="btn-nx primary" onClick={()=>setEditing({...blank})}><i className="ti ti-plus"/> Add Branch</button></div>
     </div>
     <div className="nx-stats cols-4" style={{marginBottom:20}}>
       <Stat icon="ti-building-store" tone="indigo" label="Total Branches" value={branches.length}/>
@@ -53,6 +54,7 @@ export default function Branches(){
         <div className="branch-users">{(b.assigned_users||[]).slice(0,3).map((u:any)=><span key={u.id}>{u.name||u.email}</span>)}{!b.user_count&&<em>No POS users assigned</em>}</div>
         <div className="branch-actions">
           <button className="btn-nx ghost sm" onClick={()=>setEditing(b)}><i className="ti ti-edit"/> Edit</button>
+          <button className="btn-nx ghost sm" onClick={()=>setReportsOpen(b.id)}><i className="ti ti-chart-pie"/> P&amp;L</button>
           <button className="btn-nx ghost sm" onClick={()=>setFinanceFor(b)}><i className="ti ti-wallet"/> Finance Setup</button>
           <button className="btn-nx primary sm" onClick={()=>setUsersFor(b)}><i className="ti ti-users"/> Assign POS Users</button>
         </div>
@@ -62,8 +64,35 @@ export default function Branches(){
     {editing&&<BranchModal branch={editing} onClose={()=>setEditing(null)} onSave={(f:any)=>save.mutate(f)} saving={save.isPending}/>}
     {usersFor&&<UserModal branch={usersFor} users={users} onClose={()=>setUsersFor(null)} onSave={(ids:string[])=>assign.mutate(ids)} saving={assign.isPending}/>}
     {financeFor&&<FinanceModal branch={financeFor} onClose={()=>setFinanceFor(null)}/>}
+    {reportsOpen&&<PerformanceModal initial={typeof reportsOpen==='string'?reportsOpen:''} onClose={()=>setReportsOpen(false)}/>}
   </div>;
 }
+
+function PerformanceModal({initial,onClose}:any){
+  const now=new Date();const [from,setFrom]=useState(new Date(now.getFullYear(),now.getMonth(),1).toISOString().slice(0,10));const [to,setTo]=useState(now.toISOString().slice(0,10));const [selected,setSelected]=useState(initial);
+  const {data,isLoading}=useQuery<any>({queryKey:['branch-performance',from,to],queryFn:()=>api.get(`/branches/reports/performance?from=${from}&to=${to}`).then(r=>r.data)});
+  const rows:any[]=data?.branches||[];useEffect(()=>{if(!selected&&rows[0]?.branch?.id)setSelected(rows[0].branch.id)},[rows.length,selected]);
+  const report=rows.find(x=>x.branch.id===selected)||rows[0],t=data?.totals||{};
+  return <div className="branch-modal-shade" onClick={onClose}><div className="branch-performance-modal" onClick={e=>e.stopPropagation()}>
+    <header><div><span className="finance-kicker">Management Reporting</span><h2>Branch Performance &amp; P&amp;L</h2><p>Internal management report under one company CR/VAT registration</p></div><div className="performance-dates"><input type="date" value={from} onChange={e=>setFrom(e.target.value)}/><span>to</span><input type="date" value={to} onChange={e=>setTo(e.target.value)}/><button onClick={onClose}><i className="ti ti-x"/></button></div></header>
+    <div className="performance-kpis"><Kpi label="Net Revenue" value={money(t.revenue)} tone="blue"/><Kpi label="Gross Profit" value={money(t.gross_profit)} tone="green"/><Kpi label="Branch Expenses" value={money(t.expenses)} tone="amber"/><Kpi label="Net Profit" value={money(t.net_profit)} tone={Number(t.net_profit)>=0?'teal':'red'}/><Kpi label="Orders" value={Number(t.orders||0).toLocaleString()} tone="indigo"/></div>
+    {Number(data?.unallocated_expenses)>0&&<div className="unallocated-alert"><i className="ti ti-alert-triangle"/> {money(data.unallocated_expenses)} from {data.unallocated_expense_count} head-office/unallocated expenses are not included in individual branch P&amp;L.</div>}
+    <div className="performance-body">
+      <aside><h3>Branch Comparison</h3>{isLoading?<p>Loading…</p>:rows.map(x=><button className={report?.branch.id===x.branch.id?'active':''} key={x.branch.id} onClick={()=>setSelected(x.branch.id)}><span><b>{x.branch.name}</b><small>{x.sales.orders} orders · {x.branch.code}</small></span><strong className={x.net_profit>=0?'positive':'negative'}>{money(x.net_profit)}</strong></button>)}</aside>
+      <main>{report?<BranchPL report={report}/>:<div className="finance-empty">No active branches available.</div>}</main>
+    </div>
+  </div></div>;
+}
+function Kpi({label,value,tone}:any){return <div className={`performance-kpi ${tone}`}><span>{label}</span><strong>{value}</strong></div>}
+function BranchPL({report:r}:any){return <div className="branch-pl">
+  <div className="branch-pl-title"><div><h3>{r.branch.name}</h3><p>{r.period.from} to {r.period.to}</p></div><span className={`profit-pill ${r.net_profit>=0?'positive':'negative'}`}>{r.net_profit>=0?'Profitable':'Loss'} · {Number(r.net_margin).toFixed(1)}%</span></div>
+  <div className="pl-columns">
+    <div className="pl-statement"><h4>Profit &amp; Loss Statement</h4><PL label="Gross sales incl. VAT" value={r.sales.gross}/><PL label="Less: Sales returns" value={-r.sales.returns} muted/><PL label="Net revenue excl. VAT" value={r.sales.net_revenue} strong/><PL label="Cost of goods sold" value={-r.cogs}/><PL label="Gross profit" value={r.gross_profit} strong tone={r.gross_profit>=0?'good':'bad'}/><PL label="Operating expenses" value={-r.expenses}/><PL label="Net profit / (loss)" value={r.net_profit} total tone={r.net_profit>=0?'good':'bad'}/></div>
+    <div className="pl-health"><h4>Branch Position</h4><div className="health-grid"><Kpi label="Payment Account Balance" value={money(r.account_balance)} tone="blue"/><Kpi label="Stock at Cost" value={money(r.stock.cost_value)} tone="amber"/><Kpi label="Stock at Retail" value={money(r.stock.retail_value)} tone="teal"/><Kpi label="Gross Margin" value={`${Number(r.gross_margin).toFixed(1)}%`} tone="green"/></div><div className="vat-strip"><span>Output VAT <b>{money(r.sales.output_vat)}</b></span><span>Expense Input VAT <b>{money(r.input_vat)}</b></span></div></div>
+  </div>
+  <div className="partner-profit"><h4>Partner Profit Allocation</h4>{r.partners?.length?<div className="partner-profit-grid">{r.partners.map((p:any)=><div key={p.id}><span><b>{p.name}</b><small>{Number(p.ownership_percent).toFixed(2)}% ownership</small></span><strong>{money(p.profit_share)}</strong></div>)}</div>:<p>No active partners configured for this branch.</p>}</div>
+</div>}
+function PL({label,value,strong,total,tone,muted}:any){return <div className={`pl-line${strong?' strong':''}${total?' total':''}${muted?' muted':''}`}><span>{label}</span><b className={tone||''}>{value<0?`(${money(Math.abs(value))})`:money(value)}</b></div>}
 
 function FinanceModal({branch,onClose}:any){
   const qc=useQueryClient();const {toast}=useToast();const [tab,setTab]=useState('accounts');

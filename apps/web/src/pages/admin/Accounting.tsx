@@ -57,12 +57,12 @@ function AccountModal({acct,accounts,onClose}:{acct:any;accounts:any[];onClose:(
 }
 
 /* ── Expense Modal ── */
-function ExpenseModal({categories,onClose}:{categories:any[];onClose:()=>void}){
+function ExpenseModal({categories,branches,onClose}:{categories:any[];branches:any[];onClose:()=>void}){
   const qc=useQueryClient();
-  const [form,setForm]=useState({category_id:'',date:new Date().toISOString().slice(0,10),description:'',amount:'',tax_amount:'',payment_method:'cash',vendor:'',receipt_ref:'',notes:''});
+  const [form,setForm]=useState({branch_id:'',category_id:'',date:new Date().toISOString().slice(0,10),description:'',amount:'',tax_amount:'',payment_method:'cash',vendor:'',receipt_ref:'',notes:''});
   const F=(k:string,v:any)=>setForm(f=>({...f,[k]:v}));
   const save=useMutation({
-    mutationFn:()=>api.post('/finance/expenses',{...form,amount:parseFloat(form.amount),tax_amount:parseFloat(form.tax_amount)||undefined,category_id:form.category_id||undefined}),
+    mutationFn:()=>api.post('/finance/expenses',{...form,amount:parseFloat(form.amount),tax_amount:parseFloat(form.tax_amount)||undefined,category_id:form.category_id||undefined,branch_id:form.branch_id||undefined}),
     onSuccess:()=>{qc.invalidateQueries({queryKey:['expenses']});onClose();},
   });
   return(
@@ -73,6 +73,7 @@ function ExpenseModal({categories,onClose}:{categories:any[];onClose:()=>void}){
           <button className="btn-nx ghost sm" onClick={onClose}><i className="ti ti-x"/></button>
         </div>
         <div style={{padding:20,display:'grid',gap:12}}>
+          {inp('Branch / Profit Centre',<select className="nx-select" style={{width:'100%'}} value={form.branch_id} onChange={e=>F('branch_id',e.target.value)}><option value="">— Head Office / Unallocated —</option>{branches.map(b=><option key={b.id} value={b.id}>{b.name} ({b.code})</option>)}</select>)}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
             {inp('Date *',<input className="nx-input" type="date" style={{width:'100%'}} value={form.date} onChange={e=>F('date',e.target.value)}/>)}
             {inp('Category',<select className="nx-select" style={{width:'100%'}} value={form.category_id} onChange={e=>F('category_id',e.target.value)}><option value="">— Uncategorized —</option>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>)}
@@ -235,6 +236,7 @@ export default function Accounting(){
   const {data:journalData,isLoading:jLoading}=useQuery({queryKey:['journal'],queryFn:async()=>{const r=await api.get('/finance/journal');return r.data;},enabled:tab==='journal'||tab==='dashboard'});
   const {data:expData,isLoading:expLoading}=useQuery({queryKey:['expenses'],queryFn:async()=>{const r=await api.get('/finance/expenses');return r.data;},enabled:tab==='expenses'||tab==='dashboard'});
   const {data:expCatData}=useQuery({queryKey:['exp-categories'],queryFn:async()=>{const r=await api.get('/finance/expense-categories');return r.data;}});
+  const {data:branchData=[]}=useQuery<any[]>({queryKey:['branches'],queryFn:async()=>{const r=await api.get('/branches');return Array.isArray(r.data)?r.data:[];}});
   const {data:plData}=useQuery({queryKey:['pl',dateFrom,dateTo],queryFn:async()=>{const r=await api.get(`/finance/reports/profit-loss?from=${dateFrom}&to=${dateTo}`);return r.data;},enabled:tab==='reports'&&reportTab==='pl'});
   const {data:bsData}=useQuery({queryKey:['bs'],queryFn:async()=>{const r=await api.get('/finance/reports/balance-sheet');return r.data;},enabled:tab==='reports'&&reportTab==='bs'});
   const {data:vatData}=useQuery({queryKey:['vat',dateFrom,dateTo],queryFn:async()=>{const r=await api.get(`/finance/reports/vat?from=${dateFrom}&to=${dateTo}`);return r.data;},enabled:tab==='reports'&&reportTab==='vat'});
@@ -244,6 +246,7 @@ export default function Accounting(){
   const journal:any[]=Array.isArray(journalData)?journalData:journalData?.entries||journalData?.data||[];
   const expenses:any[]=Array.isArray(expData)?expData:expData?.expenses||expData?.data||[];
   const expCategories:any[]=Array.isArray(expCatData)?expCatData:expCatData?.categories||expCatData?.data||[];
+  const branches:any[]=Array.isArray(branchData)?branchData:[];
   const acctMap=Object.fromEntries(accounts.map(a=>[a.id,a]));
   const catMap=Object.fromEntries(expCategories.map(c=>[c.id,c.name]));
 
@@ -420,13 +423,14 @@ export default function Accounting(){
         <div className="nx-card" style={{padding:0,overflow:'hidden'}}>
           <table style={{width:'100%',borderCollapse:'collapse'}}>
             <thead><tr style={{borderBottom:'1px solid var(--bd)'}}>
-              {['Date','Description','Category','Vendor','Payment','Amount','VAT','Receipt'].map(h=><th key={h} style={{padding:'10px 12px',textAlign:'left',fontSize:11,color:'var(--mu)',fontWeight:600}}>{h}</th>)}
+              {['Date','Description','Branch','Category','Vendor','Payment','Amount','VAT','Receipt'].map(h=><th key={h} style={{padding:'10px 12px',textAlign:'left',fontSize:11,color:'var(--mu)',fontWeight:600}}>{h}</th>)}
             </tr></thead>
             <tbody>
-              {filteredExp.length===0?<tr><td colSpan={8} style={{padding:32,textAlign:'center',color:'var(--mu)'}}>No expenses found</td></tr>:filteredExp.map((e:any)=>(
+              {filteredExp.length===0?<tr><td colSpan={9} style={{padding:32,textAlign:'center',color:'var(--mu)'}}>No expenses found</td></tr>:filteredExp.map((e:any)=>(
                 <tr key={e.id} style={{borderBottom:'1px solid var(--bd)'}}>
                   <td style={{padding:'10px 12px',fontSize:12,color:'var(--mu)',whiteSpace:'nowrap'}}>{e.date?new Date(e.date).toLocaleDateString():'—'}</td>
                   <td style={{padding:'10px 12px',fontWeight:600,fontSize:13}}>{e.description}</td>
+                  <td style={{padding:'10px 12px',fontSize:11}}>{e.branch_name||'Head Office'}</td>
                   <td style={{padding:'10px 12px'}}><span className="nx-badge grey">{catMap[e.category_id]||'—'}</span></td>
                   <td style={{padding:'10px 12px',fontSize:12}}>{e.vendor||'—'}</td>
                   <td style={{padding:'10px 12px',fontSize:12}}>{PAY_METHOD[e.payment_method]||e.payment_method||'—'}</td>
@@ -547,7 +551,7 @@ export default function Accounting(){
     </div>)}
 
     {showJournal&&<JournalModal accounts={accounts} onClose={()=>setShowJournal(false)}/>}
-    {showExpense&&<ExpenseModal categories={expCategories} onClose={()=>setShowExpense(false)}/>}
+    {showExpense&&<ExpenseModal categories={expCategories} branches={branches} onClose={()=>setShowExpense(false)}/>}
     {showAccount&&<AccountModal acct={null} accounts={accounts} onClose={()=>setShowAccount(false)}/>}
     {showExpCat&&<ExpCatModal accounts={accounts} onClose={()=>setShowExpCat(false)}/>}
   </div>);

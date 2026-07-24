@@ -55,6 +55,7 @@ export class BranchesService implements OnModuleInit {
       reference_id UUID,note TEXT,created_by UUID REFERENCES users(id) ON DELETE SET NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`);
+    await this.db.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS branch_id UUID REFERENCES branches(id) ON DELETE SET NULL`);
   }
 
   private async syncWarehouses(companyId: string) {
@@ -245,5 +246,65 @@ export class BranchesService implements OnModuleInit {
        VALUES($1,$2,$3,$4,$5,'adjustment',$6,$7) RETURNING *`,
       [randomUUID(),branchId,accountId,direction,amount,body.note||null,userId]);
     return result.rows[0];
+  }
+
+  private dates(from?:string,to?:string){
+    const now=new Date(),start=new Date(now.getFullYear(),now.getMonth(),1).toISOString().slice(0,10);
+    return {from:/^\d{4}-\d{2}-\d{2}$/.test(from||'')?from!:start,to:/^\d{4}-\d{2}-\d{2}$/.test(to||'')?to!:now.toISOString().slice(0,10)};
+  }
+
+  async branchReport(companyId:string,branchId:string,from?:string,to?:string){
+    const branch=await this.ownedBranch(companyId,branchId),d=this.dates(from,to);
+    const sales=await this.db.query(
+      `SELECT COALESCE(SUM(o.subtotal-COALESCE(o.discount_amount,0)),0) revenue,
+       COALESCE(SUM(o.tax_amount),0) output_vat,COALESCE(SUM(o.total),0) gross_sales,
+       COUNT(*)::int orders,COALESCE(SUM((SELECT SUM(l.quantity) FROM sales_order_lines l WHERE l.order_id=o.id)),0) units
+       FROM sales_orders o WHERE o.company_id=$1 AND o.warehouse_id=$2
+       AND o.status IN('paid','partial_return','refunded') AND o.created_at::date BETWEEN $3 AND $4`,
+      [companyId,branch.warehouse_id,d.from,d.to]);
+    const returns=await this.db.query(
+      `SELECT COALESCE(SUM(r.refund_amount),0) gross_returns,
+       COALESCE(SUM(r.refund_amount/1.15),0) returns_ex_vat,
+       COALESCE(SUM(r.refund_amount-(r.refund_amount/1.15)),0) returned_vat
+       FROM returns r JOIN sales_orders o ON o.id=r.original_order_id
+       WHERE o.warehouse_id=$1 AND r.created_at::date BETWEEN $2 AND $3`,
+      [branch.warehouse_id,d.from,d.to]);
+    const cogs=await this.db.query(
+      `SELECT COALESCE(SUM(l.quantity*pv.cost_price),0) sold_cost
+       FROM sales_order_lines l JOIN sales_orders o ON o.id=l.order_id
+       JOIN product_variants pv ON pv.id=l.variant_id
+       WHERE o.warehouse_id=$1 AND o.status IN('paid','partial_return','refunded')
+       AND o.created_at::date BETWEEN $2 AND $3`,[branch.warehouse_id,d.from,d.to]);
+    const returnedCost=await this.db.query(
+      `SELECT COALESCE(SUM(rl.quantity*pv.cost_price),0) returned_cost
+       FROM return_lines rl JOIN returns r ON r.id=rl.return_id JOIN sales_orders o ON o.id=r.original_order_id
+       JOIN product_variants pv ON pv.id=rl.variant_id WHERE o.warehouse_id=$1 AND rl.restock=true
+       AND r.created_at::date BETWEEN $2 AND $3`,[branch.warehouse_id,d.from,d.to]);
+    const expenses=await this.db.query(
+      `SELECT COALESCE(SUM(amount),0) expenses,COALESCE(SUM(tax_amount),0) input_vat,COUNT(*)::int expense_count
+       FROM expenses WHERE company_id=$1 AND branch_id=$2 AND date BETWEEN $3 AND $4`,
+      [companyId,branchId,d.from,d.to]);
+    const stock=await this.db.query(
+      `SELECT COALESCE(SUM(i.quantity*pv.cost_price),0) cost_value,COALESCE(SUM(i.quantity*pv.selling_price),0) retail_value,
+       COALESCE(SUM(i.quantity),0) units FROM inventory i JOIN product_variants pv ON pv.id=i.variant_id
+       WHERE i.warehouse_id=$1`,[branch.warehouse_id]);
+    const accounts=await this.db.query(
+      `SELECT COALESCE(SUM(a.opening_balance+COALESCE((SELECT SUM(CASE WHEN t.direction='credit' THEN t.amount ELSE -t.amount END)
+       FROM branch_account_transactions t WHERE t.account_id=a.id),0)),0) balance
+       FROM branch_payment_accounts a WHERE a.branch_id=$1 AND a.is_active=true`,[branchId]);
+    const s:any=sales.rows[0],r:any=returns.rows[0],e:any=expenses.rows[0];
+    const revenue=Number(s.revenue)-Number(r.returns_ex_vat),netCogs=Number(cogs.rows[0].sold_cost)-Number(returnedCost.rows[0].returned_cost);
+    const grossProfit=revenue-netCogs,netProfit=grossProfit-Number(e.expenses);
+    const partners=await this.db.query(`SELECT id,name,ownership_percent,capital_contribution FROM branch_partners WHERE branch_id=$1 AND is_active=true ORDER BY name`,[branchId]);
+    return {branch,period:d,sales:{orders:s.orders,units:Number(s.units),gross:Number(s.gross_sales),returns:Number(r.gross_returns),net_revenue:revenue,output_vat:Number(s.output_vat)-Number(r.returned_vat)},cogs:netCogs,gross_profit:grossProfit,gross_margin:revenue?grossProfit/revenue*100:0,expenses:Number(e.expenses),expense_count:e.expense_count,input_vat:Number(e.input_vat),net_profit:netProfit,net_margin:revenue?netProfit/revenue*100:0,account_balance:Number(accounts.rows[0].balance),stock:{units:Number(stock.rows[0].units),cost_value:Number(stock.rows[0].cost_value),retail_value:Number(stock.rows[0].retail_value)},partners:partners.rows.map((p:any)=>({...p,profit_share:netProfit*Number(p.ownership_percent)/100}))};
+  }
+
+  async performance(companyId:string,from?:string,to?:string){
+    await this.syncWarehouses(companyId);const d=this.dates(from,to);
+    const branches=await this.db.query(`SELECT id FROM branches WHERE company_id=$1 AND is_active=true ORDER BY name`,[companyId]);
+    const rows=[];for(const b of branches.rows)rows.push(await this.branchReport(companyId,b.id,d.from,d.to));
+    const unallocated=await this.db.query(`SELECT COALESCE(SUM(amount),0) amount,COUNT(*)::int count FROM expenses WHERE company_id=$1 AND branch_id IS NULL AND date BETWEEN $2 AND $3`,[companyId,d.from,d.to]);
+    const totals=rows.reduce((a:any,x:any)=>({revenue:a.revenue+x.sales.net_revenue,cogs:a.cogs+x.cogs,gross_profit:a.gross_profit+x.gross_profit,expenses:a.expenses+x.expenses,net_profit:a.net_profit+x.net_profit,orders:a.orders+Number(x.sales.orders)}),{revenue:0,cogs:0,gross_profit:0,expenses:0,net_profit:0,orders:0});
+    return {period:d,branches:rows,totals,unallocated_expenses:Number(unallocated.rows[0].amount),unallocated_expense_count:unallocated.rows[0].count};
   }
 }

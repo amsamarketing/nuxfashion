@@ -4,6 +4,7 @@ import { CreateAccountDto } from './dto/create-account.dto';
 import { CreateJournalEntryDto } from './dto/create-journal-entry.dto';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { CreateExpenseCategoryDto } from './dto/create-expense-category.dto';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class FinanceService {
@@ -134,13 +135,24 @@ export class FinanceService {
     const total = dto.amount + taxAmount;
     const expenseNumber = `EXP-${Date.now()}`;
     const result = await this.db.query(
-      `INSERT INTO expenses (company_id,expense_number,category_id,date,description,
+      `INSERT INTO expenses (company_id,branch_id,expense_number,category_id,date,description,
          amount,tax_amount,total,payment_method,vendor,receipt_ref,submitted_by,notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
-      [companyId, expenseNumber, dto.category_id ?? null, dto.date, dto.description,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+      [companyId, dto.branch_id ?? null, expenseNumber, dto.category_id ?? null, dto.date, dto.description,
        dto.amount, taxAmount, total, dto.payment_method ?? 'cash',
        dto.vendor ?? null, dto.receipt_ref ?? null, userId, dto.notes ?? null],
     );
+    if(dto.branch_id){
+      const methods=dto.payment_method==='bank_transfer'?['bank_transfer']:dto.payment_method==='card'?['card','mada']:['cash'];
+      const account=await this.db.query(
+        `SELECT a.id FROM branch_payment_accounts a JOIN branches b ON b.id=a.branch_id
+         WHERE a.branch_id=$1 AND b.company_id=$2 AND a.method=ANY($3::text[]) AND a.is_active=true
+         ORDER BY a.is_default DESC LIMIT 1`,[dto.branch_id,companyId,methods]);
+      if(account.rows[0])await this.db.query(
+        `INSERT INTO branch_account_transactions(id,branch_id,account_id,direction,amount,reference_type,reference_id,note,created_by)
+         VALUES($1,$2,$3,'debit',$4,'expense',$5,$6,$7)`,
+        [randomUUID(),dto.branch_id,account.rows[0].id,total,result.rows[0].id,`Expense ${expenseNumber}`,userId]);
+    }
     return result.rows[0];
   }
 
@@ -152,9 +164,10 @@ export class FinanceService {
     if (to)         { conditions.push(`e.date<=$${idx++}`);         params.push(to); }
     if (categoryId) { conditions.push(`e.category_id=$${idx++}`);  params.push(categoryId); }
     const result = await this.db.query(
-      `SELECT e.*, ec.name as category_name, u.name as submitted_by_name
+      `SELECT e.*, ec.name as category_name, u.name as submitted_by_name,b.name as branch_name
        FROM expenses e
        LEFT JOIN expense_categories ec ON ec.id=e.category_id
+       LEFT JOIN branches b ON b.id=e.branch_id
        JOIN users u ON u.id=e.submitted_by
        WHERE ${conditions.join(' AND ')}
        ORDER BY e.date DESC LIMIT 200`,

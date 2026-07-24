@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { BranchesService } from './branches.service';
@@ -21,6 +21,16 @@ export class BranchesController {
   @Get('users')
   users(@Req() req: Request) {
     return this.service.users((req.user as any).companyId);
+  }
+
+  @Get('reports/performance')
+  performance(@Query('from') from: string, @Query('to') to: string, @Req() req: Request) {
+    return this.service.performance((req.user as any).companyId, from, to);
+  }
+
+  @Get(':id/report')
+  report(@Param('id') id: string, @Query('from') from: string, @Query('to') to: string, @Req() req: Request) {
+    return this.service.branchReport((req.user as any).companyId, id, from, to);
   }
 
   @Post()
