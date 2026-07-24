@@ -19,6 +19,14 @@ export class SalesService {
       [companyId, userId],
     );
     if (existing.rows.length) throw new BadRequestException('You already have an open session');
+    const branchAccess = await this.db.query(
+      `SELECT
+        EXISTS(SELECT 1 FROM branch_user_assignments a JOIN branches b ON b.id=a.branch_id WHERE a.user_id=$1 AND b.company_id=$2) has_assignments,
+        EXISTS(SELECT 1 FROM branch_user_assignments a JOIN branches b ON b.id=a.branch_id WHERE a.user_id=$1 AND b.company_id=$2 AND b.warehouse_id=$3 AND b.is_active=true) allowed`,
+      [userId,companyId,dto.warehouse_id],
+    ).catch(()=>({rows:[{has_assignments:false,allowed:true}]} as any));
+    if(branchAccess.rows[0].has_assignments&&!branchAccess.rows[0].allowed)
+      throw new BadRequestException('You are not assigned to this branch');
     const result = await this.db.query(
       `INSERT INTO pos_sessions (company_id, warehouse_id, cashier_id, opening_cash, notes)
        VALUES ($1,$2,$3,$4,$5) RETURNING *`,
@@ -164,7 +172,7 @@ export class SalesService {
     if (!customer.rows[0]) throw new BadRequestException('Select a customer with both name and phone');
     if (!dto.pos_session_id) throw new BadRequestException('Start a POS shift before creating a sale');
     const activeSession = await this.db.query(
-      `SELECT id FROM pos_sessions WHERE id=$1 AND company_id=$2 AND cashier_id=$3 AND status='open'`,
+      `SELECT id,warehouse_id FROM pos_sessions WHERE id=$1 AND company_id=$2 AND cashier_id=$3 AND status='open'`,
       [dto.pos_session_id, companyId, userId],
     );
     if (!activeSession.rows[0]) throw new BadRequestException('Your POS shift is not open');
@@ -212,7 +220,13 @@ export class SalesService {
     const taxableAmount = Math.max(0, subtotal - orderDiscountTotal);
     const taxAmount = taxableAmount * 0.15;
     const total = taxableAmount + taxAmount;
-    const orderNumber = `ORD-${Date.now()}`;
+    const warehouseId=activeSession.rows[0].warehouse_id;
+    const branch=await this.db.query(
+      `SELECT invoice_prefix FROM branches WHERE company_id=$1 AND warehouse_id=$2 AND is_active=true`,
+      [companyId,warehouseId],
+    ).catch(()=>({rows:[]} as any));
+    const prefix=String(branch.rows[0]?.invoice_prefix||'ORD').replace(/[^A-Za-z0-9-]/g,'').toUpperCase();
+    const orderNumber = `${prefix}-${Date.now()}`;
 
     // Insert order
     const orderResult = await this.db.query(
@@ -220,7 +234,7 @@ export class SalesService {
          (company_id,order_number,pos_session_id,warehouse_id,cashier_id,customer_id,
           status,subtotal,discount_amount,tax_amount,total,notes)
        VALUES ($1,$2,$3,$4,$5,$6,'confirmed',$7,$8,$9,$10,$11) RETURNING *`,
-      [companyId, orderNumber, dto.pos_session_id ?? null, dto.warehouse_id,
+      [companyId, orderNumber, dto.pos_session_id ?? null, warehouseId,
        userId, dto.customer_id ?? null, subtotal, orderDiscountTotal, taxAmount, total, dto.notes ?? null],
     );
     const order = orderResult.rows[0];
@@ -238,13 +252,13 @@ export class SalesService {
       await this.db.query(
         `UPDATE inventory SET quantity = quantity - $1, updated_at=NOW()
          WHERE warehouse_id=$2 AND variant_id=$3`,
-        [line.quantity, dto.warehouse_id, line.variant_id],
+        [line.quantity, warehouseId, line.variant_id],
       );
       await this.db.query(
         `INSERT INTO stock_movements (warehouse_id,variant_id,movement_type,quantity,quantity_before,quantity_after,reason,created_by)
          SELECT $1,$2,'sale',$3,quantity+$3,quantity,$4,$5 FROM inventory
          WHERE warehouse_id=$1 AND variant_id=$2`,
-        [dto.warehouse_id, line.variant_id, -line.quantity, `Order ${orderNumber}`, userId],
+        [warehouseId, line.variant_id, -line.quantity, `Order ${orderNumber}`, userId],
       );
     }
 

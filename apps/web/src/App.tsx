@@ -22,6 +22,7 @@ import Reports from './pages/admin/Reports';
 import Settings from './pages/admin/Settings';
 import Ecommerce from './pages/admin/Ecommerce';
 import Storefront from './pages/store/Storefront';
+import Branches from './pages/admin/Branches';
 
 const qc = new QueryClient({ defaultOptions:{ queries:{ retry:1, staleTime:30000 }}});
 
@@ -31,6 +32,7 @@ const NAV = [
   { id:'ad-prod',   label:'Products',      icon:'ti-tag',                sec:'Catalog' },
   { id:'ad-inv',    label:'Inventory',     icon:'ti-package',            sec:'Catalog' },
   { id:'ad-wh',     label:'Warehouses',    icon:'ti-building-warehouse', sec:'Catalog' },
+  { id:'ad-branches',label:'Branches',      icon:'ti-building-store',     sec:'Main' },
   { id:'ad-purch',  label:'Purchasing',    icon:'ti-truck',              sec:'Catalog' },
   { id:'ad-ecom',   label:'E-commerce',    icon:'ti-world',              sec:'Channels' },
   { id:'ad-crm',    label:'Customers',     icon:'ti-users',              sec:'Channels' },
@@ -55,6 +57,7 @@ const SCREENS: Record<string,React.ComponentType> = {
   'ad-prod':Products,'ad-purch':Purchasing,'ad-acct':Accounting,'ad-zatca':ZATCA,
   'ad-crm':Customers,'ad-loyal':Loyalty,'ad-hr':HR,'ad-rep':Reports,'ad-set':Settings,
   'ad-ecom':Ecommerce,
+  'ad-branches':Branches,
 };
 
 const SECS = ['Main','Catalog','Channels','People','Finance','System'];

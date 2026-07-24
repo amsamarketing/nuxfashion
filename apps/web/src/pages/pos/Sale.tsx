@@ -152,7 +152,7 @@ export default function POSSale(){
   },[]);
 
   const {data:prodData=[]}=useQuery({queryKey:['products'],queryFn:()=>api.get('/catalog/products').then(r=>r.data)});
-  const {data:whData=[]}=useQuery<any[]>({queryKey:['warehouses'],queryFn:()=>api.get('/inventory/warehouses').then(r=>Array.isArray(r.data)?r.data:[]).catch(()=>[])});
+  const {data:whData=[]}=useQuery<any[]>({queryKey:['pos-branches'],queryFn:()=>api.get('/branches/my').then(r=>Array.isArray(r.data)?r.data:[]).catch(()=>api.get('/inventory/warehouses').then(r=>Array.isArray(r.data)?r.data:[]))});
   const {data:custData=[]}=useQuery({queryKey:['customers'],queryFn:()=>api.get('/customers').then(r=>r.data)});
   const {data:catData=[]}=useQuery({queryKey:['categories'],queryFn:()=>api.get('/catalog/categories').then(r=>r.data).catch(()=>[])});
   const {data:recentOrders=[]}=useQuery({queryKey:['pos-orders'],queryFn:()=>api.get('/sales/orders?limit=20').then(r=>Array.isArray(r.data)?r.data:r.data?.data||[]).catch(()=>[])});
@@ -168,7 +168,7 @@ export default function POSSale(){
   const tier=customer?.loyalty_tier||'bronze';
   const custPoints=customer?.loyalty_points||0;
   const walletBal=getWalletBalance(customer);
-  const defaultWarehouseId=warehouses[0]?.id??null;
+  const defaultWarehouseId=currentSession?.warehouse_id??warehouses[0]?.id??null;
   const quickCustomer=useMutation({
     mutationFn:()=>api.post('/customers',{name:newCustName.trim(),phone:newCustPhone.trim()}),
     onSuccess:async r=>{setCustId(r.data.id);setNewCustName('');setNewCustPhone('');setShowCustModal(false);await qc.invalidateQueries({queryKey:['customers']});toast('Customer added','success');},

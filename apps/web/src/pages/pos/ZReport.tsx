@@ -19,7 +19,7 @@ export default function ZReport(){
   const [closingCash,setClosingCash]=useState('');
   const [closingNotes,setClosingNotes]=useState('');
 
-  const {data:warehouses=[]}=useQuery<any[]>({queryKey:['warehouses'],queryFn:()=>api.get('/inventory/warehouses').then(r=>Array.isArray(r.data)?r.data:[])});
+  const {data:warehouses=[]}=useQuery<any[]>({queryKey:['pos-branches'],queryFn:()=>api.get('/branches/my').then(r=>Array.isArray(r.data)?r.data:[]).catch(()=>api.get('/inventory/warehouses').then(r=>Array.isArray(r.data)?r.data:[]))});
   const {data:sessions=[]}=useQuery<any[]>({queryKey:['pos-sessions'],queryFn:()=>api.get('/sales/sessions').then(r=>Array.isArray(r.data)?r.data:[])});
   const {data:current}=useQuery<any>({queryKey:['pos-current-session'],queryFn:()=>api.get('/sales/sessions/current').then(r=>r.data)});
   const reportId=selectedId||current?.id||sessions[0]?.id||'';

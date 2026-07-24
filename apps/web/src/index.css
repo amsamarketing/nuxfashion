@@ -369,3 +369,22 @@ body{font-family:'Inter',system-ui,sans-serif;font-size:14px;color:var(--tx);bac
   .content-form .field.full,.content-form-actions{grid-column:1}
   .content-section-head{align-items:stretch;flex-direction:column}
 }
+
+/* MULTI-BRANCH CONTROL */
+.branch-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:18px}
+.branch-card{padding:20px;border:1px solid #dbe3ec;border-radius:16px;background:#fff;box-shadow:0 5px 18px rgba(15,23,42,.05)}
+.branch-card-head{display:grid;grid-template-columns:46px 1fr auto;align-items:center;gap:12px}
+.branch-card-head h3{margin:0;color:#0f172a;font-size:17px}.branch-card-head p{margin:4px 0 0;color:#64748b;font-size:11px}
+.branch-avatar{display:grid;width:46px;height:46px;place-items:center;border-radius:13px;background:linear-gradient(145deg,#ccfbf1,#dbeafe);color:#0f766e;font-size:22px}
+.branch-location{display:flex;align-items:center;gap:6px;margin:15px 0;color:#64748b;font-size:12px}
+.branch-metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;overflow:hidden;border:1px solid #e2e8f0;border-radius:11px;background:#e2e8f0}
+.branch-metrics div{padding:12px;background:#f8fafc}.branch-metrics span{display:block;margin-bottom:4px;color:#64748b;font-size:10px;text-transform:uppercase}.branch-metrics strong{color:#0f172a;font-size:14px}
+.branch-users{display:flex;min-height:28px;align-items:center;gap:5px;margin:13px 0;overflow:hidden}.branch-users span{padding:4px 7px;border-radius:20px;background:#e0f2fe;color:#075985;font-size:10px;white-space:nowrap}.branch-users em{color:#94a3b8;font-size:11px}
+.branch-actions{display:flex;justify-content:flex-end;gap:7px;padding-top:12px;border-top:1px solid #edf2f7}
+.branch-modal-shade{position:fixed;z-index:1200;inset:0;display:grid;place-items:center;padding:18px;background:rgba(2,6,23,.62);backdrop-filter:blur(3px)}
+.branch-modal{width:min(720px,96vw);max-height:92vh;overflow:auto;border-radius:18px;background:#fff;box-shadow:0 30px 80px rgba(2,6,23,.3)}.branch-modal.small{width:min(520px,96vw)}
+.branch-modal header{display:flex;align-items:flex-start;justify-content:space-between;padding:22px 25px;border-bottom:1px solid #e2e8f0}.branch-modal header h2{margin:0;color:#0f172a;font-size:19px}.branch-modal header p{margin:5px 0 0;color:#64748b;font-size:12px}.branch-modal header button{padding:5px;border:0;background:transparent;color:#64748b;font-size:20px;cursor:pointer}
+.branch-form{display:grid;grid-template-columns:repeat(2,1fr);gap:15px;padding:24px}.branch-form label{display:flex;flex-direction:column;gap:6px}.branch-form label.full{grid-column:1/-1}.branch-form label span{color:#475569;font-size:11px;font-weight:750}.branch-form input,.branch-form textarea{padding:11px 12px;border:1px solid #cbd5e1;border-radius:9px;font:inherit;outline:0}.branch-form input:focus,.branch-form textarea:focus{border-color:#0f766e;box-shadow:0 0 0 3px rgba(13,148,136,.1)}.branch-form .branch-check{grid-column:1/-1;display:flex;flex-direction:row;align-items:center;color:#334155;font-size:12px}
+.branch-modal footer{display:flex;justify-content:flex-end;gap:8px;padding:16px 24px;border-top:1px solid #e2e8f0;background:#f8fafc}
+.branch-user-list{display:grid;gap:8px;max-height:470px;overflow:auto;padding:20px 24px}.branch-user-list label{display:flex;align-items:center;gap:12px;padding:11px;border:1px solid #e2e8f0;border-radius:10px;cursor:pointer}.branch-user-list label:hover{border-color:#5eead4;background:#f0fdfa}.branch-user-list input{width:17px;height:17px}.branch-user-list span{display:flex;flex-direction:column;gap:2px}.branch-user-list b{color:#0f172a;font-size:13px}.branch-user-list small{color:#64748b;font-size:11px}
+@media(max-width:650px){.branch-grid{grid-template-columns:1fr}.branch-form{grid-template-columns:1fr}.branch-form label.full,.branch-form .branch-check{grid-column:1}.branch-card-head{grid-template-columns:42px 1fr}.branch-card-head>.nx-badge{grid-column:2}}
