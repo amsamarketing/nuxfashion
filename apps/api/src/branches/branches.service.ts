@@ -23,6 +23,29 @@ export class BranchesService implements OnModuleInit {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE(company_id,code), UNIQUE(warehouse_id)
     )`);
+    // Older production databases already have a legacy `branches` table.
+    // CREATE TABLE IF NOT EXISTS does not add the columns introduced by this module.
+    await this.db.query(`ALTER TABLE branches ADD COLUMN IF NOT EXISTS warehouse_id UUID REFERENCES warehouses(id) ON DELETE RESTRICT`);
+    await this.db.query(`ALTER TABLE branches ADD COLUMN IF NOT EXISTS code VARCHAR(30)`);
+    await this.db.query(`ALTER TABLE branches ADD COLUMN IF NOT EXISTS invoice_prefix VARCHAR(20)`);
+    await this.db.query(`ALTER TABLE branches ADD COLUMN IF NOT EXISTS city VARCHAR(100)`);
+    await this.db.query(`ALTER TABLE branches ADD COLUMN IF NOT EXISTS address TEXT`);
+    await this.db.query(`ALTER TABLE branches ADD COLUMN IF NOT EXISTS phone VARCHAR(40)`);
+    await this.db.query(`ALTER TABLE branches ADD COLUMN IF NOT EXISTS manager_name VARCHAR(160)`);
+    await this.db.query(`ALTER TABLE branches ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
+    await this.db.query(`ALTER TABLE branches ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
+    await this.db.query(
+      `UPDATE branches b SET warehouse_id=w.id
+       FROM warehouses w
+       WHERE b.warehouse_id IS NULL AND w.company_id=b.company_id
+       AND LOWER(TRIM(w.name))=LOWER(TRIM(b.name))`,
+    );
+    await this.db.query(
+      `UPDATE branches SET
+       code=COALESCE(NULLIF(code,''),'BR-'||UPPER(LEFT(id::text,4))),
+       invoice_prefix=COALESCE(NULLIF(invoice_prefix,''),'BR'||UPPER(LEFT(id::text,4)))`,
+    );
+    await this.db.query(`CREATE UNIQUE INDEX IF NOT EXISTS branches_warehouse_unique ON branches(warehouse_id) WHERE warehouse_id IS NOT NULL`);
     await this.db.query(`CREATE TABLE IF NOT EXISTS branch_user_assignments(
       branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
       user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -135,7 +158,7 @@ export class BranchesService implements OnModuleInit {
   async users(companyId:string){
     const result=await this.db.query(
       `SELECT DISTINCT u.id,u.name,u.email,u.is_active
-       FROM users u JOIN user_roles ur ON ur.user_id=u.id
+       FROM users u JOIN user_company_roles ur ON ur.user_id=u.id
        WHERE ur.company_id=$1 AND u.deleted_at IS NULL ORDER BY u.name,u.email`,[companyId],
     );
     return result.rows;
@@ -148,7 +171,10 @@ export class BranchesService implements OnModuleInit {
     if(!name||!code||!prefix)throw new BadRequestException('Name, branch code and invoice prefix are required');
     return this.db.transaction(async client=>{
       const warehouseId=randomUUID();
-      await client.query(`INSERT INTO warehouses(id,company_id,name) VALUES($1,$2,$3)`,[warehouseId,companyId,name]);
+      await client.query(
+        `INSERT INTO warehouses(id,company_id,warehouse_code,name) VALUES($1,$2,$3,$4)`,
+        [warehouseId,companyId,code,name],
+      );
       const id=randomUUID();
       const result=await client.query(
         `INSERT INTO branches(id,company_id,warehouse_id,code,name,invoice_prefix,city,address,phone,manager_name,is_active)
@@ -175,7 +201,7 @@ export class BranchesService implements OnModuleInit {
   async assignUsers(companyId:string,id:string,userIds:string[]){
     const branch=await this.db.query(`SELECT id FROM branches WHERE id=$1 AND company_id=$2`,[id,companyId]);
     if(!branch.rows[0])throw new NotFoundException('Branch not found');
-    const valid=await this.db.query(`SELECT DISTINCT user_id FROM user_roles WHERE company_id=$1 AND user_id=ANY($2::uuid[])`,[companyId,userIds]);
+    const valid=await this.db.query(`SELECT DISTINCT user_id FROM user_company_roles WHERE company_id=$1 AND user_id=ANY($2::uuid[])`,[companyId,userIds]);
     return this.db.transaction(async client=>{
       await client.query(`DELETE FROM branch_user_assignments WHERE branch_id=$1`,[id]);
       for(const row of valid.rows)await client.query(
