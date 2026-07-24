@@ -96,8 +96,7 @@ export default function POSSale(){
   const [discPct,setDiscPct]=useState('');
   const [discMode,setDiscMode]=useState<'percent'|'fixed'>('percent');
   const [splitPayment,setSplitPayment]=useState(false);
-  const [splitCash,setSplitCash]=useState('');
-  const [splitMethod,setSplitMethod]=useState('Card');
+  const [splitAmounts,setSplitAmounts]=useState<Record<string,string>>({});
   const [receipt,setReceipt]=useState<any>(null);
   const [showPayModal,setShowPayModal]=useState(false);
   const [showCustModal,setShowCustModal]=useState(false);
@@ -180,9 +179,10 @@ export default function POSSale(){
   const ptsVal=redeemPts&&custPoints>=10?Math.min(custPoints*0.1,gross-walletUsed-gcUsed):0;
   const ptsUsed=Math.ceil(ptsVal/0.1);
   const cashDue=Math.max(gross-walletUsed-gcUsed-ptsVal,0);
-  const splitCashAmount=splitPayment?Math.min(cashDue,Math.max(0,parseFloat(splitCash||'0'))):0;
-  const splitOtherAmount=splitPayment?Math.max(0,cashDue-splitCashAmount):0;
-  const splitComplete=!splitPayment||(splitCashAmount>0&&splitOtherAmount>0);
+  const splitLines=METHODS.map(paymentMethod=>({method:paymentMethod,amount:Math.max(0,parseFloat(splitAmounts[paymentMethod]||'0'))})).filter(line=>line.amount>0);
+  const splitPaid=splitLines.reduce((sum,line)=>sum+line.amount,0);
+  const splitRemaining=Math.max(0,cashDue-splitPaid);
+  const splitComplete=!splitPayment||(splitLines.length>=2&&Math.abs(splitPaid-cashDue)<0.01);
   const change=!splitPayment&&method==='Cash'?parseFloat(cashGiven||'0')-cashDue:0;
   const ptsEarned=customer?Math.floor(cashDue*(TIER_RATE[tier]||0.2)):0;
 
@@ -232,7 +232,7 @@ export default function POSSale(){
     setAppliedGC(f);setGcInput('');toast('Gift card applied!','success');
   };
 
-  const resetSale=()=>{setCart([]);setDiscPct('');setDiscMode('percent');setSplitPayment(false);setSplitCash('');setCustId('');setAppliedCoupon(null);setAppliedGC(null);setUseWallet(false);setRedeemPts(false);setCashGiven('');setOrderNote('');setShowPayModal(false);setTimeout(()=>searchRef.current?.focus(),100);};
+  const resetSale=()=>{setCart([]);setDiscPct('');setDiscMode('percent');setSplitPayment(false);setSplitAmounts({});setCustId('');setAppliedCoupon(null);setAppliedGC(null);setUseWallet(false);setRedeemPts(false);setCashGiven('');setOrderNote('');setShowPayModal(false);setTimeout(()=>searchRef.current?.focus(),100);};
 
   const holdSale=()=>{
     if(!cart.length){toast('Cart is empty','error');return;}
@@ -274,8 +274,7 @@ export default function POSSale(){
       if(walletUsed>0)payments.push({method:'wallet',amount:walletUsed});
       if(ptsVal>0)payments.push({method:'loyalty_points',amount:ptsVal,reference:ptsUsed+' pts'});
       if(splitPayment){
-        payments.push({method:'cash',amount:splitCashAmount});
-        payments.push({method:splitMethod.toLowerCase().replace(/ /g,'_'),amount:splitOtherAmount});
+        splitLines.forEach(line=>payments.push({method:line.method.toLowerCase().replace(/ /g,'_'),amount:line.amount}));
       }else if(cashDue>0)payments.push({method:method.toLowerCase().replace(/ /g,'_'),amount:cashDue});
       if(payments.length)await api.post('/sales/payments',{order_id:order.data.id,payments});
       return order.data;
@@ -283,7 +282,7 @@ export default function POSSale(){
     onSuccess:(d:any)=>{
       qc.invalidateQueries({queryKey:['dashboard']});qc.invalidateQueries({queryKey:['pos-orders']});
       toast(`Order #${d.order_number} complete`,'success');
-      setReceipt({...d,_cashDue:cashDue,_change:change>0?change:0,_method:splitPayment?`Cash ${sar(splitCashAmount)} + ${splitMethod} ${sar(splitOtherAmount)}`:method,_gcUsed:gcUsed,_walletUsed:walletUsed,_ptsUsed:ptsUsed,_ptsEarned:ptsEarned,_totalDisc:totalDisc,_items:[...cart]});
+      setReceipt({...d,_cashDue:cashDue,_change:change>0?change:0,_method:splitPayment?splitLines.map(line=>`${line.method} ${sar(line.amount)}`).join(' + '):method,_gcUsed:gcUsed,_walletUsed:walletUsed,_ptsUsed:ptsUsed,_ptsEarned:ptsEarned,_totalDisc:totalDisc,_items:[...cart]});
       resetSale();
     },
     onError:(e:any)=>toast(getErr(e),'error'),
@@ -411,14 +410,22 @@ export default function POSSale(){
           </div>
           <div>
             <div style={{fontSize:11,fontWeight:700,color:'#999',marginBottom:8}}>PAYMENT METHOD</div>
-            <label style={{display:'flex',alignItems:'center',gap:8,padding:'9px 11px',marginBottom:8,border:'1px solid #c7d2fe',background:splitPayment?'#eef2ff':'#fff',borderRadius:9,cursor:'pointer',fontSize:12,fontWeight:700,color:'#4338ca'}}><input type="checkbox" checked={splitPayment} onChange={e=>{setSplitPayment(e.target.checked);setSplitCash('')}}/> Split Payment (Cash + Card/Other)</label>
+            <label style={{display:'flex',alignItems:'center',gap:8,padding:'9px 11px',marginBottom:8,border:'1px solid #c7d2fe',background:splitPayment?'#eef2ff':'#fff',borderRadius:9,cursor:'pointer',fontSize:12,fontWeight:700,color:'#4338ca'}}><input type="checkbox" checked={splitPayment} onChange={e=>{setSplitPayment(e.target.checked);setSplitAmounts({})}}/> Split Payment (Any 2 or More Methods)</label>
             {splitPayment?(
               <div style={{padding:12,border:'1px solid #c7d2fe',background:'#f8faff',borderRadius:10}}>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-                  <div><div style={{fontSize:10,fontWeight:700,color:'#64748b',marginBottom:4}}>CASH AMOUNT</div><input autoFocus type="number" min="0" max={cashDue} value={splitCash} onChange={e=>setSplitCash(e.target.value)} placeholder="500.00" style={{width:'100%',boxSizing:'border-box',padding:'10px 11px',border:'1px solid #a5b4fc',borderRadius:8,fontSize:16,fontWeight:800}}/></div>
-                  <div><div style={{fontSize:10,fontWeight:700,color:'#64748b',marginBottom:4}}>REMAINING METHOD</div><select value={splitMethod} onChange={e=>setSplitMethod(e.target.value)} style={{width:'100%',padding:'10px 8px',border:'1px solid #a5b4fc',borderRadius:8,fontSize:13,fontWeight:700}}>{METHODS.filter(m=>m!=='Cash').map(m=><option key={m}>{m}</option>)}</select></div>
+                <div style={{fontSize:10,fontWeight:700,color:'#64748b',marginBottom:7}}>ENTER AMOUNT AGAINST EACH PAYMENT METHOD</div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:7}}>
+                  {METHODS.map((paymentMethod,index)=><label key={paymentMethod} style={{display:'flex',alignItems:'center',gap:7,padding:'7px 9px',background:Number(splitAmounts[paymentMethod]||0)>0?'#eef2ff':'#fff',border:'1px solid #c7d2fe',borderRadius:8}}>
+                    <span style={{width:76,fontSize:11,fontWeight:700,color:'#4338ca'}}>{paymentMethod}</span>
+                    <input autoFocus={index===0} type="number" min="0" max={cashDue} value={splitAmounts[paymentMethod]||''} onChange={e=>setSplitAmounts(values=>({...values,[paymentMethod]:e.target.value}))} placeholder="0.00" style={{width:'100%',minWidth:0,boxSizing:'border-box',padding:'7px 8px',border:'1px solid #d1d5db',borderRadius:6,fontSize:13,fontWeight:700,textAlign:'right'}}/>
+                  </label>)}
                 </div>
-                <div style={{display:'flex',justifyContent:'space-between',marginTop:9,paddingTop:9,borderTop:'1px dashed #c7d2fe',fontSize:12}}><span>Cash: <b>{sar(splitCashAmount)}</b></span><span>{splitMethod}: <b>{sar(splitOtherAmount)}</b></span><span>Total: <b>{sar(splitCashAmount+splitOtherAmount)}</b></span></div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:7,marginTop:10,paddingTop:10,borderTop:'1px dashed #c7d2fe',textAlign:'center'}}>
+                  <div><div style={{fontSize:9,color:'#64748b'}}>BILL TOTAL</div><b style={{fontSize:12}}>{sar(cashDue)}</b></div>
+                  <div><div style={{fontSize:9,color:'#64748b'}}>ALLOCATED</div><b style={{fontSize:12,color:splitPaid>cashDue?'#dc2626':'#4338ca'}}>{sar(splitPaid)}</b></div>
+                  <div><div style={{fontSize:9,color:'#64748b'}}>REMAINING</div><b style={{fontSize:12,color:splitRemaining<.01?'#16a34a':'#dc2626'}}>{splitPaid>cashDue?`Over ${sar(splitPaid-cashDue)}`:sar(splitRemaining)}</b></div>
+                </div>
+                {splitLines.length<2&&<div style={{fontSize:10,color:'#b45309',marginTop:7,fontWeight:600}}>Enter amounts in at least two payment methods.</div>}
               </div>
             ):(
             <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6}}>
