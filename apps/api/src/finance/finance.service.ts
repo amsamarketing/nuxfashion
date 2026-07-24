@@ -61,28 +61,23 @@ export class FinanceService implements OnModuleInit {
       throw new BadRequestException(`Journal entry not balanced: debits ${totalDebit} ≠ credits ${totalCredit}`);
 
     const entryNumber = `JE-${Date.now()}`;
-    const entry = await this.db.query(
-      `INSERT INTO journal_entries (company_id,entry_number,date,description,reference_type,reference_id,created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [companyId, entryNumber, dto.date, dto.description,
-       dto.reference_type ?? null, dto.reference_id ?? null, userId],
-    );
-    const entryId = entry.rows[0].id;
-
-    for (const line of dto.lines) {
-      await this.db.query(
-        `INSERT INTO journal_lines (entry_id,account_id,description,debit,credit)
-         VALUES ($1,$2,$3,$4,$5)`,
-        [entryId, line.account_id, line.description ?? null, line.debit, line.credit],
-      );
-      // Update account balance: debit increases asset/expense, credit increases liability/equity/revenue
-      await this.db.query(
-        `UPDATE accounts SET balance = balance + $1
-         WHERE id=$2`,
-        [line.debit - line.credit, line.account_id],
-      );
-    }
-    return { ...entry.rows[0], lines: dto.lines };
+    return this.db.transaction(async client=>{
+      const valid=await client.query(`SELECT id,type FROM accounts WHERE company_id=$1 AND id=ANY($2::uuid[]) AND is_active=true`,[companyId,dto.lines.map(l=>l.account_id)]);
+      if(valid.rows.length!==new Set(dto.lines.map(l=>l.account_id)).size)throw new BadRequestException('One or more journal accounts are invalid');
+      const types=new Map(valid.rows.map((a:any)=>[a.id,a.type]));
+      const entry = await client.query(
+        `INSERT INTO journal_entries (company_id,entry_number,date,description,reference_type,reference_id,created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+        [companyId,entryNumber,dto.date,dto.description,dto.reference_type??null,dto.reference_id??null,userId]);
+      for(const line of dto.lines){
+        await client.query(`INSERT INTO journal_lines(entry_id,account_id,description,debit,credit) VALUES($1,$2,$3,$4,$5)`,
+          [entry.rows[0].id,line.account_id,line.description??null,line.debit,line.credit]);
+        const normalDebit=['asset','expense'].includes(types.get(line.account_id));
+        await client.query(`UPDATE accounts SET balance=balance+$1 WHERE id=$2`,
+          [normalDebit?line.debit-line.credit:line.credit-line.debit,line.account_id]);
+      }
+      return {...entry.rows[0],lines:dto.lines};
+    });
   }
 
   async getJournalEntries(companyId: string, from?: string, to?: string) {
@@ -147,7 +142,7 @@ export class FinanceService implements OnModuleInit {
   }
 
   async createExpense(companyId: string, userId: string, dto: CreateExpenseDto) {
-    const taxAmount = dto.tax_amount ?? (dto.amount * 0.15);
+    const taxAmount = dto.tax_amount ?? Number((dto.amount * Number(dto.vat_rate||0) / 100).toFixed(2));
     const total = dto.amount + taxAmount;
     const expenseNumber = `EXP-${Date.now()}`;
     const mode=dto.allocation_method||(dto.branch_id?'single':'head_office');
@@ -222,22 +217,30 @@ export class FinanceService implements OnModuleInit {
 
   async getProfitLoss(companyId: string, from: string, to: string) {
     const revenue = await this.db.query(
-      `SELECT COALESCE(SUM(total),0) as total
-       FROM sales_orders WHERE company_id=$1 AND status='paid'
+      `SELECT COALESCE(SUM(subtotal-COALESCE(discount_amount,0)),0) total,
+       COALESCE(SUM(tax_amount),0) output_vat,COALESCE(SUM(total),0) gross
+       FROM sales_orders WHERE company_id=$1 AND status IN('paid','partial_return','refunded')
        AND created_at::date BETWEEN $2 AND $3`,
       [companyId, from, to],
     );
+    const returns=await this.db.query(
+      `SELECT COALESCE(SUM(r.refund_amount/1.15),0) amount FROM returns r
+       JOIN sales_orders o ON o.id=r.original_order_id WHERE o.company_id=$1
+       AND r.created_at::date BETWEEN $2 AND $3`,[companyId,from,to]);
     const cogs = await this.db.query(
-      `SELECT COALESCE(SUM(pol.unit_cost * grl.quantity_received),0) as total
-       FROM goods_receipt_lines grl
-       JOIN goods_receipts gr ON gr.id=grl.grn_id
-       JOIN purchase_orders po ON po.id=gr.po_id
-       JOIN purchase_order_lines pol ON pol.id=grl.po_line_id
-       WHERE gr.company_id=$1 AND gr.received_at::date BETWEEN $2 AND $3`,
+      `SELECT COALESCE(SUM(l.quantity*pv.cost_price),0) total FROM sales_order_lines l
+       JOIN sales_orders o ON o.id=l.order_id JOIN product_variants pv ON pv.id=l.variant_id
+       WHERE o.company_id=$1 AND o.status IN('paid','partial_return','refunded')
+       AND o.created_at::date BETWEEN $2 AND $3`,
       [companyId, from, to],
     );
+    const returnedCost=await this.db.query(
+      `SELECT COALESCE(SUM(rl.quantity*pv.cost_price),0) total FROM return_lines rl
+       JOIN returns r ON r.id=rl.return_id JOIN sales_orders o ON o.id=r.original_order_id
+       JOIN product_variants pv ON pv.id=rl.variant_id WHERE o.company_id=$1 AND rl.restock=true
+       AND r.created_at::date BETWEEN $2 AND $3`,[companyId,from,to]);
     const expensesResult = await this.db.query(
-      `SELECT COALESCE(SUM(total),0) as total
+      `SELECT COALESCE(SUM(amount),0) as total
        FROM expenses WHERE company_id=$1 AND date BETWEEN $2 AND $3`,
       [companyId, from, to],
     );
@@ -252,9 +255,11 @@ export class FinanceService implements OnModuleInit {
       [companyId, from, to],
     );
 
-    const totalRevenue   = parseFloat(revenue.rows[0].total);
-    const totalCOGS      = parseFloat(cogs.rows[0].total);
-    const totalExpenses  = parseFloat(expensesResult.rows[0].total)+Number(paymentFees.rows[0].fees);
+    const totalRevenue   = parseFloat(revenue.rows[0].total)-Number(returns.rows[0].amount);
+    const totalCOGS      = parseFloat(cogs.rows[0].total)-Number(returnedCost.rows[0].total);
+    const directExpenses = parseFloat(expensesResult.rows[0].total);
+    const providerFees   = Number(paymentFees.rows[0].fees);
+    const totalExpenses  = directExpenses+providerFees;
     const totalPayroll   = parseFloat(payrollResult.rows[0].total);
     const grossProfit    = totalRevenue - totalCOGS;
     const totalOpEx      = totalExpenses + totalPayroll;
@@ -263,10 +268,15 @@ export class FinanceService implements OnModuleInit {
     return {
       period: { from, to },
       revenue: totalRevenue,
+      total_revenue:totalRevenue,
+      gross_sales:Number(revenue.rows[0].gross),
+      sales_returns:Number(returns.rows[0].amount),
       cogs: totalCOGS,
       gross_profit: grossProfit,
       gross_margin: totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100).toFixed(2) + '%' : '0%',
-      operating_expenses: { expenses: totalExpenses, payroll: totalPayroll, total: totalOpEx },
+      revenue_lines:[{name:'Net sales excl. VAT',amount:totalRevenue}],
+      expenses:[{name:'Operating expenses',amount:directExpenses},{name:'Payment provider commissions',amount:providerFees},{name:'Payroll',amount:totalPayroll}],
+      operating_expenses: { expenses: directExpenses,provider_fees:providerFees,payroll:totalPayroll,total:totalOpEx },
       net_profit: netProfit,
       net_margin: totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(2) + '%' : '0%',
     };
@@ -323,9 +333,10 @@ export class FinanceService implements OnModuleInit {
 
   async getBalanceSheet(companyId: string) {
     const result = await this.db.query(
-      `SELECT type, category, SUM(balance) as total
-       FROM accounts WHERE company_id=$1 AND is_active=true
-       GROUP BY type, category ORDER BY type, category`,
+      `SELECT a.type,a.category,COALESCE(SUM(CASE WHEN a.type IN('asset','expense')
+       THEN jl.debit-jl.credit ELSE jl.credit-jl.debit END),0) total
+       FROM accounts a LEFT JOIN journal_lines jl ON jl.account_id=a.id
+       WHERE a.company_id=$1 AND a.is_active=true GROUP BY a.type,a.category ORDER BY a.type,a.category`,
       [companyId],
     );
     const data: Record<string, any> = { assets: [], liabilities: [], equity: [], revenue: [], expenses: [] };

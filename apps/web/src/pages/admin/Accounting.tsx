@@ -59,12 +59,12 @@ function AccountModal({acct,accounts,onClose}:{acct:any;accounts:any[];onClose:(
 /* ── Expense Modal ── */
 function ExpenseModal({categories,branches,onClose}:{categories:any[];branches:any[];onClose:()=>void}){
   const qc=useQueryClient();
-  const [form,setForm]=useState({allocation_method:'single',branch_id:'',category_id:'',date:new Date().toISOString().slice(0,10),description:'',amount:'',tax_amount:'',payment_method:'cash',vendor:'',receipt_ref:'',notes:''});
+  const [form,setForm]=useState({allocation_method:'single',branch_id:'',category_id:'',date:new Date().toISOString().slice(0,10),description:'',amount:'',vat_rate:'15',tax_amount:'',payment_method:'cash',vendor:'',receipt_ref:'',notes:''});
   const [manual,setManual]=useState<Record<string,string>>({});
   const F=(k:string,v:any)=>setForm(f=>({...f,[k]:v}));
   const manualTotal=Object.values(manual).reduce((s,v)=>s+(parseFloat(v)||0),0);
   const save=useMutation({
-    mutationFn:()=>api.post('/finance/expenses',{...form,amount:parseFloat(form.amount),tax_amount:parseFloat(form.tax_amount)||undefined,
+    mutationFn:()=>api.post('/finance/expenses',{...form,amount:parseFloat(form.amount),vat_rate:parseFloat(form.vat_rate)||0,tax_amount:form.tax_amount===''?undefined:parseFloat(form.tax_amount),
       category_id:form.category_id||undefined,branch_id:form.branch_id||undefined,
       allocations:form.allocation_method==='manual'?Object.entries(manual).filter(([,v])=>parseFloat(v)>0).map(([branch_id,percent])=>({branch_id,percent:parseFloat(percent)})):undefined}),
     onSuccess:()=>{qc.invalidateQueries({queryKey:['expenses']});onClose();},
@@ -97,8 +97,9 @@ function ExpenseModal({categories,branches,onClose}:{categories:any[];branches:a
           {inp('Description *',<input className="nx-input" style={{width:'100%'}} value={form.description} onChange={e=>F('description',e.target.value)} placeholder="Office supplies, rent, utilities..."/>)}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
             {inp('Amount (SAR) *',<input className="nx-input" type="number" style={{width:'100%'}} value={form.amount} onChange={e=>F('amount',e.target.value)} placeholder="0.00"/>)}
-            {inp('VAT Amount (SAR)',<input className="nx-input" type="number" style={{width:'100%'}} value={form.tax_amount} onChange={e=>F('tax_amount',e.target.value)} placeholder="0.00"/>)}
+            {inp('VAT Treatment',<select className="nx-select" style={{width:'100%'}} value={form.vat_rate} onChange={e=>{F('vat_rate',e.target.value);F('tax_amount','')}}><option value="15">Standard 15%</option><option value="0">Zero / Exempt / No VAT</option></select>)}
           </div>
+          {inp('VAT Amount (override if supplier invoice differs)',<input className="nx-input" type="number" style={{width:'100%'}} value={form.tax_amount} onChange={e=>F('tax_amount',e.target.value)} placeholder={form.amount?((parseFloat(form.amount)||0)*(parseFloat(form.vat_rate)||0)/100).toFixed(2):'0.00'}/>)}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
             {inp('Payment Method',<select className="nx-select" style={{width:'100%'}} value={form.payment_method} onChange={e=>F('payment_method',e.target.value)}><option value="cash">Cash</option><option value="card">Card</option><option value="bank_transfer">Bank Transfer</option></select>)}
             {inp('Vendor / Supplier',<input className="nx-input" style={{width:'100%'}} value={form.vendor} onChange={e=>F('vendor',e.target.value)} placeholder="Vendor name"/>)}
@@ -107,9 +108,9 @@ function ExpenseModal({categories,branches,onClose}:{categories:any[];branches:a
             {inp('Receipt / Ref #',<input className="nx-input" style={{width:'100%',fontFamily:'monospace'}} value={form.receipt_ref} onChange={e=>F('receipt_ref',e.target.value)} placeholder="INV-2024-001"/>)}
             {inp('Notes',<input className="nx-input" style={{width:'100%'}} value={form.notes} onChange={e=>F('notes',e.target.value)}/>)}
           </div>
-          {form.amount&&form.tax_amount&&<div style={{padding:'8px 12px',background:'var(--acg)',borderRadius:8,display:'flex',justifyContent:'space-between',fontSize:13}}>
+          {form.amount&&<div style={{padding:'8px 12px',background:'var(--acg)',borderRadius:8,display:'flex',justifyContent:'space-between',fontSize:13}}>
             <span style={{color:'var(--mu)'}}>Total incl. VAT</span>
-            <span style={{fontWeight:700,color:'var(--ac)'}}>SAR {(parseFloat(form.amount)+parseFloat(form.tax_amount)).toFixed(2)}</span>
+            <span style={{fontWeight:700,color:'var(--ac)'}}>SAR {(parseFloat(form.amount)+(form.tax_amount===''?(parseFloat(form.amount)||0)*(parseFloat(form.vat_rate)||0)/100:parseFloat(form.tax_amount)||0)).toFixed(2)}</span>
           </div>}
         </div>
         <div style={{padding:'14px 20px',borderTop:'1px solid var(--bd)',display:'flex',gap:8,justifyContent:'flex-end'}}>
@@ -254,7 +255,7 @@ export default function Accounting(){
   const {data:expData,isLoading:expLoading}=useQuery({queryKey:['expenses'],queryFn:async()=>{const r=await api.get('/finance/expenses');return r.data;},enabled:tab==='expenses'||tab==='dashboard'});
   const {data:expCatData}=useQuery({queryKey:['exp-categories'],queryFn:async()=>{const r=await api.get('/finance/expense-categories');return r.data;}});
   const {data:branchData=[]}=useQuery<any[]>({queryKey:['branches'],queryFn:async()=>{const r=await api.get('/branches');return Array.isArray(r.data)?r.data:[];}});
-  const {data:plData}=useQuery({queryKey:['pl',dateFrom,dateTo],queryFn:async()=>{const r=await api.get(`/finance/reports/profit-loss?from=${dateFrom}&to=${dateTo}`);return r.data;},enabled:tab==='reports'&&reportTab==='pl'});
+  const {data:plData}=useQuery({queryKey:['pl',dateFrom,dateTo],queryFn:async()=>{const r=await api.get(`/finance/reports/profit-loss?from=${dateFrom}&to=${dateTo}`);return r.data;},enabled:tab==='dashboard'||(tab==='reports'&&reportTab==='pl')});
   const {data:bsData}=useQuery({queryKey:['bs'],queryFn:async()=>{const r=await api.get('/finance/reports/balance-sheet');return r.data;},enabled:tab==='reports'&&reportTab==='bs'});
   const {data:vatData}=useQuery({queryKey:['vat',dateFrom,dateTo],queryFn:async()=>{const r=await api.get(`/finance/reports/vat?from=${dateFrom}&to=${dateTo}`);return r.data;},enabled:tab==='reports'&&reportTab==='vat'});
   const {data:cfData}=useQuery({queryKey:['cf',dateFrom,dateTo],queryFn:async()=>{const r=await api.get(`/finance/reports/cash-flow?from=${dateFrom}&to=${dateTo}`);return r.data;},enabled:tab==='reports'&&reportTab==='cf'});
@@ -527,7 +528,7 @@ export default function Accounting(){
 
       {reportTab==='pl'&&(<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
         <div className="nx-card">
-          {(plData as any)?.revenue?<ReportSection title="Revenue" data={(plData as any).revenue} color="#22c55e"/>:<div style={{padding:32,textAlign:'center',color:'var(--mu)'}}>Loading P&L data...</div>}
+          {(plData as any)?.revenue_lines?<><ReportSection title="Revenue" data={(plData as any).revenue_lines} color="#22c55e"/><div style={{display:'grid',gap:8,fontSize:12}}><div style={{display:'flex',justifyContent:'space-between'}}><span>Cost of goods sold</span><b>{fmt(Number((plData as any).cogs||0))}</b></div><div style={{display:'flex',justifyContent:'space-between',paddingTop:9,borderTop:'1px solid var(--bd)'}}><span>Gross profit</span><b style={{color:'#0f766e'}}>{fmt(Number((plData as any).gross_profit||0))}</b></div><div style={{display:'flex',justifyContent:'space-between'}}><span>Gross margin</span><b>{(plData as any).gross_margin}</b></div></div></>:<div style={{padding:32,textAlign:'center',color:'var(--mu)'}}>Loading P&amp;L data...</div>}
         </div>
         <div className="nx-card">
           {(plData as any)?.expenses?<ReportSection title="Expenses" data={(plData as any).expenses} color="#ef4444"/>:<div style={{padding:32,textAlign:'center',color:'var(--mu)'}}>Loading P&L data...</div>}
@@ -563,17 +564,11 @@ export default function Accounting(){
       </div>)}
 
       {reportTab==='cf'&&(<div className="nx-card">
-        {!(cfData as any)?.operating&&!(cfData as any)?.total?<div style={{padding:32,textAlign:'center',color:'var(--mu)'}}>Loading Cash Flow data...</div>:(
+        {!(cfData as any)?.inflows&&!(cfData as any)?.outflows?<div style={{padding:32,textAlign:'center',color:'var(--mu)'}}>Loading Cash Flow data...</div>:(
           <div style={{display:'grid',gap:16}}>
-            {[['operating','💼 Operating Activities','#6366f1'],['investing','📊 Investing Activities','#f59e0b'],['financing','🏦 Financing Activities','#22c55e']].map(([k,l,c])=>(
-              (cfData as any)?.[k]!==undefined&&<div key={k} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'14px 0',borderBottom:'1px solid var(--bd)'}}>
-                <div style={{fontSize:14,fontWeight:600}}>{l}</div>
-                <div style={{fontSize:18,fontWeight:800,color:String(c)}}>{fmt((cfData as any)[k]||0)}</div>
-              </div>
-            ))}
-            {(cfData as any)?.total!==undefined&&<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'14px 0',fontSize:16,fontWeight:800}}>
-              <span>Net Cash Flow</span><span style={{color:(cfData as any).total>=0?'#22c55e':'#ef4444'}}>{fmt((cfData as any).total)}</span>
-            </div>}
+            <div style={{display:'flex',justifyContent:'space-between',padding:'14px 0',borderBottom:'1px solid var(--bd)'}}><b>Sales collections</b><strong style={{color:'#16a34a'}}>{fmt(Number((cfData as any)?.inflows?.sales_collections||0))}</strong></div>
+            <div style={{display:'flex',justifyContent:'space-between',padding:'14px 0',borderBottom:'1px solid var(--bd)'}}><b>Operating outflows</b><strong style={{color:'#dc2626'}}>{fmt(Number((cfData as any)?.outflows?.total||0))}</strong></div>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'14px 0',fontSize:16,fontWeight:800}}><span>Net Cash Flow</span><span style={{color:Number((cfData as any)?.net_cash_flow)>=0?'#22c55e':'#ef4444'}}>{fmt(Number((cfData as any)?.net_cash_flow||0))}</span></div>
           </div>
         )}
       </div>)}
