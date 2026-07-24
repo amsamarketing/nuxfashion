@@ -16,7 +16,7 @@ export class InventoryService {
     if (variantId)   { conditions.push(`i.variant_id = $${idx++}`);   params.push(variantId); }
     const result = await this.db.query(
       `SELECT i.id, i.warehouse_id, w.name as warehouse_name,
-              i.variant_id, pv.sku, p.name as product_name,
+              i.variant_id, pv.sku,pv.barcode,pv.color,pv.size,pv.name as variant_name,p.name as product_name,
               i.quantity, i.reserved_quantity,
               (i.quantity - i.reserved_quantity) as available_quantity,
               i.reorder_point, i.reorder_quantity, i.updated_at

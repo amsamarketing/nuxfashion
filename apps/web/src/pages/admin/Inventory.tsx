@@ -14,14 +14,15 @@ export default function Inventory(){
   const [showAdj,setShowAdj]=useState<any>(null);
   const [showTransfer,setShowTransfer]=useState(false);
   const [adj,setAdj]=useState({quantity:'',reason:'adjustment',notes:''});
-  const [transfer,setTransfer]=useState({variant_id:'',from_branch_id:'',to_branch_id:'',quantity:'',notes:''});
+  const [transfer,setTransfer]=useState({from_branch_id:'',to_branch_id:'',notes:''});
+  const [transferSearch,setTransferSearch]=useState('');
+  const [transferLines,setTransferLines]=useState<Record<string,{variant_id:string;product_name:string;sku:string;size?:string;color?:string;available:number;quantity:number}>>({});
   const [settling,setSettling]=useState<any>(null);
 
   const {data:inv,isLoading}=useQuery({queryKey:['inventory'],queryFn:async()=>{const r=await api.get('/inventory?limit=500');return r.data;}});
   const {data:low}=useQuery({queryKey:['low-stock'],queryFn:async()=>{const r=await api.get('/inventory/low-stock');return r.data;}});
   const {data:moves}=useQuery({queryKey:['movements'],queryFn:async()=>{const r=await api.get('/inventory/movements?limit=100');return r.data;}});
   const {data:branchData=[]}=useQuery<any[]>({queryKey:['branches'],queryFn:()=>api.get('/branches').then(r=>Array.isArray(r.data)?r.data:[])});
-  const {data:variantData=[]}=useQuery<any[]>({queryKey:['inventory-variants'],queryFn:()=>api.get('/inventory/variants').then(r=>Array.isArray(r.data)?r.data:[])});
   const {data:transferData=[]}=useQuery<any[]>({queryKey:['stock-transfers'],queryFn:()=>api.get('/inventory/transfers').then(r=>Array.isArray(r.data)?r.data:[])});
 
 
@@ -31,14 +32,14 @@ export default function Inventory(){
   }),onSuccess:()=>{qc.invalidateQueries({queryKey:['inventory']});qc.invalidateQueries({queryKey:['movements']});setShowAdj(null);setAdj({quantity:'',reason:'adjustment',notes:''});}});
 
   const refreshTransfers=()=>{qc.invalidateQueries({queryKey:['stock-transfers']});qc.invalidateQueries({queryKey:['inventory']});qc.invalidateQueries({queryKey:['branches']})};
-  const doTransfer=useMutation({mutationFn:()=>api.post('/inventory/transfers',{from_branch_id:transfer.from_branch_id,to_branch_id:transfer.to_branch_id,notes:transfer.notes,lines:[{variant_id:transfer.variant_id,quantity:parseInt(transfer.quantity)}]}),onSuccess:()=>{refreshTransfers();setShowTransfer(false);setTab('transfers');setTransfer({variant_id:'',from_branch_id:'',to_branch_id:'',quantity:'',notes:''});toast('Transfer request created')},onError:(e:any)=>toast(e?.response?.data?.message||'Could not create transfer','error')});
+  const resetTransfer=()=>{setShowTransfer(false);setTransfer({from_branch_id:'',to_branch_id:'',notes:''});setTransferSearch('');setTransferLines({})};
+  const doTransfer=useMutation({mutationFn:()=>api.post('/inventory/transfers',{from_branch_id:transfer.from_branch_id,to_branch_id:transfer.to_branch_id,notes:transfer.notes,lines:Object.values(transferLines).map(x=>({variant_id:x.variant_id,quantity:x.quantity}))}),onSuccess:()=>{refreshTransfers();resetTransfer();setTab('transfers');toast('Bulk transfer request created')},onError:(e:any)=>toast(e?.response?.data?.message||'Could not create transfer','error')});
   const action=useMutation({mutationFn:({id,step}:{id:string;step:string})=>api.patch(`/inventory/transfers/${id}/${step}`,{}),onSuccess:()=>{refreshTransfers();toast('Transfer updated')},onError:(e:any)=>toast(e?.response?.data?.message||'Could not update transfer','error')});
 
   const items:any[]=Array.isArray(inv)?inv:inv?.items||inv?.data||[];
   const lowItems:any[]=Array.isArray(low)?low:low?.items||low?.data||[];
   const movements:any[]=Array.isArray(moves)?moves:moves?.movements||moves?.data||[];
   const branches:any[]=Array.isArray(branchData)?branchData:[];
-  const variants:any[]=Array.isArray(variantData)?variantData:[];
   const transfers:any[]=Array.isArray(transferData)?transferData:[];
 
   const totalValue=items.reduce((s:number,i:any)=>s+((parseFloat(i.cost||i.cost_price||0))*(parseInt(i.quantity)||0)),0);
@@ -179,37 +180,79 @@ export default function Inventory(){
     </div>)}
 
     {/* Transfer Modal */}
-    {showTransfer&&(<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.45)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={()=>setShowTransfer(false)}>
-      <div style={{width:440,background:'var(--cd)',borderRadius:14,padding:24}} onClick={e=>e.stopPropagation()}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-          <h2 style={{margin:0,fontSize:16,fontWeight:700}}>Request Inter-Branch Transfer</h2>
-          <button className="btn-nx ghost sm" onClick={()=>setShowTransfer(false)}><i className="ti ti-x"/></button>
-        </div>
-        <div style={{display:'grid',gap:12}}>
-          <div><label style={{fontSize:12,color:'var(--mu)',display:'block',marginBottom:4}}>Source Branch *</label>
-            <select className="nx-select" style={{width:'100%'}} value={transfer.from_branch_id} onChange={e=>setTransfer(t=>({...t,from_branch_id:e.target.value}))}>
-              <option value="">Select branch</option>
-              {branches.filter(b=>b.is_active).map((b:any)=><option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
-          </div>
-          <div><label style={{fontSize:12,color:'var(--mu)',display:'block',marginBottom:4}}>Destination Branch *</label>
-            <select className="nx-select" style={{width:'100%'}} value={transfer.to_branch_id} onChange={e=>setTransfer(t=>({...t,to_branch_id:e.target.value}))}>
-              <option value="">Select branch</option>
-              {branches.filter(b=>b.is_active&&b.id!==transfer.from_branch_id).map((b:any)=><option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
-          </div>
-          <div><label style={{fontSize:12,color:'var(--mu)',display:'block',marginBottom:4}}>Product / Variant *</label><select className="nx-select" style={{width:'100%'}} value={transfer.variant_id} onChange={e=>setTransfer(t=>({...t,variant_id:e.target.value}))}><option value="">Select product</option>{variants.map((v:any)=><option key={v.id} value={v.id}>{v.product_name} · {v.sku}{v.size?` · ${v.size}`:''}{v.color?` · ${v.color}`:''}</option>)}</select></div>
-          <div><label style={{fontSize:12,color:'var(--mu)',display:'block',marginBottom:4}}>Quantity *</label><input className="nx-input" type="number" style={{width:'100%'}} value={transfer.quantity} onChange={e=>setTransfer(t=>({...t,quantity:e.target.value}))} placeholder="0"/></div>
-          <div><label style={{fontSize:12,color:'var(--mu)',display:'block',marginBottom:4}}>Notes</label><input className="nx-input" style={{width:'100%'}} value={transfer.notes} onChange={e=>setTransfer(t=>({...t,notes:e.target.value}))} placeholder="Optional..."/></div>
-        </div>
-        <div style={{display:'flex',gap:8,marginTop:16}}>
-          <button className="btn-nx ghost" style={{flex:1,justifyContent:'center'}} onClick={()=>setShowTransfer(false)}>Cancel</button>
-          <button className="btn-nx primary" style={{flex:1,justifyContent:'center'}} onClick={()=>doTransfer.mutate()} disabled={!transfer.from_branch_id||!transfer.to_branch_id||!transfer.variant_id||!transfer.quantity||doTransfer.isPending}>{doTransfer.isPending?'Submitting...':'Submit for Approval'}</button>
-        </div>
-      </div>
-    </div>)}
+    {showTransfer&&<BulkTransferModal branches={branches} items={items} transfer={transfer} setTransfer={setTransfer}
+      search={transferSearch} setSearch={setTransferSearch} lines={transferLines} setLines={setTransferLines}
+      close={resetTransfer} submit={()=>doTransfer.mutate()} saving={doTransfer.isPending}/>}
     {settling&&<SettlementModal transfer={settling} close={()=>setSettling(null)} done={()=>{setSettling(null);refreshTransfers()}}/>}
   </div>);
+}
+
+function BulkTransferModal({branches,items,transfer,setTransfer,search,setSearch,lines,setLines,close,submit,saving}:any){
+  const source=branches.find((b:any)=>b.id===transfer.from_branch_id);
+  const destination=branches.find((b:any)=>b.id===transfer.to_branch_id);
+  const sourceItems=source?.warehouse_id?items.filter((i:any)=>{
+    const available=Number(i.available_quantity??(Number(i.quantity||0)-Number(i.reserved_quantity||0)));
+    return i.warehouse_id===source.warehouse_id&&available>0;
+  }):[];
+  const needle=String(search||'').trim().toLowerCase();
+  const results=sourceItems.filter((i:any)=>!needle||[
+    i.product_name,i.variant_name,i.sku,i.barcode,i.size,i.color
+  ].some(v=>String(v||'').toLowerCase().includes(needle))).slice(0,100);
+  const selected:any[]=Object.values(lines);
+  const units=selected.reduce((sum:number,line:any)=>sum+Number(line.quantity||0),0);
+  const invalid=selected.some((line:any)=>Number(line.quantity)<1||Number(line.quantity)>Number(line.available));
+  const add=(item:any)=>{
+    const available=Number(item.available_quantity??(Number(item.quantity||0)-Number(item.reserved_quantity||0)));
+    setLines((old:any)=>({...old,[item.variant_id]:old[item.variant_id]||{
+      variant_id:item.variant_id,product_name:item.product_name||item.name||'Product',
+      sku:item.sku||item.barcode||'—',size:item.size,color:item.color,available,quantity:1
+    }}));
+  };
+  const changeSource=(id:string)=>{
+    setTransfer((old:any)=>({...old,from_branch_id:id,to_branch_id:old.to_branch_id===id?'':old.to_branch_id}));
+    setLines({});setSearch('');
+  };
+  return <div className="branch-modal-shade" onClick={close}>
+    <div className="bulk-transfer-modal" onClick={e=>e.stopPropagation()}>
+      <header>
+        <div><h2>Request Inter-Branch Transfer</h2><p>Search and add multiple variants in one transfer request.</p></div>
+        <button onClick={close}><i className="ti ti-x"/></button>
+      </header>
+      <div className="bulk-transfer-route">
+        <label><span>Source Branch *</span><select value={transfer.from_branch_id} onChange={e=>changeSource(e.target.value)}><option value="">Select source branch</option>{branches.map((b:any)=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
+        <i className="ti ti-arrow-right"/>
+        <label><span>Destination Branch *</span><select value={transfer.to_branch_id} onChange={e=>setTransfer((x:any)=>({...x,to_branch_id:e.target.value}))}><option value="">Select destination branch</option>{branches.filter((b:any)=>b.id!==transfer.from_branch_id).map((b:any)=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
+      </div>
+      <div className="bulk-transfer-workspace">
+        <section className="bulk-transfer-picker">
+          <div className="bulk-transfer-section-head"><div><strong>Available Stock</strong><small>{source?`${sourceItems.length} variants at ${source.name}`:'Select a source branch first'}</small></div>{source&&results.length>0&&<button type="button" onClick={()=>results.forEach(add)}>Add visible</button>}</div>
+          <div className="bulk-transfer-search"><i className="ti ti-search"/><input autoFocus placeholder="Scan barcode or search name, SKU, size, color..." value={search} onChange={e=>setSearch(e.target.value)}/>{search&&<button onClick={()=>setSearch('')}><i className="ti ti-x"/></button>}</div>
+          <div className="bulk-transfer-results">
+            {!source?<div className="bulk-transfer-empty"><i className="ti ti-building-warehouse"/><span>Choose the branch stock is leaving from.</span></div>:!results.length?<div className="bulk-transfer-empty"><i className="ti ti-package-off"/><span>No available stock matches your search.</span></div>:results.map((i:any)=>{
+              const available=Number(i.available_quantity??(Number(i.quantity||0)-Number(i.reserved_quantity||0)));
+              const chosen=Boolean(lines[i.variant_id]);
+              return <button className={chosen?'chosen':''} key={`${i.warehouse_id}-${i.variant_id}`} onClick={()=>add(i)} disabled={chosen}>
+                <span><b>{i.product_name||i.name}</b><small>{i.sku||i.barcode||'No SKU'}{i.size?` · Size ${i.size}`:''}{i.color?` · ${i.color}`:''}</small></span>
+                <em>{available} available</em><i className={`ti ${chosen?'ti-check':'ti-plus'}`}/>
+              </button>;
+            })}
+          </div>
+        </section>
+        <section className="bulk-transfer-cart">
+          <div className="bulk-transfer-section-head"><div><strong>Transfer List</strong><small>{selected.length} variants · {units} total units</small></div>{selected.length>0&&<button type="button" onClick={()=>setLines({})}>Clear all</button>}</div>
+          <div className="bulk-transfer-lines">
+            {!selected.length?<div className="bulk-transfer-empty"><i className="ti ti-list-details"/><span>Add products from the stock list.</span></div>:selected.map((line:any)=><div key={line.variant_id}>
+              <span><b>{line.product_name}</b><small>{line.sku}{line.size?` · Size ${line.size}`:''}{line.color?` · ${line.color}`:''}</small><em>Maximum {line.available}</em></span>
+              <label><small>Qty</small><input type="number" min="1" max={line.available} value={line.quantity} onChange={e=>setLines((old:any)=>({...old,[line.variant_id]:{...old[line.variant_id],quantity:Number(e.target.value)}}))}/></label>
+              <button onClick={()=>setLines((old:any)=>{const next={...old};delete next[line.variant_id];return next})}><i className="ti ti-trash"/></button>
+            </div>)}
+          </div>
+        </section>
+      </div>
+      <div className="bulk-transfer-notes"><label><span>Transfer Notes</span><input placeholder="Optional reference or handling instructions..." value={transfer.notes} onChange={e=>setTransfer((x:any)=>({...x,notes:e.target.value}))}/></label></div>
+      <footer><div><span>{source?.name||'Source'}</span><i className="ti ti-arrow-right"/><span>{destination?.name||'Destination'}</span><b>{units} units</b></div><button className="btn-nx ghost" onClick={close}>Cancel</button><button className="btn-nx primary" disabled={!source||!destination||!selected.length||invalid||saving} onClick={submit}>{saving?'Submitting...':`Submit ${selected.length} Variants`}</button></footer>
+    </div>
+  </div>;
 }
 
 function TransferControl({transfers,busy,act,settle}:any){
