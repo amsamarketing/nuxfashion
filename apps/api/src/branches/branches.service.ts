@@ -27,6 +27,7 @@ export class BranchesService implements OnModuleInit {
     // CREATE TABLE IF NOT EXISTS does not add the columns introduced by this module.
     await this.db.query(`ALTER TABLE branches ADD COLUMN IF NOT EXISTS warehouse_id UUID REFERENCES warehouses(id) ON DELETE RESTRICT`);
     await this.db.query(`ALTER TABLE branches ADD COLUMN IF NOT EXISTS code VARCHAR(30)`);
+    await this.db.query(`ALTER TABLE branches ADD COLUMN IF NOT EXISTS branch_code VARCHAR(30)`);
     await this.db.query(`ALTER TABLE branches ADD COLUMN IF NOT EXISTS invoice_prefix VARCHAR(20)`);
     await this.db.query(`ALTER TABLE branches ADD COLUMN IF NOT EXISTS city VARCHAR(100)`);
     await this.db.query(`ALTER TABLE branches ADD COLUMN IF NOT EXISTS address TEXT`);
@@ -42,7 +43,8 @@ export class BranchesService implements OnModuleInit {
     );
     await this.db.query(
       `UPDATE branches SET
-       code=COALESCE(NULLIF(code,''),'BR-'||UPPER(LEFT(id::text,4))),
+       code=COALESCE(NULLIF(code,''),NULLIF(branch_code,''),'BR-'||UPPER(LEFT(id::text,4))),
+       branch_code=COALESCE(NULLIF(branch_code,''),NULLIF(code,''),'BR-'||UPPER(LEFT(id::text,4))),
        invoice_prefix=COALESCE(NULLIF(invoice_prefix,''),'BR'||UPPER(LEFT(id::text,4)))`,
     );
     await this.db.query(`CREATE UNIQUE INDEX IF NOT EXISTS branches_warehouse_unique ON branches(warehouse_id) WHERE warehouse_id IS NOT NULL`);
@@ -115,8 +117,9 @@ export class BranchesService implements OnModuleInit {
       const stem=String(w.name||'BR').replace(/[^A-Za-z0-9]/g,'').slice(0,8).toUpperCase()||'BR';
       const code=`${stem}-${String(w.id).slice(0,4).toUpperCase()}`;
       await this.db.query(
-        `INSERT INTO branches(id,company_id,warehouse_id,code,name,invoice_prefix)
-         VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(warehouse_id) DO NOTHING`,
+        `INSERT INTO branches(id,company_id,warehouse_id,code,branch_code,name,invoice_prefix)
+         SELECT $1,$2,$3,$4,$4,$5,$6
+         WHERE NOT EXISTS(SELECT 1 FROM branches WHERE warehouse_id=$3)`,
         [randomUUID(),companyId,w.id,code,w.name,stem.slice(0,6)],
       );
     }
@@ -177,8 +180,8 @@ export class BranchesService implements OnModuleInit {
       );
       const id=randomUUID();
       const result=await client.query(
-        `INSERT INTO branches(id,company_id,warehouse_id,code,name,invoice_prefix,city,address,phone,manager_name,is_active)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+        `INSERT INTO branches(id,company_id,warehouse_id,code,branch_code,name,invoice_prefix,city,address,phone,manager_name,is_active)
+         VALUES($1,$2,$3,$4,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
         [id,companyId,warehouseId,code,name,prefix,body.city||null,body.address||null,body.phone||null,body.manager_name||null,body.is_active!==false],
       );
       return result.rows[0];
@@ -190,7 +193,7 @@ export class BranchesService implements OnModuleInit {
     if(!current.rows[0])throw new NotFoundException('Branch not found');
     const b={...current.rows[0],...body};
     const result=await this.db.query(
-      `UPDATE branches SET code=$1,name=$2,invoice_prefix=$3,city=$4,address=$5,phone=$6,
+      `UPDATE branches SET code=$1,branch_code=$1,name=$2,invoice_prefix=$3,city=$4,address=$5,phone=$6,
        manager_name=$7,is_active=$8,updated_at=NOW() WHERE id=$9 AND company_id=$10 RETURNING *`,
       [String(b.code).toUpperCase(),b.name,String(b.invoice_prefix).toUpperCase(),b.city||null,b.address||null,b.phone||null,b.manager_name||null,b.is_active!==false,id,companyId],
     );
