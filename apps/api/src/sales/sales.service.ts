@@ -209,17 +209,19 @@ export class SalesService {
       }
     }
 
-    const total = Math.max(0, subtotal - orderDiscountTotal);
+    const taxableAmount = Math.max(0, subtotal - orderDiscountTotal);
+    const taxAmount = taxableAmount * 0.15;
+    const total = taxableAmount + taxAmount;
     const orderNumber = `ORD-${Date.now()}`;
 
     // Insert order
     const orderResult = await this.db.query(
       `INSERT INTO sales_orders
          (company_id,order_number,pos_session_id,warehouse_id,cashier_id,customer_id,
-          status,subtotal,discount_amount,total,notes)
-       VALUES ($1,$2,$3,$4,$5,$6,'confirmed',$7,$8,$9,$10) RETURNING *`,
+          status,subtotal,discount_amount,tax_amount,total,notes)
+       VALUES ($1,$2,$3,$4,$5,$6,'confirmed',$7,$8,$9,$10,$11) RETURNING *`,
       [companyId, orderNumber, dto.pos_session_id ?? null, dto.warehouse_id,
-       userId, dto.customer_id ?? null, subtotal, orderDiscountTotal, total, dto.notes ?? null],
+       userId, dto.customer_id ?? null, subtotal, orderDiscountTotal, taxAmount, total, dto.notes ?? null],
     );
     const order = orderResult.rows[0];
 
