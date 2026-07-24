@@ -6,10 +6,36 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { ProcessPaymentDto } from './dto/process-payment.dto';
 import { CreateReturnDto } from './dto/create-return.dto';
 import { CreateDiscountDto } from './dto/create-discount.dto';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class SalesService {
   constructor(private db: DatabaseService) {}
+
+  private async postBranchAccount(companyId:string,warehouseId:string,method:string,amount:number,direction:'credit'|'debit',referenceType:string,referenceId:string,note:string){
+    const families:Record<string,string[]>={
+      cash:['cash'],card:['card'],mada:['mada','card'],apple_pay:['apple_pay','card'],
+      stc_pay:['stc_pay','card'],tabby:['tabby'],tamara:['tamara'],bank_transfer:['bank_transfer'],
+    };
+    const methods=families[method]||[];
+    if(!methods.length||amount<=0)return;
+    const branch=await this.db.query(`SELECT id FROM branches WHERE company_id=$1 AND warehouse_id=$2`,[companyId,warehouseId]);
+    if(!branch.rows[0])return;
+    let account=await this.db.query(
+      `SELECT id FROM branch_payment_accounts WHERE branch_id=$1 AND method=ANY($2::text[]) AND is_active=true
+       ORDER BY is_default DESC,array_position($2::text[],method),created_at LIMIT 1`,[branch.rows[0].id,methods]);
+    if(!account.rows[0]){
+      const id=randomUUID();
+      await this.db.query(
+        `INSERT INTO branch_payment_accounts(id,branch_id,name,method,is_default) VALUES($1,$2,$3,$4,true)`,
+        [id,branch.rows[0].id,method.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()),methods[0]]);
+      account={rows:[{id}]} as any;
+    }
+    await this.db.query(
+      `INSERT INTO branch_account_transactions(id,branch_id,account_id,direction,amount,reference_type,reference_id,note)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [randomUUID(),branch.rows[0].id,account.rows[0].id,direction,amount,referenceType,referenceId,note]);
+  }
 
   // ─── POS Sessions ────────────────────────────────────────────────────────────
 
@@ -375,11 +401,15 @@ export class SalesService {
     const orderTotal = parseFloat(order.rows[0].total);
     const changeDue = Math.max(0, totalPaid - orderTotal);
 
+    let unallocatedChange=changeDue;
     for (const p of dto.payments) {
-      await this.db.query(
-        `INSERT INTO payments (order_id,method,amount,reference) VALUES ($1,$2,$3,$4)`,
+      const payment=await this.db.query(
+        `INSERT INTO payments (order_id,method,amount,reference) VALUES ($1,$2,$3,$4) RETURNING id`,
         [dto.order_id, p.method, p.amount, p.reference ?? null],
       );
+      const changeFromThis=p.method==='cash'?Math.min(unallocatedChange,p.amount):0;
+      unallocatedChange-=changeFromThis;
+      await this.postBranchAccount(companyId,order.rows[0].warehouse_id,p.method,p.amount-changeFromThis,'credit','payment',payment.rows[0].id,`Sale ${order.rows[0].order_number}`);
     }
 
     await this.db.query(
@@ -420,6 +450,7 @@ export class SalesService {
        dto.reason ?? null, dto.refund_method, totalRefund, dto.notes ?? null],
     );
     const ret_id = ret.rows[0].id;
+    await this.postBranchAccount(companyId,order.rows[0].warehouse_id,dto.refund_method,totalRefund,'debit','return',ret_id,`Return ${returnNumber}`);
 
     for (const line of dto.lines) {
       await this.db.query(

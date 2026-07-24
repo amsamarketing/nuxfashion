@@ -37,4 +37,34 @@ export class BranchesController {
   assignUsers(@Param('id') id: string, @Body() body: { user_ids?: string[] }, @Req() req: Request) {
     return this.service.assignUsers((req.user as any).companyId, id, body.user_ids || []);
   }
+
+  @Get(':id/finance')
+  finance(@Param('id') id: string, @Req() req: Request) {
+    return this.service.finance((req.user as any).companyId, id);
+  }
+
+  @Post(':id/partners')
+  addPartner(@Param('id') id: string, @Body() body: any, @Req() req: Request) {
+    return this.service.savePartner((req.user as any).companyId, id, null, body);
+  }
+
+  @Patch(':id/partners/:partnerId')
+  updatePartner(@Param('id') id: string, @Param('partnerId') partnerId: string, @Body() body: any, @Req() req: Request) {
+    return this.service.savePartner((req.user as any).companyId, id, partnerId, body);
+  }
+
+  @Post(':id/accounts')
+  addAccount(@Param('id') id: string, @Body() body: any, @Req() req: Request) {
+    return this.service.saveAccount((req.user as any).companyId, id, null, body);
+  }
+
+  @Patch(':id/accounts/:accountId')
+  updateAccount(@Param('id') id: string, @Param('accountId') accountId: string, @Body() body: any, @Req() req: Request) {
+    return this.service.saveAccount((req.user as any).companyId, id, accountId, body);
+  }
+
+  @Post(':id/accounts/:accountId/adjustments')
+  adjustAccount(@Param('id') id: string, @Param('accountId') accountId: string, @Body() body: any, @Req() req: Request) {
+    return this.service.adjustAccount((req.user as any).companyId, (req.user as any).sub, id, accountId, body);
+  }
 }
