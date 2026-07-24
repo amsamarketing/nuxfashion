@@ -256,7 +256,7 @@ export class BranchesService implements OnModuleInit {
           NULLIF(TRIM(CONCAT(to_jsonb(e)->>'first_name',' ',to_jsonb(e)->>'last_name')),''),'Employee') full_name,
         to_jsonb(e)->>'email' email,
         COALESCE(to_jsonb(e)->>'status','active') status
-       FROM employees e WHERE e.id=$1 AND COALESCE(to_jsonb(e)->>'company_id',$2)=$2`,
+       FROM employees e WHERE e.id=$1 AND COALESCE(to_jsonb(e)->>'company_id',$2::text)=$2::text`,
       [employeeId,companyId],
     );
     if(!employee.rows[0])throw new NotFoundException('Employee not found. Create the employee in HR first.');
