@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Req, Query, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Req, Query, Param, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { InventoryService } from './inventory.service';
@@ -61,6 +61,34 @@ export class InventoryController {
   @Post('transfer')
   transferStock(@Body() dto: TransferStockDto, @Req() req: Request) {
     return this.service.transferStock((req.user as any).companyId, (req.user as any).sub, dto);
+  }
+  @Get('transfers')
+  getTransfers(@Req() req: Request) {
+    return this.service.getTransfers((req.user as any).companyId);
+  }
+  @Post('transfers')
+  requestTransfer(@Body() body: any, @Req() req: Request) {
+    return this.service.requestTransfer((req.user as any).companyId, (req.user as any).sub, body);
+  }
+  @Patch('transfers/:id/approve')
+  approveTransfer(@Param('id') id: string, @Req() req: Request) {
+    return this.service.approveTransfer((req.user as any).companyId, (req.user as any).sub, id);
+  }
+  @Patch('transfers/:id/dispatch')
+  dispatchTransfer(@Param('id') id: string, @Req() req: Request) {
+    return this.service.dispatchTransfer((req.user as any).companyId, (req.user as any).sub, id);
+  }
+  @Patch('transfers/:id/receive')
+  receiveTransfer(@Param('id') id: string, @Body() body: any, @Req() req: Request) {
+    return this.service.receiveTransfer((req.user as any).companyId, (req.user as any).sub, id, body);
+  }
+  @Patch('transfers/:id/cancel')
+  cancelTransfer(@Param('id') id: string, @Req() req: Request) {
+    return this.service.cancelTransfer((req.user as any).companyId, id);
+  }
+  @Post('transfers/:id/settlements')
+  settleTransfer(@Param('id') id: string, @Body() body: any, @Req() req: Request) {
+    return this.service.settleTransfer((req.user as any).companyId, (req.user as any).sub, id, body);
   }
   @Get('variants')
   getVariants(@Req() req: Request) {

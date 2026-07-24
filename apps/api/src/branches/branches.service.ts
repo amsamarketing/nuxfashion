@@ -56,6 +56,29 @@ export class BranchesService implements OnModuleInit {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`);
     await this.db.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS branch_id UUID REFERENCES branches(id) ON DELETE SET NULL`);
+    await this.db.query(`CREATE TABLE IF NOT EXISTS branch_stock_transfers(
+      id UUID PRIMARY KEY,company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+      transfer_number VARCHAR(50) NOT NULL UNIQUE,from_branch_id UUID NOT NULL REFERENCES branches(id),
+      to_branch_id UUID NOT NULL REFERENCES branches(id),status VARCHAR(30) NOT NULL DEFAULT 'requested',
+      settlement_status VARCHAR(20) NOT NULL DEFAULT 'unpaid',transfer_value NUMERIC(16,2) NOT NULL DEFAULT 0,
+      notes TEXT,requested_by UUID REFERENCES users(id),approved_by UUID REFERENCES users(id),
+      dispatched_by UUID REFERENCES users(id),received_by UUID REFERENCES users(id),
+      requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),approved_at TIMESTAMPTZ,
+      dispatched_at TIMESTAMPTZ,received_at TIMESTAMPTZ,cancelled_at TIMESTAMPTZ
+    )`);
+    await this.db.query(`CREATE TABLE IF NOT EXISTS branch_stock_transfer_lines(
+      id UUID PRIMARY KEY,transfer_id UUID NOT NULL REFERENCES branch_stock_transfers(id) ON DELETE CASCADE,
+      variant_id UUID NOT NULL REFERENCES product_variants(id),quantity INTEGER NOT NULL CHECK(quantity>0),
+      received_quantity INTEGER NOT NULL DEFAULT 0,unit_cost NUMERIC(16,2) NOT NULL DEFAULT 0
+    )`);
+    await this.db.query(`CREATE TABLE IF NOT EXISTS interbranch_settlements(
+      id UUID PRIMARY KEY,transfer_id UUID NOT NULL REFERENCES branch_stock_transfers(id) ON DELETE RESTRICT,
+      payer_branch_id UUID NOT NULL REFERENCES branches(id),payee_branch_id UUID NOT NULL REFERENCES branches(id),
+      payer_account_id UUID NOT NULL REFERENCES branch_payment_accounts(id),
+      payee_account_id UUID NOT NULL REFERENCES branch_payment_accounts(id),
+      amount NUMERIC(16,2) NOT NULL CHECK(amount>0),reference VARCHAR(160),notes TEXT,
+      created_by UUID REFERENCES users(id),created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`);
   }
 
   private async syncWarehouses(companyId: string) {
