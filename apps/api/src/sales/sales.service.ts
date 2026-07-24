@@ -269,8 +269,11 @@ export class SalesService {
     const params: any[] = [companyId];
     if (status) { conditions.push(`o.status=$2`); params.push(status); }
     const result = await this.db.query(
-      `SELECT o.*, u.name as cashier_name, c.name as customer_name,
-         (SELECT p.method FROM payments p WHERE p.order_id=o.id LIMIT 1) as payment_method
+      `SELECT o.*, u.name as cashier_name, c.name as customer_name, c.phone as customer_phone,
+         COALESCE((SELECT SUM(l.quantity) FROM sales_order_lines l WHERE l.order_id=o.id),0)::int as item_count,
+         COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.order_id=o.id AND p.status='completed'),0) as paid_amount,
+         COALESCE((SELECT STRING_AGG(DISTINCT p.method, ', ' ORDER BY p.method) FROM payments p WHERE p.order_id=o.id AND p.status='completed'),'') as payment_method,
+         COALESCE((SELECT SUM(r.refund_amount) FROM returns r WHERE r.original_order_id=o.id),0) as returned_amount
        FROM sales_orders o
        JOIN users u ON u.id=o.cashier_id
        LEFT JOIN customers c ON c.id=o.customer_id
@@ -313,6 +316,33 @@ export class SalesService {
       [oid],
     ).catch(()=>({ rows:[] as any[] }));
     return { ...order.rows[0], lines: lines.rows, payments: payments.rows, returns: returns.rows };
+  }
+
+  async cancelOrder(companyId: string, userId: string, orderId: string) {
+    const order = await this.db.query(
+      `UPDATE sales_orders SET status='cancelled',updated_at=NOW()
+       WHERE id=$1 AND company_id=$2 AND status IN ('draft','pending','confirmed')
+       RETURNING *`, [orderId,companyId],
+    );
+    if (!order.rows[0]) throw new BadRequestException('Only an unpaid order can be cancelled');
+    const lines = await this.db.query(
+      `SELECT variant_id,quantity FROM sales_order_lines WHERE order_id=$1`, [orderId],
+    );
+    for (const line of lines.rows) {
+      await this.db.query(
+        `UPDATE inventory SET quantity=quantity+$1,updated_at=NOW()
+         WHERE warehouse_id=$2 AND variant_id=$3`,
+        [line.quantity,order.rows[0].warehouse_id,line.variant_id],
+      );
+      await this.db.query(
+        `INSERT INTO stock_movements
+         (warehouse_id,variant_id,movement_type,quantity,quantity_before,quantity_after,reason,created_by)
+         SELECT $1,$2,'sale_cancel',$3,quantity-$3,quantity,$4,$5 FROM inventory
+         WHERE warehouse_id=$1 AND variant_id=$2`,
+        [order.rows[0].warehouse_id,line.variant_id,line.quantity,`Cancelled ${order.rows[0].order_number}`,userId],
+      );
+    }
+    return { ...order.rows[0],restocked_units:lines.rows.reduce((sum:any,line:any)=>sum+Number(line.quantity),0) };
   }
 
   // ─── Payments ────────────────────────────────────────────────────────────────

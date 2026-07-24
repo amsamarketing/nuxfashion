@@ -1,69 +1,65 @@
 import { api } from '../../lib/api';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-const fmt=(n:any)=>'SAR '+parseFloat(n||0).toLocaleString('en-SA',{minimumFractionDigits:2,maximumFractionDigits:2});
-const SC:Record<string,string>={completed:'active',paid:'active',pending:'pending',cancelled:'danger',draft:'inactive'};
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
+import { useToast } from '../../components/Toast';
+import { getErr } from '../../lib/err';
+
+const money=(v:any)=>'SAR '+Number(v||0).toLocaleString('en-SA',{minimumFractionDigits:2,maximumFractionDigits:2});
+const SC:Record<string,string>={completed:'active',paid:'active',confirmed:'blue',pending:'pending',cancelled:'danger',draft:'inactive'};
+const label=(v:any)=>String(v||'—').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
 const nav=(s:string)=>window.dispatchEvent(new CustomEvent('nav',{detail:s}));
+
 export default function Orders(){
-  const qc=useQueryClient();
-  const [q,setQ]=useState('');const [tab,setTab]=useState('all');const [sel,setSel]=useState<any>(null);
-  const {data,isLoading}=useQuery({queryKey:['orders'],queryFn:async()=>{const r=await api.get('/sales/orders?limit=100');return r.data;}});
-  const cancel=useMutation({mutationFn:(id:string)=>api.patch(`/sales/orders/${id}/cancel`,{}),onSuccess:()=>{qc.invalidateQueries({queryKey:['orders']});setSel(null);}});
-  const orders:any[]=(Array.isArray(data)?data:data?.orders||[]).filter((o:any)=>tab==='all'||o.status===tab).filter((o:any)=>!q||(o.order_number||'').toLowerCase().includes(q.toLowerCase())||(o.customer_name||'').toLowerCase().includes(q.toLowerCase()));
-  const exportCSV=()=>{
-    const rows=[['Order#','Customer','Total','Status','Date'],...orders.map(o=>[o.order_number,o.customer_name||'Walk-in',o.total_amount,o.status,o.created_at?.slice(0,10)])];
-    const csv=rows.map(r=>r.join(',')).join('\n');
-    const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download='orders.csv';a.click();
+  const qc=useQueryClient();const {toast}=useToast();
+  const [q,setQ]=useState('');const [status,setStatus]=useState('all');const [payment,setPayment]=useState('all');const [period,setPeriod]=useState('30');const [selectedId,setSelectedId]=useState('');
+  const {data=[],isLoading,isFetching,refetch}=useQuery<any[]>({queryKey:['orders-admin'],queryFn:()=>api.get('/sales/orders').then(r=>Array.isArray(r.data)?r.data:[])});
+  const {data:detail,isLoading:detailLoading}=useQuery<any>({queryKey:['order-detail',selectedId],queryFn:()=>api.get('/sales/orders/'+selectedId).then(r=>r.data),enabled:!!selectedId});
+  const cancel=useMutation({mutationFn:(id:string)=>api.patch(`/sales/orders/${id}/cancel`,{}),onSuccess:r=>{toast(`Order cancelled; ${r.data.restocked_units||0} units restored`,'success');setSelectedId('');qc.invalidateQueries({queryKey:['orders-admin']});},onError:(e:any)=>toast(getErr(e),'error')});
+  const payments=useMemo(()=>[...new Set(data.flatMap(o=>String(o.payment_method||'').split(', ')).filter(Boolean))],[data]);
+  const orders=useMemo(()=>data.filter(o=>{
+    const query=q.trim().toLowerCase();const age=(Date.now()-new Date(o.created_at).getTime())/86400000;
+    return (!query||[o.order_number,o.customer_name,o.customer_phone,o.cashier_name].some(v=>String(v||'').toLowerCase().includes(query)))
+      &&(status==='all'||o.status===status)&&(payment==='all'||String(o.payment_method||'').includes(payment))&&(period==='all'||age<=Number(period));
+  }),[data,q,status,payment,period]);
+  const paid=data.filter(o=>o.status==='paid');const revenue=paid.reduce((s,o)=>s+Number(o.total||0),0);const refunds=data.reduce((s,o)=>s+Number(o.returned_amount||0),0);const units=data.reduce((s,o)=>s+Number(o.item_count||0),0);
+
+  const exportCsv=()=>{
+    const esc=(v:any)=>`"${String(v??'').replace(/"/g,'""')}"`;const rows=[['Invoice','Date','Customer','Phone','Cashier','Items','Subtotal','Discount','Total','Paid','Returned','Payment','Status'],...orders.map(o=>[o.order_number,o.created_at,o.customer_name,o.customer_phone,o.cashier_name,o.item_count,o.subtotal,o.discount_amount,o.total,o.paid_amount,o.returned_amount,o.payment_method,o.status])];
+    const blob=new Blob([rows.map(r=>r.map(esc).join(',')).join('\n')],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`orders-${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(a.href);
   };
-  return(<div>
-    <div className="nx-page-head">
-      <div><h1 className="nx-page-title">Orders</h1><p className="nx-page-sub">{orders.length} orders</p></div>
-      <div style={{display:'flex',gap:8}}>
-        <button className="btn-nx ghost" onClick={exportCSV}><i className="ti ti-download"/> Export CSV</button>
-        <button className="btn-nx primary" onClick={()=>nav('pos-sale')}><i className="ti ti-plus"/> New Order</button>
-      </div>
+  const printSummary=()=>{
+    if(!detail)return;const w=window.open('','_blank','width=850,height=800');if(!w)return;
+    w.document.write(`<!doctype html><html><head><title>Order ${detail.order_number}</title><style>body{font-family:Arial;color:#111;padding:30px;max-width:850px;margin:auto}header{display:flex;justify-content:space-between;border-bottom:3px solid #0f766e;padding-bottom:15px}h1{color:#0f766e;margin:0}.copy{border:2px solid #111;padding:5px 12px;font-weight:bold}table{width:100%;border-collapse:collapse;margin:22px 0}th,td{padding:9px;border-bottom:1px solid #ddd;text-align:left}.right{text-align:right}.totals{margin-left:auto;width:340px}.row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #eee}.total{font-size:19px;font-weight:bold}.muted{color:#666;font-size:12px}</style></head><body><header><div><h1>NuxFashion</h1><div>Order Record · سجل الطلب</div></div><div class="copy">ORDER COPY</div></header><h2>#${detail.order_number}</h2><div class="muted">${new Date(detail.created_at).toLocaleString('en-SA')} · ${detail.customer_name||'Walk-in'} · ${detail.customer_phone||''}<br>Cashier: ${detail.cashier_name||'—'} · Status: ${label(detail.status)}</div><table><thead><tr><th>Product</th><th>SKU</th><th>Qty</th><th class="right">Price</th><th class="right">Total</th></tr></thead><tbody>${(detail.lines||[]).map((x:any)=>`<tr><td>${x.product_name||x.variant_name||'Product'}</td><td>${x.sku||'—'}</td><td>${x.quantity}</td><td class="right">${money(x.unit_price)}</td><td class="right">${money(x.line_total)}</td></tr>`).join('')}</tbody></table><div class="totals"><div class="row"><span>Items</span><b>${(detail.lines||[]).reduce((s:number,x:any)=>s+Number(x.quantity||0),0)}</b></div><div class="row"><span>Subtotal</span><b>${money(detail.subtotal)}</b></div><div class="row"><span>Discount</span><b>− ${money(detail.discount_amount)}</b></div><div class="row total"><span>Total</span><span>${money(detail.total)}</span></div></div><h3>Payments</h3>${(detail.payments||[]).map((p:any)=>`<div class="row"><span>${label(p.method)} ${p.reference?'· '+p.reference:''}</span><b>${money(p.amount)}</b></div>`).join('')||'<div class="muted">No payment recorded</div>'}<script>window.onload=()=>window.print()</script></body></html>`);w.document.close();
+  };
+
+  return <div className="orders-page">
+    <div className="nx-page-head"><div><h1 className="nx-page-title">Orders</h1><p className="nx-page-sub">Monitor sales, payments, returns and fulfilment from one place.</p></div><div className="orders-head-actions"><button className="btn-nx ghost" onClick={()=>refetch()}><i className={`ti ti-refresh${isFetching?' login-spin':''}`}/> Refresh</button><button className="btn-nx ghost" onClick={exportCsv}><i className="ti ti-download"/> Export</button><button className="btn-nx primary" onClick={()=>window.dispatchEvent(new CustomEvent('resume-held'))}><i className="ti ti-cash-register"/> New POS Sale</button></div></div>
+    <div className="orders-kpis"><Kpi icon="ti-receipt" label="Orders" value={String(data.length)} note={`${orders.length} in current view`}/><Kpi icon="ti-cash" label="Paid Revenue" value={money(revenue)} note={`${paid.length} paid orders`}/><Kpi icon="ti-packages" label="Units Sold" value={String(units)} note="Across listed orders"/><Kpi icon="ti-arrow-back-up" label="Returns" value={money(refunds)} note="Refund value"/><Kpi icon="ti-shopping-bag" label="Avg. Order" value={money(paid.length?revenue/paid.length:0)} note="Paid orders"/></div>
+    <div className="orders-toolbar">
+      <div className="orders-search"><i className="ti ti-search"/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Invoice, customer, phone or cashier…"/>{q&&<button onClick={()=>setQ('')}>×</button>}</div>
+      <select value={status} onChange={e=>setStatus(e.target.value)}><option value="all">All statuses</option>{['paid','confirmed','pending','draft','cancelled'].map(x=><option key={x} value={x}>{label(x)}</option>)}</select>
+      <select value={payment} onChange={e=>setPayment(e.target.value)}><option value="all">All payments</option>{payments.map(x=><option key={x} value={x}>{label(x)}</option>)}</select>
+      <select value={period} onChange={e=>setPeriod(e.target.value)}><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="all">All dates</option></select>
+      <span className="orders-result-count">{orders.length} results</span>
     </div>
-    <div className="nx-tabs">{['all','pending','paid','completed','cancelled'].map(t=><button key={t} className={`nx-tab${tab===t?' on':''}`} onClick={()=>setTab(t)}>{t.charAt(0).toUpperCase()+t.slice(1)}</button>)}</div>
-    <div className="nx-toolbar">
-      <div className="nx-search"><i className="ti ti-search"/><input className="nx-input" placeholder="Search order or customer..." value={q} onChange={e=>setQ(e.target.value)}/></div>
-    </div>
-    <div className="nx-table-wrap"><table className="nx-table">
-      <thead><tr><th>Order #</th><th>Customer</th><th>Items</th><th>Total</th><th>VAT</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
-      <tbody>{isLoading?<tr><td colSpan={8} style={{textAlign:'center',padding:'32px 0'}}>Loading...</td></tr>:orders.length===0?<tr><td colSpan={8} style={{textAlign:'center',padding:'32px 0',color:'var(--muted)'}}>No orders found</td></tr>:orders.map((o:any)=>(
-        <tr key={o.id} style={{cursor:'pointer'}} onClick={()=>setSel(o)}>
-          <td><span style={{fontWeight:600,color:'var(--accent)'}}>#{o.order_number||o.id?.slice(-6)}</span></td>
-          <td>{o.customer_name||'Walk-in'}</td>
-          <td style={{color:'var(--muted)'}}>{o.item_count||'—'}</td>
-          <td style={{fontWeight:600}}>{fmt(o.total_amount)}</td>
-          <td style={{color:'var(--muted)'}}>{fmt(o.vat_amount||0)}</td>
-          <td><span className={`nx-badge ${SC[o.status]||'inactive'}`}>{o.status}</span></td>
-          <td style={{color:'var(--muted)',fontSize:12}}>{o.created_at?new Date(o.created_at).toLocaleDateString('en-GB'):'—'}</td>
-          <td onClick={e=>e.stopPropagation()}>
-            <button className="btn-nx ghost sm" onClick={()=>setSel(o)}><i className="ti ti-eye"/> View</button>
-            {o.status==='pending'&&<button className="btn-nx danger sm" style={{marginLeft:4}} onClick={()=>cancel.mutate(o.id)}><i className="ti ti-x"/> Cancel</button>}
-          </td>
-        </tr>
-      ))}</tbody>
-    </table></div>
-    {sel&&(<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.4)',zIndex:999,display:'flex',alignItems:'flex-start',justifyContent:'flex-end'}} onClick={()=>setSel(null)}>
-      <div style={{width:420,height:'100vh',background:'var(--cd)',padding:24,overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
-          <h2 style={{margin:0,fontSize:18,fontWeight:700}}>#{sel.order_number}</h2>
-          <button className="btn-nx ghost sm" onClick={()=>setSel(null)}><i className="ti ti-x"/></button>
-        </div>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
-          <div><div style={{fontSize:11,color:'var(--muted)'}}>Status</div><span className={`nx-badge ${SC[sel.status]||'inactive'}`}>{sel.status}</span></div>
-          <div><div style={{fontSize:11,color:'var(--muted)'}}>Date</div><div style={{fontWeight:600}}>{sel.created_at?new Date(sel.created_at).toLocaleDateString('en-GB'):'—'}</div></div>
-          <div><div style={{fontSize:11,color:'var(--muted)'}}>Customer</div><div style={{fontWeight:600}}>{sel.customer_name||'Walk-in'}</div></div>
-          <div><div style={{fontSize:11,color:'var(--muted)'}}>Payment</div><div style={{fontWeight:600}}>{sel.payment_method||'—'}</div></div>
-        </div>
-        <div style={{borderTop:'1px solid var(--bd)',paddingTop:12,marginBottom:12}}>
-          <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span style={{color:'var(--muted)'}}>Subtotal</span><span>{fmt(sel.sub_total||sel.total_amount)}</span></div>
-          <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span style={{color:'var(--muted)'}}>VAT (15%)</span><span>{fmt(sel.vat_amount||0)}</span></div>
-          <div style={{display:'flex',justifyContent:'space-between',fontWeight:700,fontSize:16}}><span>Total</span><span style={{color:'var(--accent)'}}>{fmt(sel.total_amount)}</span></div>
-        </div>
-        {sel.status==='pending'&&<button className="btn-nx danger" style={{width:'100%',justifyContent:'center'}} onClick={()=>cancel.mutate(sel.id)}>Cancel Order</button>}
-      </div>
-    </div>)}
-  </div>);
+    <div className="nx-table-wrap orders-table"><table className="nx-table"><thead><tr><th>Invoice</th><th>Date</th><th>Customer</th><th>Cashier</th><th>Items</th><th>Payment</th><th>Total</th><th>Returned</th><th>Status</th><th></th></tr></thead><tbody>
+      {isLoading?<tr><td colSpan={10}><Empty icon="ti-loader-2 login-spin" text="Loading orders…"/></td></tr>:orders.length===0?<tr><td colSpan={10}><Empty icon="ti-receipt-off" text="No orders match these filters"/></td></tr>:orders.map(o=><tr key={o.id} onClick={()=>setSelectedId(o.id)}><td><b className="order-number">#{o.order_number}</b></td><td><span className="order-date">{new Date(o.created_at).toLocaleDateString('en-SA',{day:'2-digit',month:'short',year:'numeric'})}<small>{new Date(o.created_at).toLocaleTimeString('en-SA',{hour:'2-digit',minute:'2-digit'})}</small></span></td><td><b>{o.customer_name||'Walk-in'}</b><small className="table-sub">{o.customer_phone||'No phone'}</small></td><td>{o.cashier_name||'—'}</td><td><b>{o.item_count||0}</b></td><td><span className="payment-pill">{o.payment_method?label(o.payment_method):'Unpaid'}</span></td><td><b>{money(o.total)}</b>{Number(o.discount_amount)>0&&<small className="table-sub discount">−{money(o.discount_amount)} disc.</small>}</td><td>{Number(o.returned_amount)>0?<b className="return-value">{money(o.returned_amount)}</b>:'—'}</td><td><span className={`nx-badge ${SC[o.status]||'inactive'}`}>{label(o.status)}</span></td><td><button className="order-view" onClick={e=>{e.stopPropagation();setSelectedId(o.id)}}><i className="ti ti-chevron-right"/></button></td></tr>)}
+    </tbody></table></div>
+
+    {selectedId&&<div className="order-drawer-overlay" onClick={()=>setSelectedId('')}><aside className="order-drawer" onClick={e=>e.stopPropagation()}>
+      <header><div><span>ORDER DETAILS</span><h2>#{detail?.order_number||'Loading…'}</h2></div><button onClick={()=>setSelectedId('')}><i className="ti ti-x"/></button></header>
+      {detailLoading||!detail?<Empty icon="ti-loader-2 login-spin" text="Loading complete order…"/>:<div className="order-drawer-content">
+        <div className="order-status-line"><span className={`nx-badge ${SC[detail.status]||'inactive'}`}>{label(detail.status)}</span><span>{new Date(detail.created_at).toLocaleString('en-SA')}</span></div>
+        <section className="order-customer"><i className="ti ti-user"/><div><small>CUSTOMER</small><b>{detail.customer_name||'Walk-in Customer'}</b><span>{detail.customer_phone||'No phone number'}</span></div><div><small>CASHIER</small><b>{detail.cashier_name||'—'}</b></div></section>
+        <section className="drawer-section"><h3>Items <span>{(detail.lines||[]).reduce((s:number,x:any)=>s+Number(x.quantity||0),0)} units</span></h3><div className="drawer-items">{(detail.lines||[]).map((x:any)=><div key={x.id}><div><b>{x.product_name||x.variant_name||'Product'}</b><span>{x.sku||'No SKU'}{x.variant_name?' · '+x.variant_name:''}</span><small>{x.quantity} × {money(x.unit_price)}</small></div><strong>{money(x.line_total)}</strong></div>)}</div></section>
+        <section className="drawer-section"><h3>Payment breakdown</h3>{(detail.payments||[]).length?(detail.payments||[]).map((p:any)=><div className="drawer-payment" key={p.id}><span><i className="ti ti-credit-card"/>{label(p.method)}<small>{p.reference||'Completed'}</small></span><b>{money(p.amount)}</b></div>):<div className="drawer-unpaid"><i className="ti ti-alert-circle"/> No payment recorded</div>}</section>
+        {(detail.returns||[]).length>0&&<section className="drawer-section"><h3>Returns</h3>{detail.returns.map((r:any)=><div className="drawer-payment return" key={r.id}><span><i className="ti ti-arrow-back-up"/>{r.return_number}<small>{r.reason||'Return processed'}</small></span><b>− {money(r.refund_amount)}</b></div>)}</section>}
+        <section className="order-totals"><div><span>Subtotal</span><b>{money(detail.subtotal)}</b></div><div><span>Discount</span><b className="discount">− {money(detail.discount_amount)}</b></div><div><span>Amount paid</span><b>{money(detail.amount_paid)}</b></div><div className="grand"><span>Order Total</span><strong>{money(detail.total)}</strong></div></section>
+        {detail.notes&&<div className="order-note"><i className="ti ti-note"/><div><small>ORDER NOTE</small><p>{detail.notes}</p></div></div>}
+      </div>}
+      {detail&&<footer><button className="btn-nx ghost" onClick={printSummary}><i className="ti ti-printer"/> Print Copy</button>{detail.status==='paid'&&<button className="btn-nx ghost" onClick={()=>nav('pos-return')}><i className="ti ti-arrow-back-up"/> Process Return</button>}{['draft','pending','confirmed'].includes(detail.status)&&<button className="btn-nx danger" disabled={cancel.isPending} onClick={()=>confirm(`Cancel ${detail.order_number} and restore its stock?`)&&cancel.mutate(detail.id)}><i className="ti ti-ban"/> {cancel.isPending?'Cancelling…':'Cancel Order'}</button>}</footer>}
+    </aside></div>}
+  </div>;
 }
+function Kpi({icon,label,value,note}:{icon:string;label:string;value:string;note:string}){return <div className="orders-kpi"><i className={`ti ${icon}`}/><div><span>{label}</span><b>{value}</b><small>{note}</small></div></div>}
+function Empty({icon,text}:{icon:string;text:string}){return <div className="orders-empty"><i className={`ti ${icon}`}/><span>{text}</span></div>}

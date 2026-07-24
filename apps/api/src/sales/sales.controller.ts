@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SalesService } from './sales.service';
@@ -59,6 +59,10 @@ export class SalesController {
   @Get('orders/:id')
   getOrder(@Param('id') id: string, @Req() req: Request) {
     return this.service.getOrder((req.user as any).companyId, id);
+  }
+  @Patch('orders/:id/cancel')
+  cancelOrder(@Param('id') id: string, @Req() req: Request) {
+    return this.service.cancelOrder((req.user as any).companyId, (req.user as any).sub, id);
   }
 
   @Post('payments')
