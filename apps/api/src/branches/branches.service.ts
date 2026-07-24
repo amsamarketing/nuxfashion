@@ -1,5 +1,6 @@
-import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import * as bcrypt from 'bcrypt';
 import { DatabaseService } from '../database/database.service';
 
 @Injectable()
@@ -54,6 +55,12 @@ export class BranchesService implements OnModuleInit {
       is_default BOOLEAN NOT NULL DEFAULT FALSE,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       PRIMARY KEY(branch_id,user_id)
+    )`);
+    await this.db.query(`CREATE TABLE IF NOT EXISTS pos_employee_users(
+      employee_id UUID PRIMARY KEY,
+      user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+      company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`);
     await this.db.query(`CREATE TABLE IF NOT EXISTS branch_partners(
       id UUID PRIMARY KEY,branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
@@ -171,6 +178,25 @@ export class BranchesService implements OnModuleInit {
     return result.rows;
   }
 
+  async posEmployees(companyId:string){
+    const result=await this.db.query(
+      `SELECT e.id,
+        COALESCE(NULLIF(to_jsonb(e)->>'full_name',''),
+          NULLIF(TRIM(CONCAT(to_jsonb(e)->>'first_name',' ',to_jsonb(e)->>'last_name')),''),'Employee') full_name,
+        to_jsonb(e)->>'email' email,
+        COALESCE(to_jsonb(e)->>'employee_number',to_jsonb(e)->>'employee_id') employee_number,
+        to_jsonb(e)->>'job_title' job_title,
+        CASE WHEN pe.employee_id IS NULL THEN false ELSE true END has_pos_access
+       FROM employees e
+       LEFT JOIN pos_employee_users pe ON pe.employee_id=e.id AND pe.company_id=$1
+       WHERE COALESCE(to_jsonb(e)->>'company_id',$1)=$1
+       AND COALESCE(to_jsonb(e)->>'status','active') NOT IN('inactive','terminated')
+       ORDER BY has_pos_access,full_name`,
+      [companyId],
+    );
+    return result.rows;
+  }
+
   async create(companyId:string,body:any){
     const name=String(body.name||'').trim();
     const code=String(body.code||'').trim().toUpperCase();
@@ -215,6 +241,63 @@ export class BranchesService implements OnModuleInit {
         `INSERT INTO branch_user_assignments(branch_id,user_id) VALUES($1,$2)`,[id,row.user_id],
       );
       return {success:true,assigned:valid.rows.length};
+    });
+  }
+
+  async createPosUser(companyId:string,branchId:string,body:any){
+    await this.ownedBranch(companyId,branchId);
+    const employeeId=String(body.employee_id||'').trim();
+    const password=String(body.password||'');
+    if(!employeeId)throw new BadRequestException('Select an employee first');
+    if(password.length<8)throw new BadRequestException('Password must contain at least 8 characters');
+    const employee=await this.db.query(
+      `SELECT e.id,
+        COALESCE(NULLIF(to_jsonb(e)->>'full_name',''),
+          NULLIF(TRIM(CONCAT(to_jsonb(e)->>'first_name',' ',to_jsonb(e)->>'last_name')),''),'Employee') full_name,
+        to_jsonb(e)->>'email' email,
+        COALESCE(to_jsonb(e)->>'status','active') status
+       FROM employees e WHERE e.id=$1 AND COALESCE(to_jsonb(e)->>'company_id',$2)=$2`,
+      [employeeId,companyId],
+    );
+    if(!employee.rows[0])throw new NotFoundException('Employee not found. Create the employee in HR first.');
+    if(['inactive','terminated'].includes(employee.rows[0].status))throw new BadRequestException('Only active employees can receive POS access');
+    const linked=await this.db.query(`SELECT user_id FROM pos_employee_users WHERE employee_id=$1`,[employeeId]);
+    if(linked.rows[0])throw new ConflictException('This employee already has a POS user account');
+    const name=String(employee.rows[0].full_name).trim();
+    const email=String(body.email||employee.rows[0].email||'').trim().toLowerCase();
+    if(!email||!email.includes('@'))throw new BadRequestException('Employee must have a valid login email');
+    const exists=await this.db.query(`SELECT id FROM users WHERE LOWER(email)=LOWER($1) AND deleted_at IS NULL LIMIT 1`,[email]);
+    if(exists.rows[0])throw new ConflictException('A user with this email already exists');
+    const role=await this.db.query(
+      `SELECT id,name FROM roles
+       WHERE LOWER(REPLACE(REPLACE(name,' ','_'),'-','_'))=ANY($1::text[])
+       ORDER BY CASE LOWER(REPLACE(REPLACE(name,' ','_'),'-','_'))
+         WHEN 'cashier' THEN 1 WHEN 'pos_user' THEN 2 WHEN 'pos' THEN 3
+         WHEN 'sales_associate' THEN 4 ELSE 5 END LIMIT 1`,
+      [['cashier','pos_user','pos','sales_associate','salesperson']],
+    );
+    if(!role.rows[0])throw new BadRequestException('No POS/Cashier role is configured. Add a Cashier role before creating POS staff.');
+    const userId=randomUUID(),passwordHash=await bcrypt.hash(password,12);
+    return this.db.transaction(async client=>{
+      const created=await client.query(
+        `INSERT INTO users(id,email,name,password_hash,is_active)
+         VALUES($1,$2,$3,$4,true)
+         RETURNING id,email,name,is_active`,
+        [userId,email,name,passwordHash],
+      );
+      await client.query(
+        `INSERT INTO user_company_roles(user_id,company_id,role_id) VALUES($1,$2,$3)`,
+        [userId,companyId,role.rows[0].id],
+      );
+      await client.query(
+        `INSERT INTO branch_user_assignments(branch_id,user_id,is_default) VALUES($1,$2,true)`,
+        [branchId,userId],
+      );
+      await client.query(
+        `INSERT INTO pos_employee_users(employee_id,user_id,company_id) VALUES($1,$2,$3)`,
+        [employeeId,userId,companyId],
+      );
+      return {...created.rows[0],employee_id:employeeId,role:role.rows[0].name,branch_id:branchId};
     });
   }
 

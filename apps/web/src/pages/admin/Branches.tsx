@@ -10,10 +10,12 @@ export default function Branches(){
   const qc=useQueryClient();const {toast}=useToast();
   const [editing,setEditing]=useState<any>(null);
   const [usersFor,setUsersFor]=useState<any>(null);
+  const [creatingUser,setCreatingUser]=useState<any>(null);
   const [financeFor,setFinanceFor]=useState<any>(null);
   const [reportsOpen,setReportsOpen]=useState<string|boolean>(false);
   const {data=[],isLoading}=useQuery<any[]>({queryKey:['branches'],queryFn:()=>api.get('/branches').then(r=>r.data)});
   const {data:users=[]}=useQuery<any[]>({queryKey:['branch-users'],queryFn:()=>api.get('/branches/users').then(r=>r.data)});
+  const {data:employees=[]}=useQuery<any[]>({queryKey:['pos-employees'],queryFn:()=>api.get('/branches/pos-employees').then(r=>r.data)});
   const branches=Array.isArray(data)?data:[];
   const totals=branches.reduce((a:any,b:any)=>({sales:a.sales+Number(b.sales_total||0),stock:a.stock+Number(b.total_units||0)}),{sales:0,stock:0});
   const save=useMutation({
@@ -26,10 +28,15 @@ export default function Branches(){
     onSuccess:()=>{qc.invalidateQueries({queryKey:['branches']});setUsersFor(null);toast('POS users assigned');},
     onError:()=>toast('Could not assign users','error'),
   });
+  const createUser=useMutation({
+    mutationFn:(form:any)=>api.post(`/branches/${form.branch_id}/pos-users`,form),
+    onSuccess:()=>{qc.invalidateQueries({queryKey:['branches']});qc.invalidateQueries({queryKey:['branch-users']});qc.invalidateQueries({queryKey:['pos-employees']});setCreatingUser(null);toast('Employee POS access created and assigned');},
+    onError:(e:any)=>toast(e?.response?.data?.message||'Could not create POS staff account','error'),
+  });
   return <div>
     <div className="nx-page-head">
       <div><h1 className="nx-page-title">Branch Management</h1><p className="nx-page-sub">One company, separate POS locations and branch performance</p></div>
-      <div style={{display:'flex',gap:8}}><button className="btn-nx ghost" onClick={()=>setReportsOpen(true)}><i className="ti ti-chart-bar"/> Branch Performance</button><button className="btn-nx primary" onClick={()=>setEditing({...blank})}><i className="ti ti-plus"/> Add Branch</button></div>
+      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}><button className="btn-nx ghost" onClick={()=>setReportsOpen(true)}><i className="ti ti-chart-bar"/> Branch Performance</button><button className="btn-nx ghost" disabled={!branches.length} onClick={()=>setCreatingUser({branch_id:branches[0]?.id,employee_id:'',email:'',password:''})}><i className="ti ti-user-plus"/> Assign Employee to POS</button><button className="btn-nx primary" onClick={()=>setEditing({...blank})}><i className="ti ti-plus"/> Add Branch</button></div>
     </div>
     <div className="nx-stats cols-4" style={{marginBottom:20}}>
       <Stat icon="ti-building-store" tone="indigo" label="Total Branches" value={branches.length}/>
@@ -63,6 +70,7 @@ export default function Branches(){
     </div>
     {editing&&<BranchModal branch={editing} onClose={()=>setEditing(null)} onSave={(f:any)=>save.mutate(f)} saving={save.isPending}/>}
     {usersFor&&<UserModal branch={usersFor} users={users} onClose={()=>setUsersFor(null)} onSave={(ids:string[])=>assign.mutate(ids)} saving={assign.isPending}/>}
+    {creatingUser&&<CreatePosUserModal value={creatingUser} branches={branches} employees={employees} onClose={()=>setCreatingUser(null)} onSave={(f:any)=>createUser.mutate(f)} saving={createUser.isPending}/>}
     {financeFor&&<FinanceModal branch={financeFor} onClose={()=>setFinanceFor(null)}/>}
     {reportsOpen&&<PerformanceModal initial={typeof reportsOpen==='string'?reportsOpen:''} onClose={()=>setReportsOpen(false)}/>}
   </div>;
@@ -174,5 +182,25 @@ function UserModal({branch,users,onClose,onSave,saving}:any){
     <header><div><h2>Assign POS Users</h2><p>{branch.name} · Selected users will use this branch POS.</p></div><button onClick={onClose}><i className="ti ti-x"/></button></header>
     <div className="branch-user-list">{users.map((u:any)=><label key={u.id}><input type="checkbox" checked={selected.includes(u.id)} onChange={()=>toggle(u.id)}/><span><b>{u.name||'User'}</b><small>{u.email}</small></span></label>)}</div>
     <footer><button className="btn-nx ghost" onClick={onClose}>Cancel</button><button className="btn-nx primary" disabled={saving} onClick={()=>onSave(selected)}>{saving?'Assigning…':'Save Assignments'}</button></footer>
+  </div></div>;
+}
+
+function CreatePosUserModal({value,branches,employees,onClose,onSave,saving}:any){
+  const [f,setF]=useState(value),set=(k:string,v:any)=>setF((x:any)=>({...x,[k]:v}));
+  const available=employees.filter((e:any)=>!e.has_pos_access);
+  const selected=employees.find((e:any)=>e.id===f.employee_id);
+  const selectEmployee=(id:string)=>{const employee=employees.find((e:any)=>e.id===id);setF((x:any)=>({...x,employee_id:id,email:employee?.email||''}))};
+  return <div className="branch-modal-shade" onClick={onClose}><div className="branch-modal small" onClick={e=>e.stopPropagation()}>
+    <header><div><h2>Assign Employee to Branch POS</h2><p>Select an existing HR employee, then create their POS login.</p></div><button onClick={onClose}><i className="ti ti-x"/></button></header>
+    <div className="branch-form" style={{gridTemplateColumns:'1fr'}}>
+      <Field label="Employee *"><select autoFocus value={f.employee_id} onChange={e=>selectEmployee(e.target.value)}><option value="">Select employee…</option>{available.map((e:any)=><option key={e.id} value={e.id}>{e.full_name}{e.employee_number?` · ${e.employee_number}`:''}</option>)}</select></Field>
+      {!available.length&&<div style={{padding:'12px 14px',borderRadius:12,background:'#fff7ed',color:'#9a3412',fontSize:13,lineHeight:1.5}}><i className="ti ti-alert-circle"/> No eligible employee found. First create an active employee from HR &amp; Payroll → Employees.</div>}
+      <Field label="Branch *"><select value={f.branch_id} onChange={e=>set('branch_id',e.target.value)}>{branches.filter((b:any)=>b.is_active).map((b:any)=><option key={b.id} value={b.id}>{b.name} · {b.code}</option>)}</select></Field>
+      {selected&&<div style={{padding:'10px 14px',borderRadius:12,background:'var(--bg)',fontSize:13}}><b>{selected.full_name}</b>{selected.job_title&&<span style={{color:'var(--mu)'}}> · {selected.job_title}</span>}</div>}
+      <Field label="POS Login Email *"><input type="email" value={f.email} onChange={e=>set('email',e.target.value)} placeholder="employee@company.com"/></Field>
+      <Field label="Temporary Password *"><input type="password" minLength={8} value={f.password} onChange={e=>set('password',e.target.value)} placeholder="Minimum 8 characters"/></Field>
+      <div style={{padding:'12px 14px',borderRadius:12,background:'#effcf9',color:'#0f766e',fontSize:13,lineHeight:1.5}}><i className="ti ti-shield-lock"/> Employee record remains in HR. These credentials open only the assigned branch POS.</div>
+    </div>
+    <footer><button className="btn-nx ghost" onClick={onClose}>Cancel</button><button className="btn-nx primary" disabled={saving||!f.branch_id||!f.employee_id||!f.email.includes('@')||f.password.length<8} onClick={()=>onSave(f)}>{saving?'Assigning…':'Enable POS Access'}</button></footer>
   </div></div>;
 }

@@ -23,6 +23,11 @@ export class BranchesController {
     return this.service.users((req.user as any).companyId);
   }
 
+  @Get('pos-employees')
+  posEmployees(@Req() req: Request) {
+    return this.service.posEmployees((req.user as any).companyId);
+  }
+
   @Get('reports/performance')
   performance(@Query('from') from: string, @Query('to') to: string, @Req() req: Request) {
     return this.service.performance((req.user as any).companyId, from, to);
@@ -46,6 +51,11 @@ export class BranchesController {
   @Post(':id/users')
   assignUsers(@Param('id') id: string, @Body() body: { user_ids?: string[] }, @Req() req: Request) {
     return this.service.assignUsers((req.user as any).companyId, id, body.user_ids || []);
+  }
+
+  @Post(':id/pos-users')
+  createPosUser(@Param('id') id: string, @Body() body: any, @Req() req: Request) {
+    return this.service.createPosUser((req.user as any).companyId, id, body);
   }
 
   @Get(':id/finance')
