@@ -70,8 +70,8 @@ const SECS = ['Main','Catalog','Channels','People','Finance','System'];
 
 function App() {
   const { user, logout } = useAuth();
-  const [mode, setMode] = useState<'pos'|'admin'>('pos');
-  const [screen, setScreen] = useState('pos-sale');
+  const [mode, setMode] = useState<'pos'|'admin'>(()=>user?.portal==='pos'?'pos':'admin');
+  const [screen, setScreen] = useState(()=>user?.portal==='pos'?'pos-sale':'ad-dash');
   const [sideOpen, setSideOpen] = useState(false);
 
   useEffect(()=>{
@@ -84,7 +84,8 @@ function App() {
 
   const isStore=window.location.hash==='#store'||window.location.pathname.startsWith('/store');
   if(isStore) return <Storefront/>;
-  if(!user) return <Login onLogin={()=>setScreen('pos-sale')}/>;
+  const posLogin=window.location.pathname.startsWith('/pos-login')||window.location.hash==='#pos-login';
+  if(!user) return <Login portal={posLogin?'pos':'admin'} onLogin={portal=>{setMode(portal);setScreen(portal==='pos'?'pos-sale':'ad-dash')}}/>;
 
   const Screen = SCREENS[screen] || Dashboard;
   const initials=(user.name||user.email||'A').slice(0,2).toUpperCase();
@@ -109,9 +110,7 @@ function App() {
         <div className="p-pos-right">
           <span className="p-chip green"><i className="ti ti-wifi"/>Online</span>
           <span className="p-chip amber"><i className="ti ti-file-check"/>ZATCA</span>
-          <button className="p-action-btn" onClick={()=>{ setMode('admin'); setScreen('ad-dash'); }}>
-            <i className="ti ti-layout-dashboard"/> Admin
-          </button>
+          <span className="p-chip"><i className="ti ti-building-store"/>{user.branchName||'Assigned Branch'}</span>
           <button className="p-icon-btn" onClick={logout}><i className="ti ti-logout"/></button>
         </div>
       </div>
@@ -175,9 +174,7 @@ function App() {
             <span className="p-dot green"/><span className="p-dot-lbl">Live</span>
             <span className="p-dot amber"/><span className="p-dot-lbl">ZATCA</span>
             <div className="p-vline"/>
-            <button className="p-action-btn" onClick={()=>{ setMode('pos'); setScreen('pos-sale'); }}>
-              <i className="ti ti-device-desktop"/> POS Terminal
-            </button>
+            <a className="p-action-btn" href="/pos-login"><i className="ti ti-device-desktop"/> Branch POS Login</a>
             <div className="p-top-user">
               <div className="p-avatar sm">{initials}</div>
               <span>{firstName}</span>
