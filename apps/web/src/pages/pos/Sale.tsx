@@ -431,31 +431,7 @@ export default function POSSale(){
               <div style={{display:'flex',alignItems:'center',gap:9}}><span style={{width:30,height:30,borderRadius:'50%',background:'#dcfce7',display:'flex',alignItems:'center',justifyContent:'center',color:'#15803d'}}><i className="ti ti-user-check"/></span><div><div style={{fontSize:10,fontWeight:800,color:'#15803d'}}>CUSTOMER CONFIRMED</div><div style={{fontSize:13,fontWeight:700}}>{customer.name}</div><div style={{fontSize:11,color:'#64748b'}}>{customer.phone}</div></div></div>
               <button className="btn-nx ghost sm" onClick={()=>{setNewCustPhone(customer.phone||'');setNewCustName('');setCustId('');}}>Change</button>
             </div>
-            {custDetail&&<div style={{padding:'10px 12px',border:'1px solid #e2e8f0',background:'#f8fafc',borderRadius:9,fontSize:12,marginTop:6}}>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginBottom:6}}>
-                <div style={{textAlign:'center',padding:'6px 4px',background:'#fff',borderRadius:7,border:'1px solid #e2e8f0'}}>
-                  <div style={{fontSize:10,color:'#64748b',fontWeight:700}}>TOTAL SPENT</div>
-                  <div style={{fontWeight:800,color:'#0f766e',fontSize:13}}>SAR {Number(custDetail.lifetime_value||0).toFixed(0)}</div>
-                </div>
-                <div style={{textAlign:'center',padding:'6px 4px',background:'#fff',borderRadius:7,border:'1px solid #e2e8f0'}}>
-                  <div style={{fontSize:10,color:'#64748b',fontWeight:700}}>VISITS</div>
-                  <div style={{fontWeight:800,fontSize:13}}>{custDetail.order_count||0}</div>
-                </div>
-                <div style={{textAlign:'center',padding:'6px 4px',background:'#fff',borderRadius:7,border:'1px solid #e2e8f0'}}>
-                  <div style={{fontSize:10,color:'#64748b',fontWeight:700}}>POINTS</div>
-                  <div style={{fontWeight:800,color:'#f59e0b',fontSize:13}}>{custDetail.loyalty_points||0}</div>
-                </div>
-              </div>
-              {(custOrders as any[]).length>0&&<div>
-                <div style={{fontSize:10,fontWeight:800,color:'#64748b',marginBottom:4}}>RECENT ORDERS</div>
-                {(custOrders as any[]).slice(0,4).map((o:any)=>(
-                  <div key={o.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'4px 0',borderTop:'1px solid #f1f5f9'}}>
-                    <div><div style={{fontWeight:700,fontSize:11}}>#{o.order_number}</div><div style={{fontSize:10,color:'#94a3b8'}}>{new Date(o.created_at).toLocaleDateString('en-SA')} · {o.item_count} items</div></div>
-                    <div style={{fontWeight:700,fontSize:12,color:'#0f766e'}}>SAR {Number(o.total||0).toFixed(0)}</div>
-                  </div>
-                ))}
-              </div>}
-            </div>}
+            
           </>):(
             <div style={{padding:13,border:'1px solid #99f6e4',background:'#f8fafc',borderRadius:10}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}><div><div style={{fontSize:10,fontWeight:800,color:'#115e59'}}>CUSTOMER · STEP 1</div><div style={{fontSize:12,color:'#64748b',marginTop:2}}>Enter phone to find loyalty profile</div></div><button style={{border:0,background:'none',color:'#0f766e',fontSize:11,fontWeight:700,cursor:'pointer'}} onClick={()=>setShowCustModal(true)}>Search by name</button></div>
