@@ -77,6 +77,7 @@ export default function Login({ onLogin }:{ onLogin:()=>void }) {
           </form>
 
           <div className="login-help"><i className="ti ti-headset"/> Need help? Contact your system administrator.</div>
+          <a className="login-store-link" href="/#store"><i className="ti ti-shopping-bag"/> Visit NuxFashion Online Store</a>
         </div>
         <div className="login-side-foot">© {new Date().getFullYear()} NuxFashion <span>Privacy</span><span>Support</span></div>
       </section>

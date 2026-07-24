@@ -21,6 +21,7 @@ import HR from './pages/admin/HR';
 import Reports from './pages/admin/Reports';
 import Settings from './pages/admin/Settings';
 import Ecommerce from './pages/admin/Ecommerce';
+import Storefront from './pages/store/Storefront';
 
 const qc = new QueryClient({ defaultOptions:{ queries:{ retry:1, staleTime:30000 }}});
 
@@ -72,6 +73,8 @@ function App() {
     return ()=>{ window.removeEventListener('nav',h); window.removeEventListener('resume-held',h2); };
   },[]);
 
+  const isStore=window.location.hash==='#store'||window.location.pathname.startsWith('/store');
+  if(isStore) return <Storefront/>;
   if(!user) return <Login onLogin={()=>setScreen('pos-sale')}/>;
 
   const Screen = SCREENS[screen] || Dashboard;
