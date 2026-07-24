@@ -1,47 +1,139 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/api';
+
 const nav=(s:string)=>window.dispatchEvent(new CustomEvent('nav',{detail:s}));
-const fmt=(n:any)=>'SAR '+parseFloat(n||0).toLocaleString('en-SA',{minimumFractionDigits:2,maximumFractionDigits:2});
-const SC:Record<string,string>={completed:'active',paid:'active',pending:'pending',cancelled:'danger',draft:'inactive'};
+const n=(v:any)=>Number(v||0);
+const money=(v:any)=>'SAR '+n(v).toLocaleString('en-SA',{minimumFractionDigits:2,maximumFractionDigits:2});
+const compact=(v:any)=>n(v).toLocaleString('en-SA',{notation:'compact',maximumFractionDigits:1});
+const day=(d:Date)=>d.toISOString().slice(0,10);
+const SC:Record<string,string>={completed:'active',confirmed:'blue',paid:'active',pending:'pending',cancelled:'danger',draft:'inactive'};
+const payLabel=(v:string)=>String(v||'Other').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+const get=async(url:string)=>{try{return (await api.get(url)).data}catch{return null}};
+
 export default function Dashboard(){
-  const {data:s}=useQuery({queryKey:['dash-stats'],queryFn:async()=>{const r=await api.get('/reports/dashboard');return r.data;}});
-  const {data:recent}=useQuery({queryKey:['dash-recent'],queryFn:async()=>{const r=await api.get('/sales/orders?limit=8');return r.data;}});
-  const orders:any[]=recent?.orders||recent?.data||[];
-  return(<div>
-    <div className="nx-page-head">
-      <div><h1 className="nx-page-title">Dashboard</h1><p className="nx-page-sub">Welcome back — here's what's happening today.</p></div>
-      <div style={{display:'flex',gap:8}}>
-        <button className="btn-nx ghost" onClick={()=>nav('ad-rep')}><i className="ti ti-chart-bar"/> Reports</button>
-        <button className="btn-nx primary" onClick={()=>nav('ad-orders')}><i className="ti ti-plus"/> New Order</button>
+  const now=new Date();
+  const today=day(now);
+  const monthStart=today.slice(0,7)+'-01';
+  const trendStart=day(new Date(now.getTime()-6*86400000));
+  const {data,isLoading,refetch,isFetching}=useQuery({
+    queryKey:['executive-dashboard',today],
+    queryFn:async()=>{
+      const [summary,orders,trend,products,categories,payments,valuation,lowStock,profit,vat]=await Promise.all([
+        get('/reports/dashboard'),
+        get('/sales/orders?limit=8'),
+        get(`/reports/sales/by-period?group_by=day&from=${trendStart}&to=${today}`),
+        get(`/reports/sales/by-product?from=${monthStart}&to=${today}&limit=5`),
+        get(`/reports/sales/by-category?from=${monthStart}&to=${today}`),
+        get(`/reports/sales/payments?from=${monthStart}&to=${today}`),
+        get('/reports/inventory/valuation'),
+        get('/reports/inventory/low-stock'),
+        get(`/finance/reports/profit-loss?from=${monthStart}&to=${today}`),
+        get(`/finance/reports/vat?from=${monthStart}&to=${today}`),
+      ]);
+      return{summary:summary||{},orders:Array.isArray(orders)?orders:orders?.orders||orders?.data||[],trend:Array.isArray(trend)?trend:[],products:Array.isArray(products)?products:[],categories:Array.isArray(categories)?categories:[],payments:Array.isArray(payments)?payments:[],valuation:valuation||{},lowStock:Array.isArray(lowStock)?lowStock:[],profit:profit||{},vat:vat||{}};
+    },
+    staleTime:60000,
+  });
+  const d=data||{summary:{},orders:[],trend:[],products:[],categories:[],payments:[],valuation:{},lowStock:[],profit:{},vat:{}};
+  const s:any=d.summary;
+  const maxTrend=Math.max(1,...d.trend.map((x:any)=>n(x.revenue)));
+  const monthRevenue=n(s?.this_month?.revenue);
+  const monthOrders=n(s?.this_month?.orders);
+  const avgBasket=monthOrders?monthRevenue/monthOrders:0;
+  const retailValue=n(d.valuation?.totals?.total_retail);
+  const costValue=n(d.valuation?.totals?.total_cost||s?.inventory?.value);
+  const potentialMargin=retailValue?((retailValue-costValue)/retailValue)*100:0;
+  const paymentTotal=d.payments.reduce((sum:number,x:any)=>sum+n(x.total),0);
+  const categoryTotal=d.categories.reduce((sum:number,x:any)=>sum+n(x.revenue),0);
+
+  if(isLoading)return <div className="dash-loading"><i className="ti ti-loader-2 login-spin"/><span>Preparing business dashboard…</span></div>;
+  return <div className="erp-dashboard">
+    <header className="dash-hero">
+      <div>
+        <div className="dash-eyebrow"><i className="ti ti-sparkles"/> Executive overview</div>
+        <h1>Fashion Business Dashboard</h1>
+        <p>{now.toLocaleDateString('en-SA',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} · Live ERP performance</p>
       </div>
-    </div>
-    <div className="nx-stats cols-4">
-      <div className="nx-stat"><div className="nx-stat-icon indigo"><i className="ti ti-cash"/></div><div className="nx-stat-body"><div className="nx-stat-val">{fmt(s?.today?.revenue)}</div><div className="nx-stat-lbl">Today's Sales</div></div></div>
-      <div className="nx-stat"><div className="nx-stat-icon green"><i className="ti ti-shopping-bag"/></div><div className="nx-stat-body"><div className="nx-stat-val">{s?.today?.orders||0}</div><div className="nx-stat-lbl">Orders Today</div></div></div>
-      <div className="nx-stat"><div className="nx-stat-icon amber"><i className="ti ti-users"/></div><div className="nx-stat-body"><div className="nx-stat-val">{s?.customers?.total||0}</div><div className="nx-stat-lbl">Total Customers</div></div></div>
-      <div className="nx-stat"><div className="nx-stat-icon red"><i className="ti ti-alert-triangle"/></div><div className="nx-stat-body"><div className="nx-stat-val">{s?.alerts?.low_stock_variants||0}</div><div className="nx-stat-lbl">Low Stock Items</div></div></div>
-    </div>
-    <div className="nx-quick">
-      {[{icon:'ti-shopping-cart',l:'New Sale',s:'pos-sale'},{icon:'ti-users',l:'Customers',s:'ad-crm'},{icon:'ti-package',l:'Inventory',s:'ad-inv'},{icon:'ti-truck',l:'Purchasing',s:'ad-purch'},{icon:'ti-id',l:'HR',s:'ad-hr'},{icon:'ti-report-money',l:'Accounting',s:'ad-acct'},{icon:'ti-file-check',l:'ZATCA',s:'ad-zatca'},{icon:'ti-settings',l:'Settings',s:'ad-set'}].map(q=>(
-        <button key={q.s} className="nx-qa-btn" onClick={()=>nav(q.s)}><i className={`ti ${q.icon}`}/>{q.l}</button>
-      ))}
-    </div>
-    <div style={{marginBottom:12,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-      <span style={{fontWeight:700,fontSize:15}}>Recent Orders</span>
-      <button className="btn-nx ghost sm" onClick={()=>nav('ad-orders')}>View all <i className="ti ti-arrow-right"/></button>
-    </div>
-    <div className="nx-table-wrap"><table className="nx-table">
-      <thead><tr><th>Order #</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th>Date</th></tr></thead>
-      <tbody>{orders.length===0?<tr><td colSpan={6} style={{textAlign:'center',padding:'32px 0',color:'var(--muted)'}}>No orders yet</td></tr>:orders.map((o:any)=>(
-        <tr key={o.id}>
-          <td><span style={{fontWeight:600,color:'var(--accent)'}}>#{o.order_number||o.id?.slice(-6)}</span></td>
-          <td>{o.customer_name||'Walk-in'}</td>
-          <td style={{color:'var(--muted)'}}>{o.item_count||o.total_items||'—'}</td>
-          <td style={{fontWeight:600}}>{fmt(o.total_amount||o.total)}</td>
-          <td><span className={`nx-badge ${SC[o.status]||'inactive'}`}>{o.status}</span></td>
-          <td style={{color:'var(--muted)',fontSize:12}}>{o.created_at?new Date(o.created_at).toLocaleDateString('en-GB'):'—'}</td>
-        </tr>
-      ))}</tbody>
-    </table></div>
-  </div>);
+      <div className="dash-head-actions">
+        <button className="btn-nx ghost" onClick={()=>refetch()} disabled={isFetching}><i className={`ti ti-refresh${isFetching?' login-spin':''}`}/> Refresh</button>
+        <button className="btn-nx ghost" onClick={()=>nav('ad-rep')}><i className="ti ti-chart-bar"/> All Reports</button>
+        <button className="btn-nx primary" onClick={()=>window.dispatchEvent(new CustomEvent('resume-held'))}><i className="ti ti-cash-register"/> Open POS</button>
+      </div>
+    </header>
+
+    <section className="dash-kpis">
+      <Kpi icon="ti-cash" tone="teal" label="Sales Today" value={money(s?.today?.revenue)} note={`${n(s?.today?.orders)} transactions`} />
+      <Kpi icon="ti-calendar-stats" tone="indigo" label="Month Revenue" value={money(monthRevenue)} note={`${monthOrders} orders this month`} />
+      <Kpi icon="ti-shopping-bag" tone="amber" label="Average Basket" value={money(avgBasket)} note="Revenue per transaction" />
+      <Kpi icon="ti-report-money" tone={n(d.profit?.net_profit)>=0?'green':'red'} label="Net Profit MTD" value={money(d.profit?.net_profit)} note={`${d.profit?.net_margin||'0%'} net margin`} />
+      <Kpi icon="ti-package" tone="blue" label="Stock at Retail" value={money(retailValue)} note={`${compact(s?.inventory?.variants)} active variants`} />
+      <Kpi icon="ti-receipt-tax" tone="purple" label="VAT Position" value={money(d.vat?.net_vat_payable)} note="Month-to-date payable" />
+    </section>
+
+    <section className="dash-alert-row">
+      <button className={`dash-alert ${n(s?.alerts?.low_stock_variants)>0?'danger':'ok'}`} onClick={()=>nav('ad-inv')}><i className="ti ti-alert-triangle"/><div><b>{n(s?.alerts?.low_stock_variants)} low-stock variants</b><span>{n(s?.alerts?.low_stock_variants)>0?'Replenishment attention required':'Stock levels are healthy'}</span></div><i className="ti ti-chevron-right"/></button>
+      <button className="dash-alert warning" onClick={()=>nav('ad-purch')}><i className="ti ti-truck-delivery"/><div><b>{n(s?.alerts?.open_purchase_orders)} open purchase orders</b><span>Awaiting approval or receiving</span></div><i className="ti ti-chevron-right"/></button>
+      <button className="dash-alert info" onClick={()=>nav('ad-crm')}><i className="ti ti-user-plus"/><div><b>{n(s?.customers?.new_this_month)} new customers</b><span>{n(s?.customers?.total)} total customer profiles</span></div><i className="ti ti-chevron-right"/></button>
+    </section>
+
+    <section className="dash-main-grid">
+      <Panel title="7-Day Sales Trend" sub="Daily paid revenue" action={<button onClick={()=>nav('ad-rep')}>Detailed report <i className="ti ti-arrow-right"/></button>}>
+        <div className="sales-chart">
+          {Array.from({length:7},(_,i)=>{
+            const date=new Date(now.getTime()-(6-i)*86400000);const key=day(date);const point=d.trend.find((x:any)=>String(x.period).slice(0,10)===key);const value=n(point?.revenue);
+            return <div className="sales-bar-col" key={key}><div className="sales-bar-value">{value?compact(value):'—'}</div><div className="sales-bar-track"><div className="sales-bar" style={{height:`${Math.max(value?8:2,(value/maxTrend)*100)}%`}}/></div><div className="sales-bar-day">{date.toLocaleDateString('en-SA',{weekday:'short'})}</div></div>;
+          })}
+        </div>
+        <div className="dash-chart-summary"><span><small>Month revenue</small><b>{money(monthRevenue)}</b></span><span><small>Orders</small><b>{monthOrders}</b></span><span><small>Discounts</small><b>{money(s?.this_month?.discounts)}</b></span></div>
+      </Panel>
+
+      <Panel title="Financial Snapshot" sub="Month-to-date profitability">
+        <div className="finance-stack">
+          <FinanceRow label="Net sales" value={money(d.profit?.revenue)} tone="blue"/>
+          <FinanceRow label="Cost of goods" value={money(d.profit?.cogs)} tone="amber"/>
+          <FinanceRow label="Gross profit" value={money(d.profit?.gross_profit)} tone="teal"/>
+          <FinanceRow label="Operating expenses" value={money(d.profit?.operating_expenses?.total)} tone="red"/>
+          <FinanceRow label="Net profit" value={money(d.profit?.net_profit)} tone={n(d.profit?.net_profit)>=0?'green':'red'} strong/>
+        </div>
+        <div className="margin-meter"><div><span>Gross margin</span><b>{d.profit?.gross_margin||'0%'}</b></div><div className="margin-track"><span style={{width:`${Math.max(0,Math.min(100,parseFloat(d.profit?.gross_margin)||0))}%`}}/></div></div>
+      </Panel>
+    </section>
+
+    <section className="dash-three-grid">
+      <Panel title="Top Selling Products" sub="This month by revenue">
+        <div className="rank-list">{d.products.length?d.products.map((p:any,i:number)=><div className="rank-row" key={`${p.sku}-${i}`}><span className="rank-num">{i+1}</span><div><b>{p.product}</b><small>{p.variant||p.sku} · {n(p.qty_sold)} sold</small></div><strong>{money(p.revenue)}</strong></div>):<Empty text="No product sales this month"/>}</div>
+      </Panel>
+      <Panel title="Category Performance" sub="Sales mix this month">
+        <div className="mix-list">{d.categories.slice(0,5).map((c:any,i:number)=>{const pct=categoryTotal?n(c.revenue)/categoryTotal*100:0;return <div className="mix-row" key={c.category||i}><div><span>{c.category||'Uncategorized'}</span><b>{pct.toFixed(0)}%</b></div><div className="mix-track"><span style={{width:`${pct}%`}}/></div><small>{n(c.qty_sold)} units · {money(c.revenue)}</small></div>})}{!d.categories.length&&<Empty text="No category sales this month"/>}</div>
+      </Panel>
+      <Panel title="Payment Mix" sub="Collected this month">
+        <div className="payment-total"><small>Total collected</small><b>{money(paymentTotal)}</b></div>
+        <div className="payment-list">{d.payments.slice(0,6).map((p:any,i:number)=>{const pct=paymentTotal?n(p.total)/paymentTotal*100:0;return <div className="payment-row" key={p.method||i}><span className={`payment-dot p${i%5}`}/><div><b>{payLabel(p.method)}</b><small>{n(p.transactions)} transactions</small></div><strong>{pct.toFixed(0)}%</strong><em>{money(p.total)}</em></div>})}{!d.payments.length&&<Empty text="No payments this month"/>}</div>
+      </Panel>
+    </section>
+
+    <section className="dash-main-grid lower">
+      <Panel title="Inventory Health" sub="Stock value and replenishment">
+        <div className="inventory-metrics"><div><small>Cost value</small><b>{money(costValue)}</b></div><div><small>Retail value</small><b>{money(retailValue)}</b></div><div><small>Potential margin</small><b>{potentialMargin.toFixed(1)}%</b></div></div>
+        <div className="low-stock-list">{d.lowStock.slice(0,4).map((x:any,i:number)=><div className="stock-row" key={`${x.sku}-${i}`}><div><b>{x.product}</b><small>{x.sku} · {x.warehouse}</small></div><span><strong>{n(x.quantity)}</strong> / reorder {n(x.reorder_point)}</span></div>)}{!d.lowStock.length&&<div className="stock-healthy"><i className="ti ti-circle-check-filled"/> All monitored stock is above reorder level</div>}</div>
+        {d.lowStock.length>4&&<button className="dash-link" onClick={()=>nav('ad-inv')}>View all {d.lowStock.length} low-stock items <i className="ti ti-arrow-right"/></button>}
+      </Panel>
+      <Panel title="Operational Shortcuts" sub="Common clothing retail workflows">
+        <div className="ops-grid">
+          {[['ti-tag','Products & Variants','Sizes, colors and barcodes','ad-prod'],['ti-package-import','Receive Stock','Purchase receiving','ad-purch'],['ti-building-warehouse','Stock Transfer','Move between branches','ad-inv'],['ti-users','Customer CRM','Loyalty and history','ad-crm'],['ti-file-invoice','VAT & ZATCA','Compliance reports','ad-zatca'],['ti-user-dollar','Payroll','Employees and payroll','ad-hr']].map(([icon,title,sub,screen])=><button key={screen+title} onClick={()=>nav(screen)}><i className={`ti ${icon}`}/><div><b>{title}</b><span>{sub}</span></div><i className="ti ti-chevron-right"/></button>)}
+        </div>
+      </Panel>
+    </section>
+
+    <Panel title="Recent Orders" sub="Latest transactions across POS and channels" action={<button onClick={()=>nav('ad-orders')}>View all orders <i className="ti ti-arrow-right"/></button>}>
+      <div className="nx-table-wrap dash-orders"><table className="nx-table"><thead><tr><th>Invoice</th><th>Customer</th><th>Cashier</th><th>Payment</th><th>Total</th><th>Status</th><th>Date & Time</th></tr></thead><tbody>
+        {d.orders.length?d.orders.slice(0,8).map((o:any)=><tr key={o.id}><td><b className="order-link">#{o.order_number}</b></td><td>{o.customer_name||'Walk-in'}</td><td>{o.cashier_name||'—'}</td><td>{payLabel(o.payment_method)}</td><td><b>{money(o.total)}</b></td><td><span className={`nx-badge ${SC[o.status]||'inactive'}`}>{o.status}</span></td><td>{o.created_at?new Date(o.created_at).toLocaleString('en-SA',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'—'}</td></tr>):<tr><td colSpan={7}><Empty text="No orders yet"/></td></tr>}
+      </tbody></table></div>
+    </Panel>
+  </div>;
 }
+
+function Kpi({icon,tone,label,value,note}:{icon:string;tone:string;label:string;value:string;note:string}){return <div className="dash-kpi"><div className={`dash-kpi-icon ${tone}`}><i className={`ti ${icon}`}/></div><div><span>{label}</span><b>{value}</b><small>{note}</small></div></div>}
+function Panel({title,sub,action,children}:{title:string;sub:string;action?:any;children:any}){return <section className="dash-panel"><header><div><h3>{title}</h3><p>{sub}</p></div>{action&&<div className="dash-panel-action">{action}</div>}</header><div className="dash-panel-body">{children}</div></section>}
+function FinanceRow({label,value,tone,strong}:{label:string;value:string;tone:string;strong?:boolean}){return <div className={`finance-row${strong?' strong':''}`}><span><i className={`finance-dot ${tone}`}/>{label}</span><b>{value}</b></div>}
+function Empty({text}:{text:string}){return <div className="dash-empty"><i className="ti ti-chart-dots"/><span>{text}</span></div>}
