@@ -367,37 +367,6 @@ export default function POSSale(){
     </div>
   );
 
-  const CustModal=()=>(
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.5)',zIndex:2300,display:'flex',alignItems:'flex-start',justifyContent:'center',paddingTop:80}} onClick={()=>{setShowCustModal(false);setCustSearch('');}}>
-      <div style={{background:'#fff',borderRadius:16,width:440,maxHeight:480,display:'flex',flexDirection:'column',overflow:'hidden',boxShadow:'0 20px 60px rgba(0,0,0,.2)'}} onClick={e=>e.stopPropagation()}>
-        <div style={{padding:'12px 16px',borderBottom:'1px solid #f0f0f0',display:'flex',alignItems:'center',gap:10}}>
-          <i className="ti ti-search" style={{fontSize:16,color:'#999'}}/>
-          <input autoFocus value={custSearch} onChange={e=>setCustSearch(e.target.value)} onKeyDown={e=>e.stopPropagation()} placeholder="Search name or phone…" style={{flex:1,border:'none',outline:'none',fontSize:14}}/>
-          <button onClick={()=>{setShowCustModal(false);setCustSearch('');}} style={{background:'none',border:'none',fontSize:22,cursor:'pointer',color:'#999'}}>×</button>
-        </div>
-        <div style={{overflowY:'auto',flex:1}}>
-          <div style={{padding:14,borderBottom:'1px solid #e5e7eb',background:'#f8fafc'}}>
-            <div style={{fontSize:11,fontWeight:800,color:'#0f766e',marginBottom:8}}>QUICK ADD CUSTOMER — REQUIRED FOR PAYMENT</div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7}}>
-              <input value={newCustName} onChange={e=>setNewCustName(e.target.value)} placeholder="Customer name *" style={{padding:'9px 10px',border:'1px solid #d1d5db',borderRadius:8,fontSize:12}}/>
-              <input value={newCustPhone} onChange={e=>setNewCustPhone(e.target.value)} placeholder="Phone *" inputMode="tel" style={{padding:'9px 10px',border:'1px solid #d1d5db',borderRadius:8,fontSize:12}}/>
-            </div>
-            <button className="btn-nx primary sm" style={{width:'100%',justifyContent:'center',marginTop:7}} disabled={!newCustName.trim()||!newCustPhone.trim()||quickCustomer.isPending} onClick={()=>quickCustomer.mutate()}>{quickCustomer.isPending?'Adding...':'Add & Select Customer'}</button>
-          </div>
-          {customers.filter((c:any)=>!custSearch||c.name?.toLowerCase().includes(custSearch.toLowerCase())||c.phone?.includes(custSearch)).map((c:any)=>(
-            <div key={c.id} onClick={()=>{setCustId(c.id);setShowCustModal(false);setCustSearch('');setUseWallet(false);setRedeemPts(false);}} style={{padding:'12px 16px',cursor:'pointer',borderBottom:'1px solid #f5f5f5',display:'flex',alignItems:'center',gap:12}} onMouseEnter={e=>(e.currentTarget.style.background='#f5f5f5')} onMouseLeave={e=>(e.currentTarget.style.background='')}>
-              <div style={{width:36,height:36,borderRadius:'50%',background:'#ccfbf1',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,color:'#0f766e'}}>{c.name?.slice(0,2).toUpperCase()}</div>
-              <div style={{flex:1}}>
-                <div style={{fontWeight:600,fontSize:13}}>{c.name}</div>
-                <div style={{fontSize:11,color:'#999'}}>{c.phone||c.email||'—'} · {c.loyalty_points||0} pts · {sar(parseFloat(c.wallet_balance||0))}</div>
-              </div>
-              <span style={{fontSize:10,padding:'2px 8px',borderRadius:10,background:(TIER_C[c.loyalty_tier||'bronze']||'#cd7f32')+'22',color:TIER_C[c.loyalty_tier||'bronze']||'#cd7f32',fontWeight:700,textTransform:'capitalize'}}>{c.loyalty_tier||'Bronze'}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
 
   const printDuplicate=async(orderId:string)=>{
     setPrintingOrder(orderId);
@@ -583,7 +552,35 @@ export default function POSSale(){
 
   return(
     <div style={{display:'flex',flexDirection:'column',height:'calc(100vh - 56px)',background:'#f3f4f6',overflow:'hidden'}}>
-      {showCustModal&&<CustModal/>}
+      {showCustModal&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.5)',zIndex:2300,display:'flex',alignItems:'flex-start',justifyContent:'center',paddingTop:80}} onClick={()=>{setShowCustModal(false);setCustSearch('');}}>
+      <div style={{background:'#fff',borderRadius:16,width:440,maxHeight:480,display:'flex',flexDirection:'column',overflow:'hidden',boxShadow:'0 20px 60px rgba(0,0,0,.2)'}} onClick={e=>e.stopPropagation()}>
+        <div style={{padding:'12px 16px',borderBottom:'1px solid #f0f0f0',display:'flex',alignItems:'center',gap:10}}>
+          <i className="ti ti-search" style={{fontSize:16,color:'#999'}}/>
+          <input autoFocus value={custSearch} onChange={e=>setCustSearch(e.target.value)} onKeyDown={e=>e.stopPropagation()} placeholder="Search name or phone…" style={{flex:1,border:'none',outline:'none',fontSize:14}}/>
+          <button onClick={()=>{setShowCustModal(false);setCustSearch('');}} style={{background:'none',border:'none',fontSize:22,cursor:'pointer',color:'#999'}}>×</button>
+        </div>
+        <div style={{overflowY:'auto',flex:1}}>
+          <div style={{padding:14,borderBottom:'1px solid #e5e7eb',background:'#f8fafc'}}>
+            <div style={{fontSize:11,fontWeight:800,color:'#0f766e',marginBottom:8}}>QUICK ADD CUSTOMER — REQUIRED FOR PAYMENT</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7}}>
+              <input value={newCustName} onChange={e=>setNewCustName(e.target.value)} placeholder="Customer name *" style={{padding:'9px 10px',border:'1px solid #d1d5db',borderRadius:8,fontSize:12}}/>
+              <input value={newCustPhone} onChange={e=>setNewCustPhone(e.target.value)} placeholder="Phone *" inputMode="tel" style={{padding:'9px 10px',border:'1px solid #d1d5db',borderRadius:8,fontSize:12}}/>
+            </div>
+            <button className="btn-nx primary sm" style={{width:'100%',justifyContent:'center',marginTop:7}} disabled={!newCustName.trim()||!newCustPhone.trim()||quickCustomer.isPending} onClick={()=>quickCustomer.mutate()}>{quickCustomer.isPending?'Adding...':'Add & Select Customer'}</button>
+          </div>
+          {customers.filter((c:any)=>!custSearch||c.name?.toLowerCase().includes(custSearch.toLowerCase())||c.phone?.includes(custSearch)).map((c:any)=>(
+            <div key={c.id} onClick={()=>{setCustId(c.id);setShowCustModal(false);setCustSearch('');setUseWallet(false);setRedeemPts(false);}} style={{padding:'12px 16px',cursor:'pointer',borderBottom:'1px solid #f5f5f5',display:'flex',alignItems:'center',gap:12}} onMouseEnter={e=>(e.currentTarget.style.background='#f5f5f5')} onMouseLeave={e=>(e.currentTarget.style.background='')}>
+              <div style={{width:36,height:36,borderRadius:'50%',background:'#ccfbf1',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,color:'#0f766e'}}>{c.name?.slice(0,2).toUpperCase()}</div>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:600,fontSize:13}}>{c.name}</div>
+                <div style={{fontSize:11,color:'#999'}}>{c.phone||c.email||'—'} · {c.loyalty_points||0} pts · {sar(parseFloat(c.wallet_balance||0))}</div>
+              </div>
+              <span style={{fontSize:10,padding:'2px 8px',borderRadius:10,background:(TIER_C[c.loyalty_tier||'bronze']||'#cd7f32')+'22',color:TIER_C[c.loyalty_tier||'bronze']||'#cd7f32',fontWeight:700,textTransform:'capitalize'}}>{c.loyalty_tier||'Bronze'}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>}
       {showPayModal&&PaymentModal()}
       {showOrders&&<OrdersModal/>}
       {showHeld&&<HeldOrders onRetrieve={h=>{setCart(Array.isArray(h.cart)?h.cart:[]);setCustId(h.custId||'');setMethod(h.method||'Cash');setDiscPct(h.discPct||'');setOrderNote(h.orderNote||h.note||'');}} onClose={()=>setShowHeld(false)}/>}
