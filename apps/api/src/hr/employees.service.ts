@@ -29,29 +29,30 @@ export class EmployeesService {
     return 'EMP-'+String(Number(r.rows[0].count)+1).padStart(4,'0');
   }
 
-  async findAll(search?:string) {
+  async findAll(companyId:string,search?:string) {
     const term=String(search||'').trim();
     const result=await this.db.query(
       `SELECT ${this.normalizedSelect()},d.name department_name
        FROM employees e
        LEFT JOIN departments d ON d.id=NULLIF(to_jsonb(e)->>'department_id','')::uuid
-       WHERE $1='' OR COALESCE(to_jsonb(e)->>'full_name','') ILIKE $2
-         OR COALESCE(to_jsonb(e)->>'first_name','') ILIKE $2
-         OR COALESCE(to_jsonb(e)->>'last_name','') ILIKE $2
-         OR COALESCE(to_jsonb(e)->>'email','') ILIKE $2
-         OR COALESCE(to_jsonb(e)->>'employee_number',to_jsonb(e)->>'employee_id','') ILIKE $2
+       WHERE COALESCE(to_jsonb(e)->>'company_id',$1)=$1 AND
+        ($2='' OR COALESCE(to_jsonb(e)->>'full_name','') ILIKE $3
+         OR COALESCE(to_jsonb(e)->>'first_name','') ILIKE $3
+         OR COALESCE(to_jsonb(e)->>'last_name','') ILIKE $3
+         OR COALESCE(to_jsonb(e)->>'email','') ILIKE $3
+         OR COALESCE(to_jsonb(e)->>'employee_number',to_jsonb(e)->>'employee_id','') ILIKE $3)
        ORDER BY e.created_at DESC`,
-      [term,`%${term}%`],
+      [companyId,term,`%${term}%`],
     );
     return result.rows;
   }
 
-  async findOne(id:string) {
+  async findOne(companyId:string,id:string) {
     const result=await this.db.query(
       `SELECT ${this.normalizedSelect()},d.name department_name
        FROM employees e
        LEFT JOIN departments d ON d.id=NULLIF(to_jsonb(e)->>'department_id','')::uuid
-       WHERE e.id=$1`,[id],
+       WHERE e.id=$1 AND COALESCE(to_jsonb(e)->>'company_id',$2)=$2`,[id,companyId],
     );
     if(!result.rows[0])throw new NotFoundException('Employee not found');
     return result.rows[0];
@@ -62,7 +63,7 @@ export class EmployeesService {
     return {first:parts.shift()||'',last:parts.join(' ')||'-'};
   }
 
-  async create(body:any) {
+  async create(companyId:string,body:any) {
     const cols=await this.columns();
     const fullName=String(body.full_name||body.fullName||[body.firstName,body.lastName].filter(Boolean).join(' ')).trim();
     const email=String(body.email||'').trim().toLowerCase();
@@ -72,6 +73,7 @@ export class EmployeesService {
     const employeeNumber=String(body.employee_number||body.employeeNumber||await this.generateId()).trim();
     const names=this.splitName(fullName);
     const candidates:Record<string,any>={
+      company_id:companyId,
       employee_number:employeeNumber,employee_id:employeeNumber,
       full_name:fullName,first_name:names.first,last_name:names.last,
       email:email||null,phone:body.phone||null,address:body.address||null,
@@ -101,8 +103,8 @@ export class EmployeesService {
     return result.rows[0];
   }
 
-  async update(id:string,body:any) {
-    await this.findOne(id);
+  async update(companyId:string,id:string,body:any) {
+    await this.findOne(companyId,id);
     const cols=await this.columns();
     const current=await this.db.query(`SELECT * FROM employees WHERE id=$1`,[id]);
     const old=current.rows[0],oldJson:any=old;
@@ -125,15 +127,16 @@ export class EmployeesService {
     if(!entries.length)return old;
     const sets=entries.map(([key],i)=>`"${key}"=$${i+1}`).join(',');
     const result=await this.db.query(
-      `UPDATE employees SET ${sets} WHERE id=$${entries.length+1} RETURNING *`,
-      [...entries.map(([,value])=>value??null),id],
+      `UPDATE employees SET ${sets} WHERE id=$${entries.length+1}
+       AND COALESCE(to_jsonb(employees)->>'company_id',$${entries.length+2})=$${entries.length+2} RETURNING *`,
+      [...entries.map(([,value])=>value??null),id,companyId],
     );
     return result.rows[0];
   }
 
-  async remove(id:string) {
-    await this.findOne(id);
-    await this.db.query('DELETE FROM employees WHERE id=$1',[id]);
+  async remove(companyId:string,id:string) {
+    await this.findOne(companyId,id);
+    await this.db.query(`DELETE FROM employees WHERE id=$1 AND COALESCE(to_jsonb(employees)->>'company_id',$2)=$2`,[id,companyId]);
     return {message:'Deleted'};
   }
 }
