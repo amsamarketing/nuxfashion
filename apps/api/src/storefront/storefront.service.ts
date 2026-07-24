@@ -25,6 +25,11 @@ export class StorefrontService implements OnModuleInit {
     await this.db.query(`ALTER TABLE storefront_banners ADD COLUMN IF NOT EXISTS text_position VARCHAR(20) NOT NULL DEFAULT 'left'`);
     await this.db.query(`ALTER TABLE storefront_banners ADD COLUMN IF NOT EXISTS starts_at TIMESTAMPTZ`);
     await this.db.query(`ALTER TABLE storefront_banners ADD COLUMN IF NOT EXISTS ends_at TIMESTAMPTZ`);
+    await this.db.query(`ALTER TABLE discounts ADD COLUMN IF NOT EXISTS channels jsonb NOT NULL DEFAULT '["pos","ecommerce"]'::jsonb`);
+    await this.db.query(`CREATE TABLE IF NOT EXISTS discount_redemptions(
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),company_id uuid NOT NULL,
+      discount_id uuid NOT NULL REFERENCES discounts(id),customer_id uuid,order_id uuid,
+      amount numeric(12,2) NOT NULL DEFAULT 0,created_at timestamptz NOT NULL DEFAULT now())`);
   }
 
   private defaults(){
@@ -177,14 +182,40 @@ export class StorefrontService implements OnModuleInit {
         [companyId,dto.customer_name.trim(),dto.phone.trim(),dto.email?.trim()||null],
       );
       else await client.query(`UPDATE customers SET name=$1,email=COALESCE($2,email),updated_at=NOW() WHERE id=$3`,[dto.customer_name.trim(),dto.email?.trim()||null,customer.rows[0].id]);
-      const shipping=subtotal>=freeFrom?0:shippingFee;const taxable=subtotal+shipping;const tax=taxable*.15;const total=taxable+tax;const orderNumber=`WEB-${Date.now()}`;
+      let discount:any=null;let discountAmount=0;
+      if(dto.coupon_code?.trim()){
+        const coupon=await client.query(
+          `SELECT * FROM discounts WHERE company_id=$1 AND UPPER(coupon_code)=UPPER($2) AND is_coupon=true AND is_active=true
+           AND channels ? 'ecommerce' AND (valid_from IS NULL OR valid_from<=NOW()) AND (valid_until IS NULL OR valid_until>=NOW())
+           AND (usage_limit IS NULL OR usage_count<usage_limit) FOR UPDATE`,[companyId,dto.coupon_code.trim()]);
+        discount=coupon.rows[0];
+        if(!discount)throw new BadRequestException('Invalid, expired or POS-only coupon');
+        if(subtotal<Number(discount.min_order_amount||0))throw new BadRequestException(`Minimum order amount is SAR ${discount.min_order_amount}`);
+        if(discount.first_order_only){
+          const previous=await client.query(`SELECT 1 FROM sales_orders WHERE company_id=$1 AND customer_id=$2 AND status IN ('paid','confirmed') LIMIT 1`,[companyId,customer.rows[0].id]);
+          if(previous.rows[0])throw new BadRequestException('Coupon is valid for the first order only');
+        }
+        if(discount.one_per_customer){
+          const used=await client.query(`SELECT 1 FROM discount_redemptions WHERE discount_id=$1 AND customer_id=$2 LIMIT 1`,[discount.id,customer.rows[0].id]);
+          if(used.rows[0])throw new BadRequestException('Coupon has already been used by this customer');
+        }
+        discountAmount=discount.type==='percentage'?subtotal*Math.min(Number(discount.value),100)/100:Math.min(Number(discount.value),subtotal);
+      }
+      const shipping=subtotal>=freeFrom?0:shippingFee;const taxable=Math.max(0,subtotal-discountAmount)+shipping;const tax=taxable*.15;const total=taxable+tax;const orderNumber=`WEB-${Date.now()}`;
       const address=[dto.address,dto.district,dto.city,dto.postal_code].filter(Boolean).join(', ');
       const notes=`ECOMMERCE | Payment: ${dto.payment_method} | Ship to: ${address}${dto.notes?` | Customer note: ${dto.notes}`:''}`;
       const order=await client.query(
         `INSERT INTO sales_orders(company_id,order_number,warehouse_id,cashier_id,customer_id,status,subtotal,discount_amount,tax_amount,total,notes)
-         VALUES($1,$2,$3,$4,$5,'confirmed',$6,0,$7,$8,$9) RETURNING *`,
-        [companyId,orderNumber,warehouse.rows[0].id,operator.rows[0].id,customer.rows[0].id,subtotal,tax,total,notes],
+         VALUES($1,$2,$3,$4,$5,'confirmed',$6,$7,$8,$9,$10) RETURNING *`,
+        [companyId,orderNumber,warehouse.rows[0].id,operator.rows[0].id,customer.rows[0].id,subtotal,discountAmount,tax,total,notes],
       );
+      if(discount){
+        await client.query(`INSERT INTO order_discounts(order_id,discount_id,name,type,value,amount,coupon_code) VALUES($1,$2,$3,'coupon',$4,$5,$6)`,
+          [order.rows[0].id,discount.id,discount.name,discount.value,discountAmount,discount.coupon_code]);
+        await client.query(`UPDATE discounts SET usage_count=usage_count+1 WHERE id=$1`,[discount.id]);
+        await client.query(`INSERT INTO discount_redemptions(company_id,discount_id,customer_id,order_id,amount) VALUES($1,$2,$3,$4,$5)`,
+          [companyId,discount.id,customer.rows[0].id,order.rows[0].id,discountAmount]);
+      }
       for(const line of lines){
         await client.query(
           `INSERT INTO sales_order_lines(order_id,variant_id,quantity,unit_price,discount_amount,line_total)
@@ -197,7 +228,7 @@ export class StorefrontService implements OnModuleInit {
           [warehouse.rows[0].id,line.variant_id,-line.quantity,line.quantity,`Online order ${orderNumber}`,operator.rows[0].id],
         );
       }
-      return {order_number:orderNumber,status:'confirmed',payment_method:dto.payment_method,subtotal,shipping,vat:tax,total,customer:{name:dto.customer_name,phone:dto.phone},estimated_delivery:storeSettings.delivery_estimate};
+      return {order_number:orderNumber,status:'confirmed',payment_method:dto.payment_method,subtotal,discount:discountAmount,coupon_code:discount?.coupon_code,shipping,vat:tax,total,customer:{name:dto.customer_name,phone:dto.phone},estimated_delivery:storeSettings.delivery_estimate};
     });
   }
 }

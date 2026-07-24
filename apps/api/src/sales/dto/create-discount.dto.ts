@@ -22,4 +22,5 @@ export class CreateDiscountDto {
   @IsOptional() @IsBoolean() first_order_only?: boolean;
   @IsOptional() @IsBoolean() one_per_customer?: boolean;
   @IsOptional() @IsBoolean() is_active?: boolean;
+  @IsOptional() @IsArray() @IsEnum(['pos','ecommerce'], { each: true }) channels?: string[];
 }

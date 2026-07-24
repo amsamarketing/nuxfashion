@@ -55,6 +55,7 @@ function DiscountModal({disc,onClose,products,categories}:{disc:any;onClose:()=>
     stackable:disc?.stackable??true,
     first_order_only:disc?.first_order_only||false,
     one_per_customer:disc?.one_per_customer||false,
+    channels:(disc?.channels||['pos','ecommerce']) as string[],
   });
   const F=(k:string,v:any)=>setForm(f=>({...f,[k]:v}));
   const toggleArr=(k:string,v:string)=>setForm(f=>({...f,[k]:(f as any)[k].includes(v)?(f as any)[k].filter((x:string)=>x!==v):[...(f as any)[k],v]}));
@@ -78,6 +79,7 @@ function DiscountModal({disc,onClose,products,categories}:{disc:any;onClose:()=>
       stackable:form.stackable,
       first_order_only:form.first_order_only,
       one_per_customer:form.one_per_customer,
+      channels:form.channels,
     }}),
     onSuccess:()=>{qc.invalidateQueries({queryKey:['discounts']});onClose();},
   });
@@ -196,6 +198,14 @@ function DiscountModal({disc,onClose,products,categories}:{disc:any;onClose:()=>
                 <label key={k} style={{display:'flex',alignItems:'center',gap:10,cursor:'pointer',padding:'10px 12px',borderRadius:8,background:'var(--bg)'}}>
                   <input type="checkbox" checked={(form as any)[k]} onChange={e=>F(k,e.target.checked)}/>
                   <div><div style={{fontWeight:600,fontSize:13}}>{l}</div><div style={{fontSize:11,color:'var(--mu)'}}>{d}</div></div>
+                </label>
+              ))}
+            </div>
+            <div style={{fontWeight:600,fontSize:13,margin:'14px 0 8px'}}>Sales Channels</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              {[['pos','🧾 POS stores'],['ecommerce','🛍 E-commerce']].map(([key,label])=>(
+                <label key={key} style={{padding:'10px 12px',border:`2px solid ${form.channels.includes(key)?'var(--ac)':'var(--bd)'}`,borderRadius:8,cursor:'pointer',background:form.channels.includes(key)?'var(--acg)':'transparent'}}>
+                  <input type="checkbox" checked={form.channels.includes(key)} onChange={()=>toggleArr('channels',key)} style={{marginRight:8}}/>{label}
                 </label>
               ))}
             </div>
@@ -322,6 +332,7 @@ export default function Loyalty(){
   const {data:discData,isLoading:discLoading}=useQuery({queryKey:['discounts'],queryFn:async()=>{const r=await api.get('/sales/discounts');return r.data;}});
   const {data:prodData}=useQuery({queryKey:['products-all'],queryFn:async()=>{const r=await api.get('/catalog/products?limit=300');return r.data;}});
   const {data:giftCardData}=useQuery({queryKey:['gift-cards'],queryFn:async()=>{const r=await api.get('/sales/gift-cards');return r.data;}});
+  const {data:reportData=[]}=useQuery({queryKey:['discount-report'],queryFn:async()=>{const r=await api.get('/sales/discounts/report');return r.data;}});
 
   const customers:any[]=Array.isArray(custData)?custData:custData?.customers||custData?.data||[];
   const discounts:any[]=Array.isArray(discData)?discData:discData?.discounts||discData?.data||[];
@@ -374,7 +385,7 @@ export default function Loyalty(){
     </div>
 
     <div style={{display:'flex',gap:4,marginBottom:16,borderBottom:'1px solid var(--bd)'}}>
-      {[['members','👥 Members'],['discounts','🏷 Discounts & Coupons'],['tiers','👑 Tier Settings'],['giftcards','🎁 Gift Cards']].map(([id,l])=>(
+      {[['members','👥 Members'],['discounts','🏷 Discounts & Coupons'],['reports','📊 Code-wise Report'],['tiers','👑 Tier Settings'],['giftcards','🎁 Gift Cards']].map(([id,l])=>(
         <button key={id} onClick={()=>setTab(id)} style={{padding:'8px 16px',border:'none',background:'none',borderBottom:tab===id?'2px solid var(--ac)':'2px solid transparent',color:tab===id?'var(--ac)':'var(--mu)',fontWeight:tab===id?600:400,cursor:'pointer',fontSize:13}}>{l}</button>
       ))}
     </div>
@@ -427,6 +438,29 @@ export default function Loyalty(){
           {filteredDiscounts.map((d:any)=><DiscountCard key={d.id} d={d} cats={categories} onEdit={()=>{setEditDisc(d);setShowDisc(true);}}/>)}
         </div>
       )}
+    </div>)}
+
+    {tab==='reports'&&(<div className="nx-card" style={{padding:0,overflowX:'auto'}}>
+      <div style={{padding:'16px 18px',borderBottom:'1px solid var(--bd)'}}>
+        <div style={{fontWeight:700,fontSize:16}}>Promotion Performance</div>
+        <div style={{fontSize:12,color:'var(--mu)'}}>Code-wise POS and E-commerce sales, usage and discount cost</div>
+      </div>
+      <table style={{width:'100%',borderCollapse:'collapse',minWidth:980}}>
+        <thead><tr>{['Promotion / Code','Channels','Total Uses','POS','E-commerce','Customers','Gross Sales','Discount Given','Net Sales','Last Used'].map(h=><th key={h} style={{padding:'11px 12px',textAlign:'left',fontSize:10,color:'var(--mu)',borderBottom:'1px solid var(--bd)',whiteSpace:'nowrap'}}>{h}</th>)}</tr></thead>
+        <tbody>{(reportData as any[]).map(r=><tr key={r.id} style={{borderBottom:'1px solid var(--bd)'}}>
+          <td style={{padding:'11px 12px'}}><b style={{display:'block',fontSize:12}}>{r.name}</b><span style={{fontFamily:'monospace',fontSize:11,color:'var(--ac)'}}>{r.coupon_code||'AUTO PROMO'}</span></td>
+          <td style={{padding:'11px 12px',fontSize:11}}>{(r.channels||[]).map((c:string)=>c==='pos'?'POS':'Web').join(' + ')}</td>
+          <td style={{padding:'11px 12px',fontWeight:800}}>{r.uses||0}</td>
+          <td style={{padding:'11px 12px'}}>{r.pos_uses||0}<small style={{display:'block',color:'var(--mu)'}}>SAR {Number(r.pos_sales||0).toFixed(2)}</small></td>
+          <td style={{padding:'11px 12px'}}>{r.ecommerce_uses||0}<small style={{display:'block',color:'var(--mu)'}}>SAR {Number(r.ecommerce_sales||0).toFixed(2)}</small></td>
+          <td style={{padding:'11px 12px'}}>{r.customers||0}</td>
+          <td style={{padding:'11px 12px',fontWeight:600}}>SAR {Number(r.gross_sales||0).toFixed(2)}</td>
+          <td style={{padding:'11px 12px',fontWeight:600,color:'#dc2626'}}>SAR {Number(r.discount_given||0).toFixed(2)}</td>
+          <td style={{padding:'11px 12px',fontWeight:800,color:'var(--ac)'}}>SAR {Number(r.net_sales||0).toFixed(2)}</td>
+          <td style={{padding:'11px 12px',fontSize:11,color:'var(--mu)'}}>{r.last_used_at?new Date(r.last_used_at).toLocaleString('en-SA'):'Never'}</td>
+        </tr>)}</tbody>
+      </table>
+      {(reportData as any[]).length===0&&<div style={{padding:40,textAlign:'center',color:'var(--mu)'}}>No promotion usage recorded yet.</div>}
     </div>)}
 
     {tab==='tiers'&&(<div>

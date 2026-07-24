@@ -169,6 +169,7 @@ export class SalesService {
       ALTER TABLE discounts ADD COLUMN IF NOT EXISTS stackable boolean NOT NULL DEFAULT true;
       ALTER TABLE discounts ADD COLUMN IF NOT EXISTS first_order_only boolean NOT NULL DEFAULT false;
       ALTER TABLE discounts ADD COLUMN IF NOT EXISTS one_per_customer boolean NOT NULL DEFAULT false;
+      ALTER TABLE discounts ADD COLUMN IF NOT EXISTS channels jsonb NOT NULL DEFAULT '["pos","ecommerce"]'::jsonb;
       CREATE TABLE IF NOT EXISTS discount_redemptions (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         company_id uuid NOT NULL, discount_id uuid NOT NULL REFERENCES discounts(id),
@@ -197,15 +198,16 @@ export class SalesService {
     const result = await this.db.query(
       `INSERT INTO discounts (company_id,name,description,type,scope,value,min_order_amount,
          buy_quantity,get_quantity,is_coupon,coupon_code,usage_limit,valid_from,valid_until,
-         applies_to,category_ids,product_ids,tier_restriction,occasion,stackable,first_order_only,one_per_customer,is_active)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17::jsonb,$18::jsonb,$19,$20,$21,$22,$23) RETURNING *`,
+         applies_to,category_ids,product_ids,tier_restriction,occasion,stackable,first_order_only,one_per_customer,is_active,channels)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17::jsonb,$18::jsonb,$19,$20,$21,$22,$23,$24::jsonb) RETURNING *`,
       [companyId, dto.name, dto.description ?? null, dto.type, dto.scope, dto.value,
        dto.min_order_amount ?? 0, dto.buy_quantity ?? null, dto.get_quantity ?? null,
        dto.is_coupon ?? false, dto.coupon_code ?? null, dto.usage_limit ?? null,
        dto.valid_from ?? null, dto.valid_until ?? null, dto.applies_to ?? 'all',
        JSON.stringify(dto.category_ids ?? []), JSON.stringify(dto.product_ids ?? []),
        JSON.stringify(dto.tier_restriction ?? []), dto.occasion ?? null, dto.stackable ?? true,
-       dto.first_order_only ?? false, dto.one_per_customer ?? false, dto.is_active ?? true],
+       dto.first_order_only ?? false, dto.one_per_customer ?? false, dto.is_active ?? true,
+       JSON.stringify(dto.channels?.length?dto.channels:['pos','ecommerce'])],
     );
     return result.rows[0];
   }
@@ -228,16 +230,37 @@ export class SalesService {
       `UPDATE discounts SET name=$1,description=$2,type=$3,scope=$4,value=$5,min_order_amount=$6,
        buy_quantity=$7,get_quantity=$8,is_coupon=$9,coupon_code=$10,usage_limit=$11,valid_from=$12,valid_until=$13,
        applies_to=$14,category_ids=$15::jsonb,product_ids=$16::jsonb,tier_restriction=$17::jsonb,
-       occasion=$18,stackable=$19,first_order_only=$20,one_per_customer=$21,is_active=$22,updated_at=NOW()
-       WHERE id=$23 AND company_id=$24 RETURNING *`,
+       occasion=$18,stackable=$19,first_order_only=$20,one_per_customer=$21,is_active=$22,channels=$23::jsonb,updated_at=NOW()
+       WHERE id=$24 AND company_id=$25 RETURNING *`,
       [d.name,d.description,d.type,d.scope,d.value,d.min_order_amount,d.buy_quantity,d.get_quantity,
        d.is_coupon,d.coupon_code,d.usage_limit,d.valid_from,d.valid_until,d.applies_to||'all',
        JSON.stringify(d.category_ids||[]),JSON.stringify(d.product_ids||[]),JSON.stringify(d.tier_restriction||[]),
-       d.occasion,d.stackable!==false,!!d.first_order_only,!!d.one_per_customer,d.is_active!==false,id,companyId]);
+       d.occasion,d.stackable!==false,!!d.first_order_only,!!d.one_per_customer,d.is_active!==false,
+       JSON.stringify(d.channels?.length?d.channels:['pos','ecommerce']),id,companyId]);
     return result.rows[0];
   }
 
-  async validateCoupon(companyId: string, code: string, orderAmount: number, customerId?: string) {
+  async getDiscountReport(companyId:string){
+    await this.ensureLoyaltySchema();
+    const result=await this.db.query(
+      `SELECT d.id,d.name,d.coupon_code,d.is_coupon,d.is_active,d.channels,d.usage_count,
+       COUNT(DISTINCT r.order_id)::int uses,
+       COUNT(DISTINCT r.customer_id)::int customers,
+       COALESCE(SUM(r.amount),0) discount_given,
+       COALESCE(SUM(o.subtotal),0) gross_sales,
+       COALESCE(SUM(o.total),0) net_sales,
+       COUNT(DISTINCT r.order_id) FILTER(WHERE o.order_number LIKE 'WEB-%')::int ecommerce_uses,
+       COUNT(DISTINCT r.order_id) FILTER(WHERE o.order_number NOT LIKE 'WEB-%')::int pos_uses,
+       COALESCE(SUM(o.total) FILTER(WHERE o.order_number LIKE 'WEB-%'),0) ecommerce_sales,
+       COALESCE(SUM(o.total) FILTER(WHERE o.order_number NOT LIKE 'WEB-%'),0) pos_sales,
+       MAX(r.created_at) last_used_at
+       FROM discounts d LEFT JOIN discount_redemptions r ON r.discount_id=d.id
+       LEFT JOIN sales_orders o ON o.id=r.order_id
+       WHERE d.company_id=$1 GROUP BY d.id ORDER BY net_sales DESC,d.created_at DESC`,[companyId]);
+    return result.rows;
+  }
+
+  async validateCoupon(companyId: string, code: string, orderAmount: number, customerId?: string, channel='pos') {
     await this.ensureLoyaltySchema();
     const result = await this.db.query(
       `SELECT * FROM discounts WHERE company_id=$1 AND coupon_code=$2 AND is_active=true
@@ -248,6 +271,8 @@ export class SalesService {
     );
     if (!result.rows[0]) throw new BadRequestException('Invalid or expired coupon');
     const d = result.rows[0];
+    if(!(d.channels||['pos','ecommerce']).includes(channel))
+      throw new BadRequestException(`Coupon is not available on ${channel==='ecommerce'?'E-commerce':'POS'}`);
     if (orderAmount < (d.min_order_amount ?? 0))
       throw new BadRequestException(`Minimum order amount is ${d.min_order_amount} SAR`);
     if(d.first_order_only&&customerId){

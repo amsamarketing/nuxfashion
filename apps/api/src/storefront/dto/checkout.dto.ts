@@ -15,6 +15,7 @@ export class StoreCheckoutDto {
   @IsOptional() @IsString() district?: string;
   @IsOptional() @IsString() postal_code?: string;
   @IsOptional() @IsString() notes?: string;
+  @IsOptional() @IsString() coupon_code?: string;
   @IsEnum(['cash_on_delivery','bank_transfer']) payment_method: string;
   @IsArray() @ValidateNested({each:true}) @Type(()=>StoreCartLineDto) lines: StoreCartLineDto[];
 }

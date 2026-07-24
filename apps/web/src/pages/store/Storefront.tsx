@@ -1,62 +1,1057 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import api from '../../lib/api';
-import { getErr } from '../../lib/err';
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import api from "../../lib/api";
+import { getErr } from "../../lib/err";
 
-type CartLine={variant:any;product:any;qty:number};
-const money=(v:any)=>'SAR '+Number(v||0).toLocaleString('en-SA',{minimumFractionDigits:2,maximumFractionDigits:2});
-const loadCart=()=>{try{return JSON.parse(localStorage.getItem('nux_store_cart')||'[]')}catch{return[]}};
+type CartLine = { variant: any; product: any; qty: number };
+const money = (v: any) =>
+  "SAR " +
+  Number(v || 0).toLocaleString("en-SA", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+const loadCart = () => {
+  try {
+    return JSON.parse(localStorage.getItem("nux_store_cart") || "[]");
+  } catch {
+    return [];
+  }
+};
 
-export default function Storefront(){
-  const [search,setSearch]=useState('');const [category,setCategory]=useState('');const [cart,setCart]=useState<CartLine[]>(loadCart);const [picker,setPicker]=useState<any>(null);const [cartOpen,setCartOpen]=useState(false);const [checkout,setCheckout]=useState(false);const [success,setSuccess]=useState<any>(null);
-  const [slide,setSlide]=useState(0);
-  const {data:config}=useQuery({queryKey:['store-config'],queryFn:()=>api.get('/storefront/config').then(r=>r.data)});
-  const {data,isLoading,error}=useQuery({queryKey:['store-catalog'],queryFn:()=>api.get('/storefront/catalog').then(r=>r.data)});
-  useEffect(()=>localStorage.setItem('nux_store_cart',JSON.stringify(cart)),[cart]);
-  useEffect(()=>{if(config?.seo_title)document.title=config.seo_title;let meta=document.querySelector<HTMLMetaElement>('meta[name="description"]');if(!meta){meta=document.createElement('meta');meta.name='description';document.head.appendChild(meta)}if(config?.seo_description)meta.content=config.seo_description},[config?.seo_title,config?.seo_description]);
-  const banners:any[]=config?.banners||[];
-  useEffect(()=>{if(banners.length<2)return;const timer=setInterval(()=>setSlide(s=>(s+1)%banners.length),5500);return()=>clearInterval(timer)},[banners.length]);
-  const products:any[]=data?.products||[];const categories:any[]=data?.categories||[];
-  const shown=useMemo(()=>products.filter(p=>(!category||p.category_id===category)&&(!search.trim()||[p.name,p.name_ar,p.category_name].some(v=>String(v||'').toLowerCase().includes(search.toLowerCase())))),[products,category,search]);
-  const units=cart.reduce((s,x)=>s+x.qty,0);const subtotal=cart.reduce((s,x)=>s+Number(x.variant.selling_price)*x.qty,0);const shipping=subtotal>=Number(config?.free_shipping_from||300)?0:Number(config?.shipping_fee||25);const vat=(subtotal+shipping)*.15;const total=subtotal+shipping+vat;
-  const add=(product:any,variant:any)=>{setCart(prev=>{const found=prev.find(x=>x.variant.id===variant.id);return found?prev.map(x=>x.variant.id===variant.id?{...x,qty:x.qty+1}:x):[...prev,{product:{id:product.id,name:product.name,name_ar:product.name_ar,image_url:product.image_url},variant,qty:1}]});setPicker(null);setCartOpen(true)};
-  const qty=(id:string,value:number)=>setCart(prev=>prev.map(x=>x.variant.id===id?{...x,qty:Math.max(0,Math.min(Number(x.variant.stock||99),value))}:x).filter(x=>x.qty>0));
-  const available=(p:any)=>(p.variants||[]).filter((v:any)=>Number(v.stock)>0&&Number(v.selling_price)>0);
+export default function Storefront() {
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("");
+  const [cart, setCart] = useState<CartLine[]>(loadCart);
+  const [picker, setPicker] = useState<any>(null);
+  const [cartOpen, setCartOpen] = useState(false);
+  const [checkout, setCheckout] = useState(false);
+  const [success, setSuccess] = useState<any>(null);
+  const [slide, setSlide] = useState(0);
+  const { data: config } = useQuery({
+    queryKey: ["store-config"],
+    queryFn: () => api.get("/storefront/config").then((r) => r.data),
+  });
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["store-catalog"],
+    queryFn: () => api.get("/storefront/catalog").then((r) => r.data),
+  });
+  useEffect(
+    () => localStorage.setItem("nux_store_cart", JSON.stringify(cart)),
+    [cart],
+  );
+  useEffect(() => {
+    if (config?.seo_title) document.title = config.seo_title;
+    let meta = document.querySelector<HTMLMetaElement>(
+      'meta[name="description"]',
+    );
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.name = "description";
+      document.head.appendChild(meta);
+    }
+    if (config?.seo_description) meta.content = config.seo_description;
+  }, [config?.seo_title, config?.seo_description]);
+  const banners: any[] = config?.banners || [];
+  useEffect(() => {
+    if (banners.length < 2) return;
+    const timer = setInterval(
+      () => setSlide((s) => (s + 1) % banners.length),
+      5500,
+    );
+    return () => clearInterval(timer);
+  }, [banners.length]);
+  const products: any[] = data?.products || [];
+  const categories: any[] = data?.categories || [];
+  const shown = useMemo(
+    () =>
+      products.filter(
+        (p) =>
+          (!category || p.category_id === category) &&
+          (!search.trim() ||
+            [p.name, p.name_ar, p.category_name].some((v) =>
+              String(v || "")
+                .toLowerCase()
+                .includes(search.toLowerCase()),
+            )),
+      ),
+    [products, category, search],
+  );
+  const units = cart.reduce((s, x) => s + x.qty, 0);
+  const subtotal = cart.reduce(
+    (s, x) => s + Number(x.variant.selling_price) * x.qty,
+    0,
+  );
+  const shipping =
+    subtotal >= Number(config?.free_shipping_from || 300)
+      ? 0
+      : Number(config?.shipping_fee || 25);
+  const vat = (subtotal + shipping) * 0.15;
+  const total = subtotal + shipping + vat;
+  const add = (product: any, variant: any) => {
+    setCart((prev) => {
+      const found = prev.find((x) => x.variant.id === variant.id);
+      return found
+        ? prev.map((x) =>
+            x.variant.id === variant.id ? { ...x, qty: x.qty + 1 } : x,
+          )
+        : [
+            ...prev,
+            {
+              product: {
+                id: product.id,
+                name: product.name,
+                name_ar: product.name_ar,
+                image_url: product.image_url,
+              },
+              variant,
+              qty: 1,
+            },
+          ];
+    });
+    setPicker(null);
+    setCartOpen(true);
+  };
+  const qty = (id: string, value: number) =>
+    setCart((prev) =>
+      prev
+        .map((x) =>
+          x.variant.id === id
+            ? {
+                ...x,
+                qty: Math.max(
+                  0,
+                  Math.min(Number(x.variant.stock || 99), value),
+                ),
+              }
+            : x,
+        )
+        .filter((x) => x.qty > 0),
+    );
+  const available = (p: any) =>
+    (p.variants || []).filter(
+      (v: any) => Number(v.stock) > 0 && Number(v.selling_price) > 0,
+    );
 
-  if(success)return <div className="store-success"><div><span className="success-check"><i className="ti ti-check"/></span><small>ORDER CONFIRMED · تم تأكيد الطلب</small><h1>Thank you for your order!</h1><p>We have received your order and will contact you on <b>{success.customer.phone}</b>.</p><div className="success-order"><span>Order number</span><b>#{success.order_number}</b><span>Total</span><strong>{money(success.total)}</strong><span>Payment</span><b>{success.payment_method==='cash_on_delivery'?'Cash on Delivery':'Bank Transfer'}</b><span>Delivery</span><b>{success.estimated_delivery}</b></div><button onClick={()=>setSuccess(null)}>Continue shopping</button><a href="/">Admin login</a></div></div>;
-  return <div className="store" style={{'--store-accent':config?.primary_color||'#0f766e'} as any}>
-    <div className="store-announcement"><span>{config?.announcement||`Free delivery on orders over ${money(config?.free_shipping_from||300)}`}</span><span>{config?.announcement_ar||'ضريبة القيمة المضافة 15% مشمولة عند الدفع'}</span></div>
-    <header className="store-header"><a className="store-brand" href="/#store"><span>{config?.logo_url?<img src={config.logo_url} alt=""/>:<i className="ti ti-hanger-2"/>}</span><div><b>{config?.name||'NuxFashion'}</b><small>{config?.store_tagline||'FASHION · أزياء'}</small></div></a><nav><button className={!category?'active':''} onClick={()=>setCategory('')}>New Arrivals</button>{categories.slice(0,5).map(c=><button className={category===c.id?'active':''} key={c.id} onClick={()=>setCategory(c.id)}>{c.name}</button>)}</nav><div className="store-actions"><button onClick={()=>document.querySelector<HTMLInputElement>('.store-search input')?.focus()}><i className="ti ti-search"/></button><a href="/" title="Admin login"><i className="ti ti-user"/></a><button className="cart-button" onClick={()=>setCartOpen(true)}><i className="ti ti-shopping-bag"/>{units>0&&<span>{units}</span>}</button></div></header>
-    {banners.length?<section className={`banner-hero hero-${banners[slide]?.text_position||'left'}`}><picture className="banner-hero-bg"><source media="(max-width:720px)" srcSet={banners[slide]?.mobile_image_url||banners[slide]?.image_url}/><img src={banners[slide]?.image_url||''} alt={banners[slide]?.title||''}/><i style={{opacity:Number(banners[slide]?.overlay_strength??.65)}}/></picture><div className="banner-hero-content"><span className="banner-hero-kicker">{banners[slide]?.kicker||'NUXFASHION COLLECTION'}</span><h1>{banners[slide]?.title}</h1>{banners[slide]?.title_ar&&<h3 dir="rtl">{banners[slide].title_ar}</h3>}<p>{banners[slide]?.subtitle}</p>{banners[slide]?.subtitle_ar&&<p dir="rtl">{banners[slide].subtitle_ar}</p>}<button onClick={()=>{const link=banners[slide]?.button_link||'#collection';if(link.startsWith('#'))document.querySelector(link)?.scrollIntoView({behavior:'smooth'});else window.location.href=link}}>{banners[slide]?.button_label||'Shop Now'} <i className="ti ti-arrow-right"/></button></div>{banners.length>1&&<div className="hero-dots">{banners.map((b:any,i:number)=><button aria-label={b.title} className={slide===i?'active':''} key={b.id} onClick={()=>setSlide(i)}/>)}</div>}</section>:<section className="store-hero"><div><span>THE NEW COLLECTION · المجموعة الجديدة</span><h1>Everyday elegance,<br/><em>made for you.</em></h1><p>Contemporary fashion, thoughtful details and effortless style—delivered across Saudi Arabia.</p><button onClick={()=>document.getElementById('collection')?.scrollIntoView({behavior:'smooth'})}>Shop the collection <i className="ti ti-arrow-right"/></button></div><div className="hero-art"><i className="ti ti-hanger-2"/><b>NUX</b><small>FASHION EDIT</small></div></section>}
-    <section className="store-benefits"><div><i className="ti ti-truck-delivery"/><span><b>Saudi Delivery</b><small>{config?.delivery_estimate||'2–5 business days'}</small></span></div><div><i className="ti ti-gift"/><span><b>Free Delivery</b><small>Orders over {money(config?.free_shipping_from||300)}</small></span></div><div><i className="ti ti-receipt-tax"/><span><b>VAT Invoice</b><small>15% compliant invoice</small></span></div><div><i className="ti ti-refresh"/><span><b>Easy Returns</b><small>Within {config?.returns_days||7} days</small></span></div></section>
-    <main id="collection" className="store-main">
-      {config?.category_enabled!==false&&categories.length>0&&<section className="category-showcase"><div className="category-title"><div><small>SHOP BY CATEGORY · تسوق حسب الفئة</small><h2>{config?.category_title||'Find your style'}</h2><p dir="rtl">{config?.category_title_ar}</p></div></div><div className="category-slider">{categories.map((c:any)=><button className="category-slide" key={c.id} onClick={()=>{setCategory(c.id);setTimeout(()=>document.getElementById('products')?.scrollIntoView({behavior:'smooth'}),10)}}>{c.image_url?<img src={c.image_url} alt={c.name}/>:<span className="category-slide-placeholder"><i className={`ti ${categoryIcon(c.name)}`}/></span>}<span className="category-slide-copy"><strong>{c.name}</strong>{c.name_ar&&<span>{c.name_ar}</span>}<span>{c.product_count} products</span></span></button>)}</div></section>}
-      <div id="products"/>
-      <div className="store-section-head"><div><small>CURATED FOR YOU</small><h2>{category?categories.find(c=>c.id===category)?.name:'Shop the Collection'}</h2><p>{shown.length} styles available · منتجات متوفرة</p></div><div className="store-search"><i className="ti ti-search"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search products…"/>{search&&<button onClick={()=>setSearch('')}>×</button>}</div></div>
-      <div className="store-category-pills"><button className={!category?'active':''} onClick={()=>setCategory('')}>All Products</button>{categories.map(c=><button className={category===c.id?'active':''} key={c.id} onClick={()=>setCategory(c.id)}>{c.name}<span>{c.product_count}</span></button>)}</div>
-      {isLoading?<StoreState icon="ti-loader-2 login-spin" text="Loading collection…"/>:error?<StoreState icon="ti-cloud-off" text="Store is temporarily unavailable"/>:!shown.length?<StoreState icon="ti-hanger-off" text="No products found"/>:<div className="store-grid">{shown.map(p=>{const vars=available(p);const price=Math.min(...vars.map((v:any)=>Number(v.selling_price)));const compare=Math.max(...vars.map((v:any)=>Number(v.compare_price||0)));return <article className="product-card" key={p.id}><button className="product-image" onClick={()=>vars.length&&setPicker(p)}>{p.image_url?<img src={p.image_url} alt={p.name}/>:<span><i className="ti ti-hanger-2"/><small>NUX FASHION</small></span>}{!vars.length&&<em>Sold Out</em>}<i className="ti ti-eye"/></button><div className="product-info"><small>{p.category_name||'NuxFashion'}</small><h3>{p.name}</h3>{p.name_ar&&<p>{p.name_ar}</p>}<div><span><b>{Number.isFinite(price)?money(price):'Price unavailable'}</b>{compare>price&&<del>{money(compare)}</del>}</span><button disabled={!vars.length} onClick={()=>setPicker(p)}><i className="ti ti-plus"/> Add</button></div></div></article>})}</div>}
-      {config?.promo_enabled!==false&&<section className="store-editorial"><div className="store-editorial-media" style={config?.promo_image_url?{backgroundImage:`url("${config.promo_image_url}")`}:undefined}/><div className="store-editorial-copy"><small>NUXFASHION EDIT</small><h2>{config?.promo_title||'Style for every moment'}</h2><p>{config?.promo_subtitle||'Discover clothing, shoes, bags and accessories selected for modern life.'}</p><button onClick={()=>{const link=config?.promo_button_link||'#products';if(link.startsWith('#'))document.querySelector(link)?.scrollIntoView({behavior:'smooth'});else window.location.href=link}}>{config?.promo_button_label||'Explore all products'} <i className="ti ti-arrow-right"/></button></div></section>}
-      {config?.newsletter_enabled!==false&&<section className="store-newsletter"><div><small>STAY IN STYLE</small><h2>{config?.newsletter_title||'New drops, offers & inspiration'}</h2><p>{config?.newsletter_subtitle||'Join our list for collection updates and exclusive promotions.'}</p></div><form className="store-newsletter-form" onSubmit={e=>{e.preventDefault();alert('Thank you for joining NuxFashion!')}}><input type="email" required placeholder="Your email address"/><button>Subscribe</button></form></section>}
-    </main>
-    <footer className="store-footer"><div className="store-brand"><span>{config?.logo_url?<img src={config.logo_url}/>:<i className="ti ti-hanger-2"/>}</span><div><b>{config?.name||'NuxFashion'}</b><small>{config?.store_tagline||'FASHION · أزياء'}</small></div></div><p>{config?.footer_about||'Modern fashion retail from Saudi Arabia.'}<br/>أزياء عصرية مصممة لكل يوم</p><div><b>Customer Care</b><span>{config?.support_phone||'Support phone'}</span><span>{config?.support_email||'Support email'}</span><span>Returns within {config?.returns_days||7} days</span></div><div><b>Secure Checkout</b><span>Cash on Delivery</span><span>Bank Transfer</span><span>VAT invoice included</span></div></footer>
-    {picker&&<ProductPicker product={picker} variants={available(picker)} onAdd={add} onClose={()=>setPicker(null)}/>}
-    {cartOpen&&<CartDrawer cart={cart} subtotal={subtotal} shipping={shipping} vat={vat} total={total} onQty={qty} onClose={()=>setCartOpen(false)} onCheckout={()=>{setCartOpen(false);setCheckout(true)}}/>}
-    {checkout&&<Checkout cart={cart} subtotal={subtotal} shipping={shipping} vat={vat} total={total} onClose={()=>setCheckout(false)} onSuccess={result=>{setCart([]);setCheckout(false);setSuccess(result)}}/>}
-  </div>;
+  if (success)
+    return (
+      <div className="store-success">
+        <div>
+          <span className="success-check">
+            <i className="ti ti-check" />
+          </span>
+          <small>ORDER CONFIRMED · تم تأكيد الطلب</small>
+          <h1>Thank you for your order!</h1>
+          <p>
+            We have received your order and will contact you on{" "}
+            <b>{success.customer.phone}</b>.
+          </p>
+          <div className="success-order">
+            <span>Order number</span>
+            <b>#{success.order_number}</b>
+            <span>Total</span>
+            <strong>{money(success.total)}</strong>
+            {success.discount > 0 && (
+              <>
+                <span>Promo {success.coupon_code}</span>
+                <b style={{ color: "#059669" }}>− {money(success.discount)}</b>
+              </>
+            )}
+            <span>Payment</span>
+            <b>
+              {success.payment_method === "cash_on_delivery"
+                ? "Cash on Delivery"
+                : "Bank Transfer"}
+            </b>
+            <span>Delivery</span>
+            <b>{success.estimated_delivery}</b>
+          </div>
+          <button onClick={() => setSuccess(null)}>Continue shopping</button>
+          <a href="/">Admin login</a>
+        </div>
+      </div>
+    );
+  return (
+    <div
+      className="store"
+      style={{ "--store-accent": config?.primary_color || "#0f766e" } as any}
+    >
+      <div className="store-announcement">
+        <span>
+          {config?.announcement ||
+            `Free delivery on orders over ${money(config?.free_shipping_from || 300)}`}
+        </span>
+        <span>
+          {config?.announcement_ar ||
+            "ضريبة القيمة المضافة 15% مشمولة عند الدفع"}
+        </span>
+      </div>
+      <header className="store-header">
+        <a className="store-brand" href="/#store">
+          <span>
+            {config?.logo_url ? (
+              <img src={config.logo_url} alt="" />
+            ) : (
+              <i className="ti ti-hanger-2" />
+            )}
+          </span>
+          <div>
+            <b>{config?.name || "NuxFashion"}</b>
+            <small>{config?.store_tagline || "FASHION · أزياء"}</small>
+          </div>
+        </a>
+        <nav>
+          <button
+            className={!category ? "active" : ""}
+            onClick={() => setCategory("")}
+          >
+            New Arrivals
+          </button>
+          {categories.slice(0, 5).map((c) => (
+            <button
+              className={category === c.id ? "active" : ""}
+              key={c.id}
+              onClick={() => setCategory(c.id)}
+            >
+              {c.name}
+            </button>
+          ))}
+        </nav>
+        <div className="store-actions">
+          <button
+            onClick={() =>
+              document
+                .querySelector<HTMLInputElement>(".store-search input")
+                ?.focus()
+            }
+          >
+            <i className="ti ti-search" />
+          </button>
+          <a href="/" title="Admin login">
+            <i className="ti ti-user" />
+          </a>
+          <button className="cart-button" onClick={() => setCartOpen(true)}>
+            <i className="ti ti-shopping-bag" />
+            {units > 0 && <span>{units}</span>}
+          </button>
+        </div>
+      </header>
+      {banners.length ? (
+        <section
+          className={`banner-hero hero-${banners[slide]?.text_position || "left"}`}
+        >
+          <picture className="banner-hero-bg">
+            <source
+              media="(max-width:720px)"
+              srcSet={
+                banners[slide]?.mobile_image_url || banners[slide]?.image_url
+              }
+            />
+            <img
+              src={banners[slide]?.image_url || ""}
+              alt={banners[slide]?.title || ""}
+            />
+            <i
+              style={{
+                opacity: Number(banners[slide]?.overlay_strength ?? 0.65),
+              }}
+            />
+          </picture>
+          <div className="banner-hero-content">
+            <span className="banner-hero-kicker">
+              {banners[slide]?.kicker || "NUXFASHION COLLECTION"}
+            </span>
+            <h1>{banners[slide]?.title}</h1>
+            {banners[slide]?.title_ar && (
+              <h3 dir="rtl">{banners[slide].title_ar}</h3>
+            )}
+            <p>{banners[slide]?.subtitle}</p>
+            {banners[slide]?.subtitle_ar && (
+              <p dir="rtl">{banners[slide].subtitle_ar}</p>
+            )}
+            <button
+              onClick={() => {
+                const link = banners[slide]?.button_link || "#collection";
+                if (link.startsWith("#"))
+                  document
+                    .querySelector(link)
+                    ?.scrollIntoView({ behavior: "smooth" });
+                else window.location.href = link;
+              }}
+            >
+              {banners[slide]?.button_label || "Shop Now"}{" "}
+              <i className="ti ti-arrow-right" />
+            </button>
+          </div>
+          {banners.length > 1 && (
+            <div className="hero-dots">
+              {banners.map((b: any, i: number) => (
+                <button
+                  aria-label={b.title}
+                  className={slide === i ? "active" : ""}
+                  key={b.id}
+                  onClick={() => setSlide(i)}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      ) : (
+        <section className="store-hero">
+          <div>
+            <span>THE NEW COLLECTION · المجموعة الجديدة</span>
+            <h1>
+              Everyday elegance,
+              <br />
+              <em>made for you.</em>
+            </h1>
+            <p>
+              Contemporary fashion, thoughtful details and effortless
+              style—delivered across Saudi Arabia.
+            </p>
+            <button
+              onClick={() =>
+                document
+                  .getElementById("collection")
+                  ?.scrollIntoView({ behavior: "smooth" })
+              }
+            >
+              Shop the collection <i className="ti ti-arrow-right" />
+            </button>
+          </div>
+          <div className="hero-art">
+            <i className="ti ti-hanger-2" />
+            <b>NUX</b>
+            <small>FASHION EDIT</small>
+          </div>
+        </section>
+      )}
+      <section className="store-benefits">
+        <div>
+          <i className="ti ti-truck-delivery" />
+          <span>
+            <b>Saudi Delivery</b>
+            <small>{config?.delivery_estimate || "2–5 business days"}</small>
+          </span>
+        </div>
+        <div>
+          <i className="ti ti-gift" />
+          <span>
+            <b>Free Delivery</b>
+            <small>
+              Orders over {money(config?.free_shipping_from || 300)}
+            </small>
+          </span>
+        </div>
+        <div>
+          <i className="ti ti-receipt-tax" />
+          <span>
+            <b>VAT Invoice</b>
+            <small>15% compliant invoice</small>
+          </span>
+        </div>
+        <div>
+          <i className="ti ti-refresh" />
+          <span>
+            <b>Easy Returns</b>
+            <small>Within {config?.returns_days || 7} days</small>
+          </span>
+        </div>
+      </section>
+      <main id="collection" className="store-main">
+        {config?.category_enabled !== false && categories.length > 0 && (
+          <section className="category-showcase">
+            <div className="category-title">
+              <div>
+                <small>SHOP BY CATEGORY · تسوق حسب الفئة</small>
+                <h2>{config?.category_title || "Find your style"}</h2>
+                <p dir="rtl">{config?.category_title_ar}</p>
+              </div>
+            </div>
+            <div className="category-slider">
+              {categories.map((c: any) => (
+                <button
+                  className="category-slide"
+                  key={c.id}
+                  onClick={() => {
+                    setCategory(c.id);
+                    setTimeout(
+                      () =>
+                        document
+                          .getElementById("products")
+                          ?.scrollIntoView({ behavior: "smooth" }),
+                      10,
+                    );
+                  }}
+                >
+                  {c.image_url ? (
+                    <img src={c.image_url} alt={c.name} />
+                  ) : (
+                    <span className="category-slide-placeholder">
+                      <i className={`ti ${categoryIcon(c.name)}`} />
+                    </span>
+                  )}
+                  <span className="category-slide-copy">
+                    <strong>{c.name}</strong>
+                    {c.name_ar && <span>{c.name_ar}</span>}
+                    <span>{c.product_count} products</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+        <div id="products" />
+        <div className="store-section-head">
+          <div>
+            <small>CURATED FOR YOU</small>
+            <h2>
+              {category
+                ? categories.find((c) => c.id === category)?.name
+                : "Shop the Collection"}
+            </h2>
+            <p>{shown.length} styles available · منتجات متوفرة</p>
+          </div>
+          <div className="store-search">
+            <i className="ti ti-search" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search products…"
+            />
+            {search && <button onClick={() => setSearch("")}>×</button>}
+          </div>
+        </div>
+        <div className="store-category-pills">
+          <button
+            className={!category ? "active" : ""}
+            onClick={() => setCategory("")}
+          >
+            All Products
+          </button>
+          {categories.map((c) => (
+            <button
+              className={category === c.id ? "active" : ""}
+              key={c.id}
+              onClick={() => setCategory(c.id)}
+            >
+              {c.name}
+              <span>{c.product_count}</span>
+            </button>
+          ))}
+        </div>
+        {isLoading ? (
+          <StoreState
+            icon="ti-loader-2 login-spin"
+            text="Loading collection…"
+          />
+        ) : error ? (
+          <StoreState
+            icon="ti-cloud-off"
+            text="Store is temporarily unavailable"
+          />
+        ) : !shown.length ? (
+          <StoreState icon="ti-hanger-off" text="No products found" />
+        ) : (
+          <div className="store-grid">
+            {shown.map((p) => {
+              const vars = available(p);
+              const price = Math.min(
+                ...vars.map((v: any) => Number(v.selling_price)),
+              );
+              const compare = Math.max(
+                ...vars.map((v: any) => Number(v.compare_price || 0)),
+              );
+              return (
+                <article className="product-card" key={p.id}>
+                  <button
+                    className="product-image"
+                    onClick={() => vars.length && setPicker(p)}
+                  >
+                    {p.image_url ? (
+                      <img src={p.image_url} alt={p.name} />
+                    ) : (
+                      <span>
+                        <i className="ti ti-hanger-2" />
+                        <small>NUX FASHION</small>
+                      </span>
+                    )}
+                    {!vars.length && <em>Sold Out</em>}
+                    <i className="ti ti-eye" />
+                  </button>
+                  <div className="product-info">
+                    <small>{p.category_name || "NuxFashion"}</small>
+                    <h3>{p.name}</h3>
+                    {p.name_ar && <p>{p.name_ar}</p>}
+                    <div>
+                      <span>
+                        <b>
+                          {Number.isFinite(price)
+                            ? money(price)
+                            : "Price unavailable"}
+                        </b>
+                        {compare > price && <del>{money(compare)}</del>}
+                      </span>
+                      <button
+                        disabled={!vars.length}
+                        onClick={() => setPicker(p)}
+                      >
+                        <i className="ti ti-plus" /> Add
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+        {config?.promo_enabled !== false && (
+          <section className="store-editorial">
+            <div
+              className="store-editorial-media"
+              style={
+                config?.promo_image_url
+                  ? { backgroundImage: `url("${config.promo_image_url}")` }
+                  : undefined
+              }
+            />
+            <div className="store-editorial-copy">
+              <small>NUXFASHION EDIT</small>
+              <h2>{config?.promo_title || "Style for every moment"}</h2>
+              <p>
+                {config?.promo_subtitle ||
+                  "Discover clothing, shoes, bags and accessories selected for modern life."}
+              </p>
+              <button
+                onClick={() => {
+                  const link = config?.promo_button_link || "#products";
+                  if (link.startsWith("#"))
+                    document
+                      .querySelector(link)
+                      ?.scrollIntoView({ behavior: "smooth" });
+                  else window.location.href = link;
+                }}
+              >
+                {config?.promo_button_label || "Explore all products"}{" "}
+                <i className="ti ti-arrow-right" />
+              </button>
+            </div>
+          </section>
+        )}
+        {config?.newsletter_enabled !== false && (
+          <section className="store-newsletter">
+            <div>
+              <small>STAY IN STYLE</small>
+              <h2>
+                {config?.newsletter_title || "New drops, offers & inspiration"}
+              </h2>
+              <p>
+                {config?.newsletter_subtitle ||
+                  "Join our list for collection updates and exclusive promotions."}
+              </p>
+            </div>
+            <form
+              className="store-newsletter-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                alert("Thank you for joining NuxFashion!");
+              }}
+            >
+              <input type="email" required placeholder="Your email address" />
+              <button>Subscribe</button>
+            </form>
+          </section>
+        )}
+      </main>
+      <footer className="store-footer">
+        <div className="store-brand">
+          <span>
+            {config?.logo_url ? (
+              <img src={config.logo_url} />
+            ) : (
+              <i className="ti ti-hanger-2" />
+            )}
+          </span>
+          <div>
+            <b>{config?.name || "NuxFashion"}</b>
+            <small>{config?.store_tagline || "FASHION · أزياء"}</small>
+          </div>
+        </div>
+        <p>
+          {config?.footer_about || "Modern fashion retail from Saudi Arabia."}
+          <br />
+          أزياء عصرية مصممة لكل يوم
+        </p>
+        <div>
+          <b>Customer Care</b>
+          <span>{config?.support_phone || "Support phone"}</span>
+          <span>{config?.support_email || "Support email"}</span>
+          <span>Returns within {config?.returns_days || 7} days</span>
+        </div>
+        <div>
+          <b>Secure Checkout</b>
+          <span>Cash on Delivery</span>
+          <span>Bank Transfer</span>
+          <span>VAT invoice included</span>
+        </div>
+      </footer>
+      {picker && (
+        <ProductPicker
+          product={picker}
+          variants={available(picker)}
+          onAdd={add}
+          onClose={() => setPicker(null)}
+        />
+      )}
+      {cartOpen && (
+        <CartDrawer
+          cart={cart}
+          subtotal={subtotal}
+          shipping={shipping}
+          vat={vat}
+          total={total}
+          onQty={qty}
+          onClose={() => setCartOpen(false)}
+          onCheckout={() => {
+            setCartOpen(false);
+            setCheckout(true);
+          }}
+        />
+      )}
+      {checkout && (
+        <Checkout
+          cart={cart}
+          subtotal={subtotal}
+          shipping={shipping}
+          vat={vat}
+          total={total}
+          onClose={() => setCheckout(false)}
+          onSuccess={(result) => {
+            setCart([]);
+            setCheckout(false);
+            setSuccess(result);
+          }}
+        />
+      )}
+    </div>
+  );
 }
 
-function ProductPicker({product,variants,onAdd,onClose}:{product:any;variants:any[];onAdd:(p:any,v:any)=>void;onClose:()=>void}){
-  const [selected,setSelected]=useState(variants[0]?.id||'');const variant=variants.find(v=>v.id===selected);
-  return <div className="store-modal" onClick={onClose}><div className="product-picker" onClick={e=>e.stopPropagation()}><button className="modal-close" onClick={onClose}>×</button><div className="picker-image">{product.image_url?<img src={product.image_url}/>:<i className="ti ti-hanger-2"/>}</div><div className="picker-info"><small>{product.category_name}</small><h2>{product.name}</h2>{product.name_ar&&<h3>{product.name_ar}</h3>}<p>{product.description||'A contemporary NuxFashion style selected for your wardrobe.'}</p><label>Choose size & color · اختر المقاس واللون</label><div className="variant-list">{variants.map(v=><button className={selected===v.id?'active':''} key={v.id} onClick={()=>setSelected(v.id)}><span>{v.size||'One Size'}{v.color&&` · ${v.color}`}</span><small>{v.stock} available</small></button>)}</div>{variant&&<div className="picker-buy"><b>{money(variant.selling_price)}</b><button onClick={()=>onAdd(product,variant)}>Add to bag <i className="ti ti-shopping-bag-plus"/></button></div>}</div></div></div>;
+function ProductPicker({
+  product,
+  variants,
+  onAdd,
+  onClose,
+}: {
+  product: any;
+  variants: any[];
+  onAdd: (p: any, v: any) => void;
+  onClose: () => void;
+}) {
+  const [selected, setSelected] = useState(variants[0]?.id || "");
+  const variant = variants.find((v) => v.id === selected);
+  return (
+    <div className="store-modal" onClick={onClose}>
+      <div className="product-picker" onClick={(e) => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>
+          ×
+        </button>
+        <div className="picker-image">
+          {product.image_url ? (
+            <img src={product.image_url} />
+          ) : (
+            <i className="ti ti-hanger-2" />
+          )}
+        </div>
+        <div className="picker-info">
+          <small>{product.category_name}</small>
+          <h2>{product.name}</h2>
+          {product.name_ar && <h3>{product.name_ar}</h3>}
+          <p>
+            {product.description ||
+              "A contemporary NuxFashion style selected for your wardrobe."}
+          </p>
+          <label>Choose size & color · اختر المقاس واللون</label>
+          <div className="variant-list">
+            {variants.map((v) => (
+              <button
+                className={selected === v.id ? "active" : ""}
+                key={v.id}
+                onClick={() => setSelected(v.id)}
+              >
+                <span>
+                  {v.size || "One Size"}
+                  {v.color && ` · ${v.color}`}
+                </span>
+                <small>{v.stock} available</small>
+              </button>
+            ))}
+          </div>
+          {variant && (
+            <div className="picker-buy">
+              <b>{money(variant.selling_price)}</b>
+              <button onClick={() => onAdd(product, variant)}>
+                Add to bag <i className="ti ti-shopping-bag-plus" />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
-function CartDrawer({cart,subtotal,shipping,vat,total,onQty,onClose,onCheckout}:{cart:CartLine[];subtotal:number;shipping:number;vat:number;total:number;onQty:(id:string,q:number)=>void;onClose:()=>void;onCheckout:()=>void}){
-  return <div className="cart-overlay" onClick={onClose}><aside className="cart-drawer" onClick={e=>e.stopPropagation()}><header><div><small>YOUR BAG · سلة التسوق</small><h2>{cart.reduce((s,x)=>s+x.qty,0)} items</h2></div><button onClick={onClose}>×</button></header><div className="cart-lines">{!cart.length?<StoreState icon="ti-shopping-bag-off" text="Your bag is empty"/>:cart.map(x=><div className="cart-line" key={x.variant.id}><div className="cart-thumb">{x.product.image_url?<img src={x.product.image_url}/>:<i className="ti ti-hanger-2"/>}</div><div><b>{x.product.name}</b><span>{[x.variant.size,x.variant.color].filter(Boolean).join(' · ')}</span><strong>{money(x.variant.selling_price)}</strong><div className="qty-control"><button onClick={()=>onQty(x.variant.id,x.qty-1)}>−</button><span>{x.qty}</span><button onClick={()=>onQty(x.variant.id,x.qty+1)}>+</button></div></div><button className="remove-line" onClick={()=>onQty(x.variant.id,0)}><i className="ti ti-trash"/></button></div>)}</div>{cart.length>0&&<footer><div><span>Subtotal</span><b>{money(subtotal)}</b></div><div><span>Delivery</span><b>{shipping?money(shipping):'FREE'}</b></div><div><span>VAT 15%</span><b>{money(vat)}</b></div><div className="cart-total"><span>Total</span><strong>{money(total)}</strong></div><button onClick={onCheckout}>Secure checkout <i className="ti ti-arrow-right"/></button><small><i className="ti ti-shield-check"/> Prices are verified securely at checkout</small></footer>}</aside></div>;
+function CartDrawer({
+  cart,
+  subtotal,
+  shipping,
+  vat,
+  total,
+  onQty,
+  onClose,
+  onCheckout,
+}: {
+  cart: CartLine[];
+  subtotal: number;
+  shipping: number;
+  vat: number;
+  total: number;
+  onQty: (id: string, q: number) => void;
+  onClose: () => void;
+  onCheckout: () => void;
+}) {
+  return (
+    <div className="cart-overlay" onClick={onClose}>
+      <aside className="cart-drawer" onClick={(e) => e.stopPropagation()}>
+        <header>
+          <div>
+            <small>YOUR BAG · سلة التسوق</small>
+            <h2>{cart.reduce((s, x) => s + x.qty, 0)} items</h2>
+          </div>
+          <button onClick={onClose}>×</button>
+        </header>
+        <div className="cart-lines">
+          {!cart.length ? (
+            <StoreState icon="ti-shopping-bag-off" text="Your bag is empty" />
+          ) : (
+            cart.map((x) => (
+              <div className="cart-line" key={x.variant.id}>
+                <div className="cart-thumb">
+                  {x.product.image_url ? (
+                    <img src={x.product.image_url} />
+                  ) : (
+                    <i className="ti ti-hanger-2" />
+                  )}
+                </div>
+                <div>
+                  <b>{x.product.name}</b>
+                  <span>
+                    {[x.variant.size, x.variant.color]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                  <strong>{money(x.variant.selling_price)}</strong>
+                  <div className="qty-control">
+                    <button onClick={() => onQty(x.variant.id, x.qty - 1)}>
+                      −
+                    </button>
+                    <span>{x.qty}</span>
+                    <button onClick={() => onQty(x.variant.id, x.qty + 1)}>
+                      +
+                    </button>
+                  </div>
+                </div>
+                <button
+                  className="remove-line"
+                  onClick={() => onQty(x.variant.id, 0)}
+                >
+                  <i className="ti ti-trash" />
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+        {cart.length > 0 && (
+          <footer>
+            <div>
+              <span>Subtotal</span>
+              <b>{money(subtotal)}</b>
+            </div>
+            <div>
+              <span>Delivery</span>
+              <b>{shipping ? money(shipping) : "FREE"}</b>
+            </div>
+            <div>
+              <span>VAT 15%</span>
+              <b>{money(vat)}</b>
+            </div>
+            <div className="cart-total">
+              <span>Total</span>
+              <strong>{money(total)}</strong>
+            </div>
+            <button onClick={onCheckout}>
+              Secure checkout <i className="ti ti-arrow-right" />
+            </button>
+            <small>
+              <i className="ti ti-shield-check" /> Prices are verified securely
+              at checkout
+            </small>
+          </footer>
+        )}
+      </aside>
+    </div>
+  );
 }
-function Checkout({cart,subtotal,shipping,vat,total,onClose,onSuccess}:{cart:CartLine[];subtotal:number;shipping:number;vat:number;total:number;onClose:()=>void;onSuccess:(r:any)=>void}){
-  const [form,setForm]=useState({customer_name:'',phone:'',email:'',city:'Riyadh',district:'',address:'',postal_code:'',notes:'',payment_method:'cash_on_delivery'});
-  const mutation=useMutation({mutationFn:()=>api.post('/storefront/checkout',{...form,lines:cart.map(x=>({variant_id:x.variant.id,quantity:x.qty}))}).then(r=>r.data),onSuccess,onError:()=>{}});
-  const set=(key:string,value:string)=>setForm(f=>({...f,[key]:value}));
-  return <div className="store-modal checkout-modal" onClick={onClose}><div onClick={e=>e.stopPropagation()}><header><div><small>SECURE CHECKOUT · الدفع الآمن</small><h2>Delivery & payment</h2></div><button onClick={onClose}>×</button></header><div className="checkout-body"><form onSubmit={e=>{e.preventDefault();mutation.mutate()}}><h3><span>1</span> Contact information</h3><div className="form-grid"><label>Full name *<input value={form.customer_name} onChange={e=>set('customer_name',e.target.value)} required/></label><label>Mobile number *<input value={form.phone} onChange={e=>set('phone',e.target.value)} placeholder="05X XXX XXXX" inputMode="tel" required/></label><label className="wide">Email (optional)<input type="email" value={form.email} onChange={e=>set('email',e.target.value)}/></label></div><h3><span>2</span> Delivery address</h3><div className="form-grid"><label>City *<input value={form.city} onChange={e=>set('city',e.target.value)} required/></label><label>District<input value={form.district} onChange={e=>set('district',e.target.value)}/></label><label className="wide">Street, building and apartment *<textarea value={form.address} onChange={e=>set('address',e.target.value)} required/></label><label>Postal code<input value={form.postal_code} onChange={e=>set('postal_code',e.target.value)}/></label><label>Order note<input value={form.notes} onChange={e=>set('notes',e.target.value)}/></label></div><h3><span>3</span> Payment method</h3><div className="checkout-methods"><label className={form.payment_method==='cash_on_delivery'?'active':''}><input type="radio" name="pay" checked={form.payment_method==='cash_on_delivery'} onChange={()=>set('payment_method','cash_on_delivery')}/><i className="ti ti-cash"/><span><b>Cash on Delivery</b><small>Pay when your order arrives</small></span></label><label className={form.payment_method==='bank_transfer'?'active':''}><input type="radio" name="pay" checked={form.payment_method==='bank_transfer'} onChange={()=>set('payment_method','bank_transfer')}/><i className="ti ti-building-bank"/><span><b>Bank Transfer</b><small>Instructions provided after order</small></span></label></div>{mutation.error&&<div className="checkout-error"><i className="ti ti-alert-circle"/>{getErr(mutation.error)}</div>}<button className="place-order" disabled={mutation.isPending}>{mutation.isPending?'Placing order…':`Place order · ${money(total)}`} <i className="ti ti-lock"/></button></form><aside><h3>Order summary</h3>{cart.map(x=><div className="checkout-line" key={x.variant.id}><span>{x.product.name}<small>{[x.variant.size,x.variant.color].filter(Boolean).join(' · ')} · Qty {x.qty}</small></span><b>{money(Number(x.variant.selling_price)*x.qty)}</b></div>)}<div className="checkout-totals"><div><span>Subtotal</span><b>{money(subtotal)}</b></div><div><span>Delivery</span><b>{shipping?money(shipping):'FREE'}</b></div><div><span>VAT 15%</span><b>{money(vat)}</b></div><div><span>Total</span><strong>{money(total)}</strong></div></div></aside></div></div></div>;
+function Checkout({
+  cart,
+  subtotal,
+  shipping,
+  vat,
+  total,
+  onClose,
+  onSuccess,
+}: {
+  cart: CartLine[];
+  subtotal: number;
+  shipping: number;
+  vat: number;
+  total: number;
+  onClose: () => void;
+  onSuccess: (r: any) => void;
+}) {
+  const [form, setForm] = useState({
+    customer_name: "",
+    phone: "",
+    email: "",
+    city: "Riyadh",
+    district: "",
+    address: "",
+    postal_code: "",
+    notes: "",
+    coupon_code: "",
+    payment_method: "cash_on_delivery",
+  });
+  const mutation = useMutation({
+    mutationFn: () =>
+      api
+        .post("/storefront/checkout", {
+          ...form,
+          lines: cart.map((x) => ({
+            variant_id: x.variant.id,
+            quantity: x.qty,
+          })),
+        })
+        .then((r) => r.data),
+    onSuccess,
+    onError: () => {},
+  });
+  const set = (key: string, value: string) =>
+    setForm((f) => ({ ...f, [key]: value }));
+  return (
+    <div className="store-modal checkout-modal" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()}>
+        <header>
+          <div>
+            <small>SECURE CHECKOUT · الدفع الآمن</small>
+            <h2>Delivery & payment</h2>
+          </div>
+          <button onClick={onClose}>×</button>
+        </header>
+        <div className="checkout-body">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              mutation.mutate();
+            }}
+          >
+            <h3>
+              <span>1</span> Contact information
+            </h3>
+            <div className="form-grid">
+              <label>
+                Full name *
+                <input
+                  value={form.customer_name}
+                  onChange={(e) => set("customer_name", e.target.value)}
+                  required
+                />
+              </label>
+              <label>
+                Mobile number *
+                <input
+                  value={form.phone}
+                  onChange={(e) => set("phone", e.target.value)}
+                  placeholder="05X XXX XXXX"
+                  inputMode="tel"
+                  required
+                />
+              </label>
+              <label className="wide">
+                Email (optional)
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => set("email", e.target.value)}
+                />
+              </label>
+            </div>
+            <h3>
+              <span>2</span> Delivery address
+            </h3>
+            <div className="form-grid">
+              <label>
+                City *
+                <input
+                  value={form.city}
+                  onChange={(e) => set("city", e.target.value)}
+                  required
+                />
+              </label>
+              <label>
+                District
+                <input
+                  value={form.district}
+                  onChange={(e) => set("district", e.target.value)}
+                />
+              </label>
+              <label className="wide">
+                Street, building and apartment *
+                <textarea
+                  value={form.address}
+                  onChange={(e) => set("address", e.target.value)}
+                  required
+                />
+              </label>
+              <label>
+                Postal code
+                <input
+                  value={form.postal_code}
+                  onChange={(e) => set("postal_code", e.target.value)}
+                />
+              </label>
+              <label>
+                Order note
+                <input
+                  value={form.notes}
+                  onChange={(e) => set("notes", e.target.value)}
+                />
+              </label>
+              <label className="wide">
+                Coupon / promo code
+                <input
+                  value={form.coupon_code}
+                  onChange={(e) =>
+                    set("coupon_code", e.target.value.toUpperCase())
+                  }
+                  placeholder="Enter code (optional)"
+                  style={{ textTransform: "uppercase", letterSpacing: 1 }}
+                />
+              </label>
+            </div>
+            <h3>
+              <span>3</span> Payment method
+            </h3>
+            <div className="checkout-methods">
+              <label
+                className={
+                  form.payment_method === "cash_on_delivery" ? "active" : ""
+                }
+              >
+                <input
+                  type="radio"
+                  name="pay"
+                  checked={form.payment_method === "cash_on_delivery"}
+                  onChange={() => set("payment_method", "cash_on_delivery")}
+                />
+                <i className="ti ti-cash" />
+                <span>
+                  <b>Cash on Delivery</b>
+                  <small>Pay when your order arrives</small>
+                </span>
+              </label>
+              <label
+                className={
+                  form.payment_method === "bank_transfer" ? "active" : ""
+                }
+              >
+                <input
+                  type="radio"
+                  name="pay"
+                  checked={form.payment_method === "bank_transfer"}
+                  onChange={() => set("payment_method", "bank_transfer")}
+                />
+                <i className="ti ti-building-bank" />
+                <span>
+                  <b>Bank Transfer</b>
+                  <small>Instructions provided after order</small>
+                </span>
+              </label>
+            </div>
+            {mutation.error && (
+              <div className="checkout-error">
+                <i className="ti ti-alert-circle" />
+                {getErr(mutation.error)}
+              </div>
+            )}
+            <button className="place-order" disabled={mutation.isPending}>
+              {mutation.isPending
+                ? "Placing order…"
+                : `Place order · ${money(total)}`}{" "}
+              <i className="ti ti-lock" />
+            </button>
+          </form>
+          <aside>
+            <h3>Order summary</h3>
+            {cart.map((x) => (
+              <div className="checkout-line" key={x.variant.id}>
+                <span>
+                  {x.product.name}
+                  <small>
+                    {[x.variant.size, x.variant.color]
+                      .filter(Boolean)
+                      .join(" · ")}{" "}
+                    · Qty {x.qty}
+                  </small>
+                </span>
+                <b>{money(Number(x.variant.selling_price) * x.qty)}</b>
+              </div>
+            ))}
+            <div className="checkout-totals">
+              <div>
+                <span>Subtotal</span>
+                <b>{money(subtotal)}</b>
+              </div>
+              <div>
+                <span>Delivery</span>
+                <b>{shipping ? money(shipping) : "FREE"}</b>
+              </div>
+              <div>
+                <span>VAT 15%</span>
+                <b>{money(vat)}</b>
+              </div>
+              <div>
+                <span>Total</span>
+                <strong>{money(total)}</strong>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  );
 }
-function StoreState({icon,text}:{icon:string;text:string}){return <div className="store-state"><i className={`ti ${icon}`}/><span>{text}</span></div>}
-function categoryIcon(name:string){const x=String(name).toLowerCase();if(x.includes('shoe'))return'ti-shoe';if(x.includes('bag'))return'ti-briefcase';if(x.includes('access'))return'ti-diamond';if(x.includes('kid'))return'ti-baby-carriage';if(x.includes('perfume'))return'ti-bottle';return'ti-shirt'}
+function StoreState({ icon, text }: { icon: string; text: string }) {
+  return (
+    <div className="store-state">
+      <i className={`ti ${icon}`} />
+      <span>{text}</span>
+    </div>
+  );
+}
+function categoryIcon(name: string) {
+  const x = String(name).toLowerCase();
+  if (x.includes("shoe")) return "ti-shoe";
+  if (x.includes("bag")) return "ti-briefcase";
+  if (x.includes("access")) return "ti-diamond";
+  if (x.includes("kid")) return "ti-baby-carriage";
+  if (x.includes("perfume")) return "ti-bottle";
+  return "ti-shirt";
+}

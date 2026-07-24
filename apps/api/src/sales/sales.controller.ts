@@ -43,6 +43,10 @@ export class SalesController {
   getDiscounts(@Req() req: Request) {
     return this.service.getDiscounts((req.user as any).companyId);
   }
+  @Get('discounts/report')
+  getDiscountReport(@Req() req: Request) {
+    return this.service.getDiscountReport((req.user as any).companyId);
+  }
   @Patch('discounts/:id')
   updateDiscount(@Param('id') id: string, @Body() dto: Partial<CreateDiscountDto>, @Req() req: Request) {
     return this.service.updateDiscount((req.user as any).companyId, id, dto);
