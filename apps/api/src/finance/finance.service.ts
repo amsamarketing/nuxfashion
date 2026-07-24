@@ -241,6 +241,10 @@ export class FinanceService implements OnModuleInit {
        FROM expenses WHERE company_id=$1 AND date BETWEEN $2 AND $3`,
       [companyId, from, to],
     );
+    const paymentFees = await this.db.query(
+      `SELECT COALESCE(SUM(CASE WHEN t.reference_type='payment_commission' THEN t.amount ELSE 0 END),0) fees
+       FROM branch_account_transactions t JOIN branches b ON b.id=t.branch_id
+       WHERE b.company_id=$1 AND t.created_at::date BETWEEN $2 AND $3`,[companyId,from,to]);
     const payrollResult = await this.db.query(
       `SELECT COALESCE(SUM(total_net),0) as total
        FROM payroll_runs WHERE company_id=$1 AND status != 'draft'
@@ -250,7 +254,7 @@ export class FinanceService implements OnModuleInit {
 
     const totalRevenue   = parseFloat(revenue.rows[0].total);
     const totalCOGS      = parseFloat(cogs.rows[0].total);
-    const totalExpenses  = parseFloat(expensesResult.rows[0].total);
+    const totalExpenses  = parseFloat(expensesResult.rows[0].total)+Number(paymentFees.rows[0].fees);
     const totalPayroll   = parseFloat(payrollResult.rows[0].total);
     const grossProfit    = totalRevenue - totalCOGS;
     const totalOpEx      = totalExpenses + totalPayroll;
@@ -290,20 +294,27 @@ export class FinanceService implements OnModuleInit {
       `SELECT b.id branch_id,b.name,
        COALESCE((SELECT SUM(o.tax_amount) FROM sales_orders o WHERE o.warehouse_id=b.warehouse_id
          AND o.status='paid' AND o.created_at::date BETWEEN $2 AND $3),0)::numeric output_vat,
-       COALESCE((SELECT SUM(a.tax_amount) FROM expense_allocations a JOIN expenses e ON e.id=a.expense_id
-         WHERE a.branch_id=b.id AND e.date BETWEEN $2 AND $3),0)::numeric expense_input_vat
+       (COALESCE((SELECT SUM(a.tax_amount) FROM expense_allocations a JOIN expenses e ON e.id=a.expense_id
+         WHERE a.branch_id=b.id AND e.date BETWEEN $2 AND $3),0)+
+       COALESCE((SELECT SUM(t.amount) FROM branch_account_transactions t WHERE t.branch_id=b.id
+         AND t.reference_type='payment_fee_vat' AND t.created_at::date BETWEEN $2 AND $3),0))::numeric expense_input_vat
        FROM branches b WHERE b.company_id=$1 AND b.is_active=true ORDER BY b.name`,
       [companyId,from,to],
     );
+    const feeVat = await this.db.query(
+      `SELECT COALESCE(SUM(t.amount),0) total FROM branch_account_transactions t
+       JOIN branches b ON b.id=t.branch_id WHERE b.company_id=$1
+       AND t.reference_type='payment_fee_vat' AND t.created_at::date BETWEEN $2 AND $3`,[companyId,from,to]);
 
     const outputVat  = parseFloat(salesVat.rows[0].total);
-    const inputVat   = parseFloat(purchaseVat.rows[0].total) + parseFloat(expenseVat.rows[0].total);
+    const inputVat   = parseFloat(purchaseVat.rows[0].total) + parseFloat(expenseVat.rows[0].total)+Number(feeVat.rows[0].total);
     const vatPayable = outputVat - inputVat;
 
     return {
       period: { from, to },
       output_vat:  { sales_gross: salesVat.rows[0].gross, vat: outputVat },
-      input_vat:   { purchases_vat: purchaseVat.rows[0].total, expenses_vat: expenseVat.rows[0].total, total: inputVat },
+      input_vat:   { purchases_vat: purchaseVat.rows[0].total, expenses_vat: expenseVat.rows[0].total,
+        payment_fee_vat:feeVat.rows[0].total,total: inputVat },
       vat_payable: vatPayable,
       vat_rate: '15%',
       branches: branchVat.rows.map((b:any)=>({...b,net_vat:Number(b.output_vat)-Number(b.expense_input_vat)})),

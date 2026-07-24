@@ -22,19 +22,31 @@ export class SalesService {
     const branch=await this.db.query(`SELECT id FROM branches WHERE company_id=$1 AND warehouse_id=$2`,[companyId,warehouseId]);
     if(!branch.rows[0])return;
     let account=await this.db.query(
-      `SELECT id FROM branch_payment_accounts WHERE branch_id=$1 AND method=ANY($2::text[]) AND is_active=true
+      `SELECT id,commission_rate,fixed_fee,fee_vat_rate FROM branch_payment_accounts WHERE branch_id=$1 AND method=ANY($2::text[]) AND is_active=true
        ORDER BY is_default DESC,array_position($2::text[],method),created_at LIMIT 1`,[branch.rows[0].id,methods]);
     if(!account.rows[0]){
       const id=randomUUID();
       await this.db.query(
         `INSERT INTO branch_payment_accounts(id,branch_id,name,method,is_default) VALUES($1,$2,$3,$4,true)`,
         [id,branch.rows[0].id,method.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()),methods[0]]);
-      account={rows:[{id}]} as any;
+      account={rows:[{id,commission_rate:0,fixed_fee:0,fee_vat_rate:15}]} as any;
     }
     await this.db.query(
       `INSERT INTO branch_account_transactions(id,branch_id,account_id,direction,amount,reference_type,reference_id,note)
        VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
       [randomUUID(),branch.rows[0].id,account.rows[0].id,direction,amount,referenceType,referenceId,note]);
+    if(direction==='credit'){
+      const commission=Number((amount*Number(account.rows[0].commission_rate||0)/100+Number(account.rows[0].fixed_fee||0)).toFixed(2));
+      const feeVat=Number((commission*Number(account.rows[0].fee_vat_rate||0)/100).toFixed(2));
+      if(commission>0)await this.db.query(
+        `INSERT INTO branch_account_transactions(id,branch_id,account_id,direction,amount,reference_type,reference_id,note)
+         VALUES($1,$2,$3,'debit',$4,'payment_commission',$5,$6)`,
+        [randomUUID(),branch.rows[0].id,account.rows[0].id,commission,referenceId,`${note} · provider commission`]);
+      if(feeVat>0)await this.db.query(
+        `INSERT INTO branch_account_transactions(id,branch_id,account_id,direction,amount,reference_type,reference_id,note)
+         VALUES($1,$2,$3,'debit',$4,'payment_fee_vat',$5,$6)`,
+        [randomUUID(),branch.rows[0].id,account.rows[0].id,feeVat,referenceId,`${note} · VAT on provider fee`]);
+    }
   }
 
   // ─── POS Sessions ────────────────────────────────────────────────────────────

@@ -72,6 +72,10 @@ export class BranchesService implements OnModuleInit {
     )`);
     await this.db.query(`CREATE UNIQUE INDEX IF NOT EXISTS branch_payment_default_method
       ON branch_payment_accounts(branch_id,method) WHERE is_default=true AND is_active=true`);
+    await this.db.query(`ALTER TABLE branch_payment_accounts ADD COLUMN IF NOT EXISTS commission_rate NUMERIC(7,4) NOT NULL DEFAULT 0`);
+    await this.db.query(`ALTER TABLE branch_payment_accounts ADD COLUMN IF NOT EXISTS fixed_fee NUMERIC(12,2) NOT NULL DEFAULT 0`);
+    await this.db.query(`ALTER TABLE branch_payment_accounts ADD COLUMN IF NOT EXISTS fee_vat_rate NUMERIC(7,4) NOT NULL DEFAULT 15`);
+    await this.db.query(`ALTER TABLE branch_payment_accounts ADD COLUMN IF NOT EXISTS settlement_days INTEGER NOT NULL DEFAULT 0`);
     await this.db.query(`CREATE TABLE IF NOT EXISTS branch_account_transactions(
       id UUID PRIMARY KEY,branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
       account_id UUID NOT NULL REFERENCES branch_payment_accounts(id) ON DELETE RESTRICT,
@@ -276,14 +280,18 @@ export class BranchesService implements OnModuleInit {
     if(accountId){
       const result=await this.db.query(
         `UPDATE branch_payment_accounts SET name=$1,method=$2,provider=$3,account_reference=$4,opening_balance=$5,
-         is_default=$6,is_active=$7,updated_at=NOW() WHERE id=$8 AND branch_id=$9 RETURNING *`,
-        [body.name,method,body.provider||null,body.account_reference||null,Number(body.opening_balance||0),body.is_default===true,body.is_active!==false,accountId,branchId]);
+         is_default=$6,is_active=$7,commission_rate=$8,fixed_fee=$9,fee_vat_rate=$10,settlement_days=$11,
+         updated_at=NOW() WHERE id=$12 AND branch_id=$13 RETURNING *`,
+        [body.name,method,body.provider||null,body.account_reference||null,Number(body.opening_balance||0),body.is_default===true,body.is_active!==false,
+         Number(body.commission_rate||0),Number(body.fixed_fee||0),Number(body.fee_vat_rate??15),Number(body.settlement_days||0),accountId,branchId]);
       if(!result.rows[0])throw new NotFoundException('Account not found');return result.rows[0];
     }
     const result=await this.db.query(
-      `INSERT INTO branch_payment_accounts(id,branch_id,name,method,provider,account_reference,opening_balance,is_default,is_active)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [randomUUID(),branchId,body.name,method,body.provider||null,body.account_reference||null,Number(body.opening_balance||0),body.is_default===true,body.is_active!==false]);
+      `INSERT INTO branch_payment_accounts(id,branch_id,name,method,provider,account_reference,opening_balance,is_default,is_active,
+       commission_rate,fixed_fee,fee_vat_rate,settlement_days)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+      [randomUUID(),branchId,body.name,method,body.provider||null,body.account_reference||null,Number(body.opening_balance||0),body.is_default===true,body.is_active!==false,
+       Number(body.commission_rate||0),Number(body.fixed_fee||0),Number(body.fee_vat_rate??15),Number(body.settlement_days||0)]);
     return result.rows[0];
   }
 
@@ -333,7 +341,10 @@ export class BranchesService implements OnModuleInit {
        JOIN product_variants pv ON pv.id=rl.variant_id WHERE o.warehouse_id=$1 AND rl.restock=true
        AND r.created_at::date BETWEEN $2 AND $3`,[branch.warehouse_id,d.from,d.to]);
     const expenses=await this.db.query(
-      `SELECT COALESCE(SUM(a.amount),0) expenses,COALESCE(SUM(a.tax_amount),0) input_vat,
+      `SELECT COALESCE(SUM(a.amount),0)+COALESCE((SELECT SUM(t.amount) FROM branch_account_transactions t
+       WHERE t.branch_id=$2 AND t.reference_type='payment_commission' AND t.created_at::date BETWEEN $3 AND $4),0) expenses,
+       COALESCE(SUM(a.tax_amount),0)+COALESCE((SELECT SUM(t.amount) FROM branch_account_transactions t
+       WHERE t.branch_id=$2 AND t.reference_type='payment_fee_vat' AND t.created_at::date BETWEEN $3 AND $4),0) input_vat,
        COUNT(DISTINCT e.id)::int expense_count
        FROM expense_allocations a JOIN expenses e ON e.id=a.expense_id
        WHERE e.company_id=$1 AND a.branch_id=$2 AND e.date BETWEEN $3 AND $4`,
