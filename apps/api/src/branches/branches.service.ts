@@ -189,7 +189,7 @@ export class BranchesService implements OnModuleInit {
         CASE WHEN pe.employee_id IS NULL THEN false ELSE true END has_pos_access
        FROM employees e
        LEFT JOIN pos_employee_users pe ON pe.employee_id=e.id AND pe.company_id=$1
-       WHERE COALESCE(to_jsonb(e)->>'company_id',$1)=$1
+       WHERE COALESCE(to_jsonb(e)->>'company_id',$1::text)=$1::text
        AND COALESCE(to_jsonb(e)->>'status','active') NOT IN('inactive','terminated')
        ORDER BY has_pos_access,full_name`,
       [companyId],
