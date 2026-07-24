@@ -143,6 +143,8 @@ export default function POSSale(){
   const customers:any[]=Array.isArray(custData)?custData:( custData as any)?.customers||( custData as any)?.data||[];
   const categories:any[]=Array.isArray(catData)?catData:[];
   const customer=customers.find((c:any)=>c.id===custId);
+  const phoneDigits=(value:any)=>String(value||'').replace(/\D/g,'');
+  const phoneMatch=phoneDigits(newCustPhone).length>=7?customers.find((c:any)=>phoneDigits(c.phone)===phoneDigits(newCustPhone)):null;
   const tier=customer?.loyalty_tier||'bronze';
   const custPoints=customer?.loyalty_points||0;
   const walletBal=getWalletBalance(customer);
@@ -367,20 +369,23 @@ export default function POSSale(){
         <div style={{padding:20,display:'flex',flexDirection:'column',gap:14,overflowY:'auto'}}>
           {customer?.name&&customer?.phone?(
             <div style={{padding:'10px 12px',border:'1px solid #bbf7d0',background:'#f0fdf4',borderRadius:9,display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
-              <div><div style={{fontSize:10,fontWeight:800,color:'#15803d'}}>CUSTOMER CONFIRMED</div><div style={{fontSize:13,fontWeight:700}}>{customer.name} · {customer.phone}</div></div>
-              <button className="btn-nx ghost sm" onClick={()=>setShowCustModal(true)}>Change</button>
+              <div style={{display:'flex',alignItems:'center',gap:9}}><span style={{width:30,height:30,borderRadius:'50%',background:'#dcfce7',display:'flex',alignItems:'center',justifyContent:'center',color:'#15803d'}}><i className="ti ti-user-check"/></span><div><div style={{fontSize:10,fontWeight:800,color:'#15803d'}}>CUSTOMER CONFIRMED</div><div style={{fontSize:13,fontWeight:700}}>{customer.name}</div><div style={{fontSize:11,color:'#64748b'}}>{customer.phone}</div></div></div>
+              <button className="btn-nx ghost sm" onClick={()=>{setNewCustPhone(customer.phone||'');setNewCustName('');setCustId('');}}>Change</button>
             </div>
           ):(
-            <div style={{padding:12,border:'1px solid #fecaca',background:'#fef2f2',borderRadius:9}}>
-              <div style={{fontSize:10,fontWeight:800,color:'#b91c1c',marginBottom:8}}>CUSTOMER DETAILS REQUIRED BEFORE PAYMENT</div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-                <input autoFocus value={newCustName} onChange={e=>setNewCustName(e.target.value)} placeholder="Customer name *" style={{padding:'10px 11px',border:'1px solid #d1d5db',borderRadius:8,fontSize:13}}/>
-                <input value={newCustPhone} onChange={e=>setNewCustPhone(e.target.value)} onKeyDown={e=>e.key==='Enter'&&newCustName.trim()&&newCustPhone.trim()&&quickCustomer.mutate()} placeholder="Phone number *" inputMode="tel" style={{padding:'10px 11px',border:'1px solid #d1d5db',borderRadius:8,fontSize:13}}/>
+            <div style={{padding:13,border:'1px solid #c7d2fe',background:'#f8faff',borderRadius:10}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}><div><div style={{fontSize:10,fontWeight:800,color:'#4338ca'}}>CUSTOMER · STEP 1</div><div style={{fontSize:12,color:'#64748b',marginTop:2}}>Enter phone to find loyalty profile</div></div><button style={{border:0,background:'none',color:'#6366f1',fontSize:11,fontWeight:700,cursor:'pointer'}} onClick={()=>setShowCustModal(true)}>Search by name</button></div>
+              <div style={{display:'flex',gap:7}}>
+                <div style={{position:'relative',flex:1}}><i className="ti ti-phone" style={{position:'absolute',left:10,top:11,color:'#9ca3af'}}/><input autoFocus value={newCustPhone} onChange={e=>{setNewCustPhone(e.target.value);setNewCustName('')}} placeholder="05X XXX XXXX" inputMode="tel" style={{width:'100%',boxSizing:'border-box',padding:'10px 11px 10px 32px',border:'1px solid #a5b4fc',borderRadius:8,fontSize:14,fontWeight:600}}/></div>
               </div>
-              <div style={{display:'flex',gap:8,marginTop:8}}>
-                <button className="btn-nx ghost sm" style={{flex:1,justifyContent:'center'}} onClick={()=>setShowCustModal(true)}>Select Existing</button>
-                <button className="btn-nx primary sm" style={{flex:1,justifyContent:'center'}} disabled={!newCustName.trim()||!newCustPhone.trim()||quickCustomer.isPending} onClick={()=>quickCustomer.mutate()}>{quickCustomer.isPending?'Saving...':'Save Customer'}</button>
-              </div>
+              {phoneMatch?(
+                <button style={{width:'100%',marginTop:8,padding:'9px 11px',border:'1px solid #bbf7d0',borderRadius:8,background:'#f0fdf4',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between'}} onClick={()=>{setCustId(phoneMatch.id);setNewCustName('');setNewCustPhone('')}}><span style={{textAlign:'left'}}><b style={{fontSize:13}}>{phoneMatch.name}</b><span style={{display:'block',fontSize:11,color:'#64748b'}}>{phoneMatch.phone} · Existing customer</span></span><span style={{fontSize:11,fontWeight:800,color:'#15803d'}}>SELECT <i className="ti ti-chevron-right"/></span></button>
+              ):phoneDigits(newCustPhone).length>=7?(
+                <div style={{marginTop:10,paddingTop:10,borderTop:'1px dashed #c7d2fe'}}>
+                  <div style={{fontSize:10,fontWeight:800,color:'#4338ca',marginBottom:6}}>NEW CUSTOMER · STEP 2</div>
+                  <div style={{display:'flex',gap:7}}><input value={newCustName} onChange={e=>setNewCustName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&newCustName.trim()&&quickCustomer.mutate()} placeholder="Customer name *" style={{flex:1,padding:'9px 10px',border:'1px solid #a5b4fc',borderRadius:8,fontSize:13}}/><button className="btn-nx primary sm" disabled={!newCustName.trim()||quickCustomer.isPending} onClick={()=>quickCustomer.mutate()}>{quickCustomer.isPending?'Creating...':'Create & Continue'}</button></div>
+                </div>
+              ):<div style={{fontSize:10,color:'#94a3b8',marginTop:6}}>Enter at least 7 digits to continue</div>}
             </div>
           )}
           <div>
