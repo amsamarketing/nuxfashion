@@ -61,7 +61,7 @@ function DiscountModal({disc,onClose,products,categories}:{disc:any;onClose:()=>
   const genCode=()=>F('coupon_code',Math.random().toString(36).slice(2,8).toUpperCase());
 
   const save=useMutation({
-    mutationFn:()=>api.post('/sales/discounts',{
+    mutationFn:()=>api.request({method:disc?.id?'PATCH':'POST',url:disc?.id?`/sales/discounts/${disc.id}`:'/sales/discounts',data:{
       name:form.name,description:form.description,type:form.type,scope:form.scope,
       value:parseFloat(form.value)||0,
       min_order_amount:parseFloat(form.min_order_amount)||undefined,
@@ -78,7 +78,7 @@ function DiscountModal({disc,onClose,products,categories}:{disc:any;onClose:()=>
       stackable:form.stackable,
       first_order_only:form.first_order_only,
       one_per_customer:form.one_per_customer,
-    }),
+    }}),
     onSuccess:()=>{qc.invalidateQueries({queryKey:['discounts']});onClose();},
   });
 
@@ -212,15 +212,14 @@ function DiscountModal({disc,onClose,products,categories}:{disc:any;onClose:()=>
 }
 
 function GiftCardModal({onClose}:{onClose:()=>void}){
+  const qc=useQueryClient();
   const [form,setForm]=useState({code:'',balance:'',expires:'',recipient_name:'',recipient_email:'',is_active:true});
   const F=(k:string,v:any)=>setForm(f=>({...f,[k]:v}));
   const genCode=()=>F('code','GC-'+Math.random().toString(36).slice(2,6).toUpperCase()+'-'+Math.random().toString(36).slice(2,6).toUpperCase());
-  const save=()=>{
-    const gcs=JSON.parse(sessionStorage.getItem('giftcards')||'[]');
-    gcs.push({...form,id:'gc-'+Date.now(),balance:parseFloat(form.balance),created_at:new Date().toISOString()});
-    sessionStorage.setItem('giftcards',JSON.stringify(gcs));
-    onClose();
-  };
+  const saveMutation=useMutation({
+    mutationFn:()=>api.post('/sales/gift-cards',{...form,balance:parseFloat(form.balance)}),
+    onSuccess:()=>{qc.invalidateQueries({queryKey:['gift-cards']});onClose();},
+  });
   return(
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:16}} onClick={onClose}>
       <div style={{width:'min(460px,100%)',background:'var(--cd)',borderRadius:16,overflow:'hidden'}} onClick={e=>e.stopPropagation()}>
@@ -244,7 +243,7 @@ function GiftCardModal({onClose}:{onClose:()=>void}){
         </div>
         <div style={{padding:'16px 24px',borderTop:'1px solid var(--bd)',display:'flex',gap:8,justifyContent:'flex-end'}}>
           <button className="btn-nx ghost" onClick={onClose}>Cancel</button>
-          <button className="btn-nx primary" onClick={save} disabled={!form.code||!form.balance}>Issue Gift Card</button>
+          <button className="btn-nx primary" onClick={()=>saveMutation.mutate()} disabled={!form.code||!form.balance||saveMutation.isPending}>{saveMutation.isPending?'Issuing...':'Issue Gift Card'}</button>
         </div>
       </div>
     </div>
@@ -321,17 +320,18 @@ export default function Loyalty(){
 
   const {data:custData}=useQuery({queryKey:['customers'],queryFn:async()=>{const r=await api.get('/customers?limit=500');return r.data;}});
   const {data:discData,isLoading:discLoading}=useQuery({queryKey:['discounts'],queryFn:async()=>{const r=await api.get('/sales/discounts');return r.data;}});
-  const {data:prodData}=useQuery({queryKey:['products-all'],queryFn:async()=>{const r=await api.get('/products?limit=300');return r.data;}});
-  const [giftCards,setGiftCards]=useState<any[]>(()=>{try{return JSON.parse(sessionStorage.getItem('giftcards')||'[]');}catch{return[];}});
+  const {data:prodData}=useQuery({queryKey:['products-all'],queryFn:async()=>{const r=await api.get('/catalog/products?limit=300');return r.data;}});
+  const {data:giftCardData}=useQuery({queryKey:['gift-cards'],queryFn:async()=>{const r=await api.get('/sales/gift-cards');return r.data;}});
 
   const customers:any[]=Array.isArray(custData)?custData:custData?.customers||custData?.data||[];
   const discounts:any[]=Array.isArray(discData)?discData:discData?.discounts||discData?.data||[];
   const products:any[]=Array.isArray(prodData)?prodData:prodData?.products||prodData?.data||[];
+  const giftCards:any[]=Array.isArray(giftCardData)?giftCardData:[];
 
   const categories:{id:string;name:string}[]=useMemo(()=>{
     const seen=new Set<string>();
     const cats:{id:string;name:string}[]=[];
-    products.forEach(p=>{if(p.category&&!seen.has(p.category)){seen.add(p.category);cats.push({id:p.category,name:p.category});}});
+    products.forEach(p=>{const id=String(p.category_id||p.category||'');const name=p.category_name||p.category;if(id&&name&&!seen.has(id)){seen.add(id);cats.push({id,name});}});
     return cats;
   },[products]);
 
@@ -354,7 +354,8 @@ export default function Loyalty(){
     return list;
   },[discounts,discFilter,discSearch,now]);
 
-  const delGC=(id:string)=>{const n=giftCards.filter(g=>g.id!==id);sessionStorage.setItem('giftcards',JSON.stringify(n));setGiftCards(n);};
+  const qc=useQueryClient();
+  const disableGC=useMutation({mutationFn:(id:string)=>api.patch(`/sales/gift-cards/${id}`,{is_active:false}),onSuccess:()=>qc.invalidateQueries({queryKey:['gift-cards']})});
 
   return(<div>
     <div className="nx-page-head">
@@ -462,19 +463,20 @@ export default function Loyalty(){
       {giftCards.length===0?<div className="nx-card" style={{textAlign:'center',padding:'48px 0',color:'var(--mu)'}}><div style={{fontSize:40,marginBottom:8}}>🎁</div><p style={{fontWeight:600}}>No gift cards yet</p></div>:(
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14}}>
           {giftCards.map((g:any)=>{
-            const expired=g.expires&&new Date(g.expires)<now;
+            const expiry=g.expires_at||g.expires;
+            const expired=expiry&&new Date(expiry)<now;
             return(<div key={g.id} className="nx-card" style={{background:'linear-gradient(135deg,var(--acg),var(--cd))'}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
                 <span style={{fontSize:24}}>🎁</span>
-                <span className={`nx-badge ${expired?'inactive':g.balance>0?'active':'grey'}`}>{expired?'Expired':g.balance>0?'Active':'Used'}</span>
+                <span className={`nx-badge ${expired||!g.is_active?'inactive':g.balance>0?'active':'grey'}`}>{expired?'Expired':!g.is_active?'Disabled':g.balance>0?'Active':'Used'}</span>
               </div>
               <div style={{fontFamily:'monospace',fontSize:16,fontWeight:700,letterSpacing:2,marginBottom:8}}>{g.code}</div>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
                 <div><div style={{fontSize:10,color:'var(--mu)'}}>BALANCE</div><div style={{fontWeight:700,fontSize:18,color:'var(--ac)'}}>SAR {parseFloat(g.balance||0).toFixed(2)}</div></div>
-                <div><div style={{fontSize:10,color:'var(--mu)'}}>EXPIRES</div><div style={{fontWeight:600,fontSize:12}}>{g.expires?new Date(g.expires).toLocaleDateString():'Never'}</div></div>
+                <div><div style={{fontSize:10,color:'var(--mu)'}}>EXPIRES</div><div style={{fontWeight:600,fontSize:12}}>{expiry?new Date(expiry).toLocaleDateString():'Never'}</div></div>
               </div>
               {g.recipient_name&&<div style={{fontSize:12,color:'var(--mu)',marginBottom:10}}>👤 {g.recipient_name}{g.recipient_email?' · '+g.recipient_email:''}</div>}
-              <button className="btn-nx ghost sm" style={{color:'#ef4444',width:'100%',justifyContent:'center'}} onClick={()=>delGC(g.id)}><i className="ti ti-trash"/> Delete</button>
+              {g.is_active&&<button className="btn-nx ghost sm" style={{color:'#ef4444',width:'100%',justifyContent:'center'}} onClick={()=>disableGC.mutate(g.id)}><i className="ti ti-ban"/> Disable</button>}
             </div>);
           })}
         </div>
@@ -482,6 +484,6 @@ export default function Loyalty(){
     </div>)}
 
     {showDisc&&<DiscountModal disc={editDisc} onClose={()=>setShowDisc(false)} products={products} categories={categories}/>}
-    {showGC&&<GiftCardModal onClose={()=>{setShowGC(false);setGiftCards(JSON.parse(sessionStorage.getItem('giftcards')||'[]'));}}/>}
+    {showGC&&<GiftCardModal onClose={()=>setShowGC(false)}/>}
   </div>);
 }

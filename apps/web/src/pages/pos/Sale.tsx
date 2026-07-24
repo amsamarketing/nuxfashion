@@ -14,7 +14,6 @@ const TIER_C:Record<string,string>={bronze:'#cd7f32',silver:'#aaa',gold:'#f59e0b
 const CAT_ICONS:Record<string,string>={'Abayas':'ti-shirt','Dresses':'ti-shirt','Tops':'ti-shirt','Bottoms':'ti-layout-bottombar','Bags':'ti-briefcase','Shoes':'ti-shoe','Accessories':'ti-diamond','Perfumes':'ti-bottle','Kids':'ti-baby-carriage','Sale':'ti-tag','Men':'ti-man','Women':'ti-woman','default':'ti-hanger'};
 const BG=['#fde8ef','#e8f0fe','#e8fde8','#fef3e8','#f0e8fe','#e8fef3','#fefde8','#e8f8fe'];
 const sar=(n:number)=>'SAR '+n.toFixed(2);
-const getStoredCoupons=()=>{try{return JSON.parse(sessionStorage.getItem('coupons')||'[]');}catch{return[];}};
 const getStoredGiftCards=()=>{try{return JSON.parse(sessionStorage.getItem('giftcards')||'[]');}catch{return[];}};
 const getWalletBalance=(c:any)=>{if(!c)return 0;try{const ws=JSON.parse(sessionStorage.getItem('wallets')||'[]');const w=ws.find((x:any)=>x.customer===c.name);return w?w.balance:parseFloat(c?.wallet_balance||0);}catch{return 0;}};
 const zatcaTlv=(seller:string,vatNumber:string,timestamp:string,total:number,vat:number)=>{
@@ -237,10 +236,15 @@ export default function POSSale(){
   const setItemDisc=(id:string,d:number)=>setCart(p=>p.map(i=>i.id===id?{...i,discount:d}:i));
   const cartQtyForProduct=(p:any)=>cart.filter(i=>(p.variants||[]).some((v:any)=>v.id===i.id)).reduce((s,i)=>s+i.qty,0);
 
-  const applyCoupon=()=>{
-    const f=getStoredCoupons().find((c:any)=>c.code===couponInput.toUpperCase()&&c.is_active&&(!c.expires||new Date(c.expires)>new Date()));
-    if(!f){toast('Invalid or expired coupon','error');return;}
-    setAppliedCoupon(f);setCouponInput('');toast('Coupon applied!','success');
+  const applyCoupon=async()=>{
+    if(!couponInput.trim()){toast('Enter a coupon code','error');return;}
+    try{
+      const r=await api.get('/sales/discounts/validate-coupon',{params:{code:couponInput.trim().toUpperCase(),amount:sub,customer_id:custId||undefined}});
+      const f=r.data.discount;
+      setAppliedCoupon({...f,code:f.coupon_code});
+      setCouponInput('');
+      toast(`Coupon ${f.coupon_code} applied`,'success');
+    }catch(e:any){setAppliedCoupon(null);toast(getErr(e),'error');}
   };
   const applyGC=()=>{
     const f=getStoredGiftCards().find((g:any)=>g.code===gcInput.toUpperCase()&&g.is_active&&g.balance>0);

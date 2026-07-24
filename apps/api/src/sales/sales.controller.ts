@@ -43,9 +43,25 @@ export class SalesController {
   getDiscounts(@Req() req: Request) {
     return this.service.getDiscounts((req.user as any).companyId);
   }
+  @Patch('discounts/:id')
+  updateDiscount(@Param('id') id: string, @Body() dto: Partial<CreateDiscountDto>, @Req() req: Request) {
+    return this.service.updateDiscount((req.user as any).companyId, id, dto);
+  }
   @Get('discounts/validate-coupon')
-  validateCoupon(@Query('code') code: string, @Query('amount') amount: string, @Req() req: Request) {
-    return this.service.validateCoupon((req.user as any).companyId, code, parseFloat(amount));
+  validateCoupon(@Query('code') code: string, @Query('amount') amount: string, @Query('customer_id') customerId: string, @Req() req: Request) {
+    return this.service.validateCoupon((req.user as any).companyId, code, parseFloat(amount), customerId||undefined);
+  }
+  @Get('gift-cards')
+  getGiftCards(@Req() req: Request) {
+    return this.service.getGiftCards((req.user as any).companyId);
+  }
+  @Post('gift-cards')
+  createGiftCard(@Body() dto: any, @Req() req: Request) {
+    return this.service.createGiftCard((req.user as any).companyId, (req.user as any).sub, dto);
+  }
+  @Patch('gift-cards/:id')
+  updateGiftCard(@Param('id') id: string, @Body() dto: any, @Req() req: Request) {
+    return this.service.updateGiftCard((req.user as any).companyId, id, dto);
   }
 
   @Post('orders')

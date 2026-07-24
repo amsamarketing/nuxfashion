@@ -159,20 +159,59 @@ export class SalesService {
 
   // ─── Discounts ───────────────────────────────────────────────────────────────
 
+  private async ensureLoyaltySchema() {
+    await this.db.query(`
+      ALTER TABLE discounts ADD COLUMN IF NOT EXISTS applies_to varchar(20) NOT NULL DEFAULT 'all';
+      ALTER TABLE discounts ADD COLUMN IF NOT EXISTS category_ids jsonb NOT NULL DEFAULT '[]'::jsonb;
+      ALTER TABLE discounts ADD COLUMN IF NOT EXISTS product_ids jsonb NOT NULL DEFAULT '[]'::jsonb;
+      ALTER TABLE discounts ADD COLUMN IF NOT EXISTS tier_restriction jsonb NOT NULL DEFAULT '[]'::jsonb;
+      ALTER TABLE discounts ADD COLUMN IF NOT EXISTS occasion varchar(80);
+      ALTER TABLE discounts ADD COLUMN IF NOT EXISTS stackable boolean NOT NULL DEFAULT true;
+      ALTER TABLE discounts ADD COLUMN IF NOT EXISTS first_order_only boolean NOT NULL DEFAULT false;
+      ALTER TABLE discounts ADD COLUMN IF NOT EXISTS one_per_customer boolean NOT NULL DEFAULT false;
+      CREATE TABLE IF NOT EXISTS discount_redemptions (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        company_id uuid NOT NULL, discount_id uuid NOT NULL REFERENCES discounts(id),
+        customer_id uuid, order_id uuid, amount numeric(12,2) NOT NULL DEFAULT 0,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_discount_redemptions_customer ON discount_redemptions(discount_id,customer_id);
+      CREATE TABLE IF NOT EXISTS gift_cards (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(), company_id uuid NOT NULL,
+        code varchar(80) NOT NULL, original_balance numeric(12,2) NOT NULL,
+        balance numeric(12,2) NOT NULL, recipient_name varchar(160),
+        recipient_email varchar(200), expires_at timestamptz, is_active boolean NOT NULL DEFAULT true,
+        created_by uuid, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
+        UNIQUE(company_id,code)
+      );
+      CREATE TABLE IF NOT EXISTS gift_card_transactions (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(), gift_card_id uuid NOT NULL REFERENCES gift_cards(id),
+        type varchar(30) NOT NULL, amount numeric(12,2) NOT NULL, balance_after numeric(12,2) NOT NULL,
+        reference_id uuid, created_by uuid, notes text, created_at timestamptz NOT NULL DEFAULT now()
+      );
+    `);
+  }
+
   async createDiscount(companyId: string, dto: CreateDiscountDto) {
+    await this.ensureLoyaltySchema();
     const result = await this.db.query(
       `INSERT INTO discounts (company_id,name,description,type,scope,value,min_order_amount,
-         buy_quantity,get_quantity,is_coupon,coupon_code,usage_limit,valid_from,valid_until)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+         buy_quantity,get_quantity,is_coupon,coupon_code,usage_limit,valid_from,valid_until,
+         applies_to,category_ids,product_ids,tier_restriction,occasion,stackable,first_order_only,one_per_customer,is_active)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17::jsonb,$18::jsonb,$19,$20,$21,$22,$23) RETURNING *`,
       [companyId, dto.name, dto.description ?? null, dto.type, dto.scope, dto.value,
        dto.min_order_amount ?? 0, dto.buy_quantity ?? null, dto.get_quantity ?? null,
        dto.is_coupon ?? false, dto.coupon_code ?? null, dto.usage_limit ?? null,
-       dto.valid_from ?? null, dto.valid_until ?? null],
+       dto.valid_from ?? null, dto.valid_until ?? null, dto.applies_to ?? 'all',
+       JSON.stringify(dto.category_ids ?? []), JSON.stringify(dto.product_ids ?? []),
+       JSON.stringify(dto.tier_restriction ?? []), dto.occasion ?? null, dto.stackable ?? true,
+       dto.first_order_only ?? false, dto.one_per_customer ?? false, dto.is_active ?? true],
     );
     return result.rows[0];
   }
 
   async getDiscounts(companyId: string) {
+    await this.ensureLoyaltySchema();
     const result = await this.db.query(
       `SELECT * FROM discounts WHERE company_id=$1 ORDER BY created_at DESC`,
       [companyId],
@@ -180,27 +219,78 @@ export class SalesService {
     return result.rows;
   }
 
-  async validateCoupon(companyId: string, code: string, orderAmount: number) {
+  async updateDiscount(companyId: string, id: string, dto: Partial<CreateDiscountDto>) {
+    await this.ensureLoyaltySchema();
+    const current=await this.db.query(`SELECT * FROM discounts WHERE id=$1 AND company_id=$2`,[id,companyId]);
+    if(!current.rows[0])throw new NotFoundException('Discount not found');
+    const d={...current.rows[0],...dto};
+    const result=await this.db.query(
+      `UPDATE discounts SET name=$1,description=$2,type=$3,scope=$4,value=$5,min_order_amount=$6,
+       buy_quantity=$7,get_quantity=$8,is_coupon=$9,coupon_code=$10,usage_limit=$11,valid_from=$12,valid_until=$13,
+       applies_to=$14,category_ids=$15::jsonb,product_ids=$16::jsonb,tier_restriction=$17::jsonb,
+       occasion=$18,stackable=$19,first_order_only=$20,one_per_customer=$21,is_active=$22,updated_at=NOW()
+       WHERE id=$23 AND company_id=$24 RETURNING *`,
+      [d.name,d.description,d.type,d.scope,d.value,d.min_order_amount,d.buy_quantity,d.get_quantity,
+       d.is_coupon,d.coupon_code,d.usage_limit,d.valid_from,d.valid_until,d.applies_to||'all',
+       JSON.stringify(d.category_ids||[]),JSON.stringify(d.product_ids||[]),JSON.stringify(d.tier_restriction||[]),
+       d.occasion,d.stackable!==false,!!d.first_order_only,!!d.one_per_customer,d.is_active!==false,id,companyId]);
+    return result.rows[0];
+  }
+
+  async validateCoupon(companyId: string, code: string, orderAmount: number, customerId?: string) {
+    await this.ensureLoyaltySchema();
     const result = await this.db.query(
       `SELECT * FROM discounts WHERE company_id=$1 AND coupon_code=$2 AND is_active=true
        AND (valid_from IS NULL OR valid_from <= NOW())
        AND (valid_until IS NULL OR valid_until >= NOW())
        AND (usage_limit IS NULL OR usage_count < usage_limit)`,
-      [companyId, code],
+      [companyId, String(code||'').trim().toUpperCase()],
     );
     if (!result.rows[0]) throw new BadRequestException('Invalid or expired coupon');
     const d = result.rows[0];
     if (orderAmount < (d.min_order_amount ?? 0))
       throw new BadRequestException(`Minimum order amount is ${d.min_order_amount} SAR`);
+    if(d.first_order_only&&customerId){
+      const orders=await this.db.query(`SELECT 1 FROM sales_orders WHERE company_id=$1 AND customer_id=$2 AND status='paid' LIMIT 1`,[companyId,customerId]);
+      if(orders.rows[0])throw new BadRequestException('Coupon is valid for the first order only');
+    }
+    if(d.one_per_customer&&customerId){
+      const used=await this.db.query(`SELECT 1 FROM discount_redemptions WHERE discount_id=$1 AND customer_id=$2 LIMIT 1`,[d.id,customerId]);
+      if(used.rows[0])throw new BadRequestException('Coupon has already been used by this customer');
+    }
     const discountAmt = d.type === 'percentage'
       ? (orderAmount * d.value) / 100
       : Math.min(d.value, orderAmount);
     return { discount: d, discount_amount: discountAmt };
   }
 
+  async getGiftCards(companyId:string){
+    await this.ensureLoyaltySchema();
+    return (await this.db.query(`SELECT * FROM gift_cards WHERE company_id=$1 ORDER BY created_at DESC`,[companyId])).rows;
+  }
+  async createGiftCard(companyId:string,userId:string,dto:any){
+    await this.ensureLoyaltySchema();
+    const code=String(dto.code||'').trim().toUpperCase();
+    const balance=Number(dto.balance);
+    if(!code||!Number.isFinite(balance)||balance<=0)throw new BadRequestException('Code and a positive balance are required');
+    const r=await this.db.query(
+      `INSERT INTO gift_cards(company_id,code,original_balance,balance,recipient_name,recipient_email,expires_at,is_active,created_by)
+       VALUES($1,$2,$3,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [companyId,code,balance,dto.recipient_name||null,dto.recipient_email||null,dto.expires||null,dto.is_active!==false,userId]);
+    await this.db.query(`INSERT INTO gift_card_transactions(gift_card_id,type,amount,balance_after,created_by,notes) VALUES($1,'issue',$2,$2,$3,'Gift card issued')`,[r.rows[0].id,balance,userId]);
+    return r.rows[0];
+  }
+  async updateGiftCard(companyId:string,id:string,dto:any){
+    await this.ensureLoyaltySchema();
+    const r=await this.db.query(`UPDATE gift_cards SET is_active=COALESCE($1,is_active),expires_at=COALESCE($2,expires_at),updated_at=NOW() WHERE id=$3 AND company_id=$4 RETURNING *`,[dto.is_active,dto.expires||null,id,companyId]);
+    if(!r.rows[0])throw new NotFoundException('Gift card not found');
+    return r.rows[0];
+  }
+
   // ─── Orders ──────────────────────────────────────────────────────────────────
 
   async createOrder(companyId: string, userId: string, dto: CreateOrderDto) {
+    await this.ensureLoyaltySchema();
     if (!dto.customer_id) throw new BadRequestException('Customer name and phone are required');
     const customer = await this.db.query(
       `SELECT id FROM customers WHERE id=$1 AND company_id=$2 AND is_active=true
@@ -229,30 +319,29 @@ export class SalesService {
       return { ...line, discount_amount: discountAmt, line_total: lineTotal };
     });
 
-    // Calculate order-level discounts
+    // Calculate order-level discounts. Coupon prices are always calculated from
+    // the server record; the browser is never trusted for coupon value or rules.
     let orderDiscountTotal = 0;
     const processedDiscounts: any[] = [];
     for (const d of dto.discounts ?? []) {
       let amt = 0;
-      if (d.type === 'percentage') amt = (subtotal * d.value) / 100;
-      else if (d.type === 'fixed_amount' || d.type === 'coupon') amt = Math.min(d.value, subtotal);
-      orderDiscountTotal += amt;
-      processedDiscounts.push({ ...d, amount: amt });
-    }
-
-    // Validate & lookup coupon discounts
-    for (const d of processedDiscounts) {
       if (d.coupon_code && d.type === 'coupon') {
-        const couponCheck = await this.db.query(
-          `SELECT * FROM discounts WHERE company_id=$1 AND coupon_code=$2 AND is_active=true
-           AND (valid_from IS NULL OR valid_from <= NOW())
-           AND (valid_until IS NULL OR valid_until >= NOW())
-           AND (usage_limit IS NULL OR usage_count < usage_limit)`,
-          [companyId, d.coupon_code],
-        );
-        if (!couponCheck.rows[0]) throw new BadRequestException(`Invalid coupon: ${d.coupon_code}`);
-        d.discount_id = couponCheck.rows[0].id;
+        const validated=await this.validateCoupon(companyId,d.coupon_code,subtotal,dto.customer_id);
+        const rule=validated.discount;
+        if(rule.applies_to==='tier'){
+          const tier=await this.db.query(`SELECT loyalty_tier FROM customers WHERE id=$1 AND company_id=$2`,[dto.customer_id,companyId]);
+          if(!(rule.tier_restriction||[]).includes(tier.rows[0]?.loyalty_tier||'regular'))
+            throw new BadRequestException('Coupon is not available for this customer tier');
+        }
+        amt=Math.min(Number(validated.discount_amount),subtotal-orderDiscountTotal);
+        processedDiscounts.push({discount_id:rule.id,name:rule.name,type:'coupon',value:Number(rule.value),amount:amt,coupon_code:rule.coupon_code});
+      } else {
+        // Manual discounts remain possible for authorised POS workflows.
+        if (d.type === 'percentage') amt = (subtotal * Math.min(Number(d.value),100)) / 100;
+        else if (d.type === 'fixed_amount') amt = Math.min(Number(d.value), subtotal);
+        processedDiscounts.push({ ...d, amount: amt });
       }
+      orderDiscountTotal += amt;
     }
 
     const taxableAmount = Math.max(0, subtotal - orderDiscountTotal);
@@ -311,6 +400,11 @@ export class SalesService {
       if (d.discount_id) {
         await this.db.query(
           `UPDATE discounts SET usage_count=usage_count+1 WHERE id=$1`, [d.discount_id],
+        );
+        await this.db.query(
+          `INSERT INTO discount_redemptions(company_id,discount_id,customer_id,order_id,amount)
+           VALUES($1,$2,$3,$4,$5)`,
+          [companyId,d.discount_id,dto.customer_id??null,order.id,d.amount],
         );
       }
     }
