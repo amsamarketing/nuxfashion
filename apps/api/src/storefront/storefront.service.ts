@@ -17,6 +17,14 @@ export class StorefrontService implements OnModuleInit {
       title TEXT NOT NULL,title_ar TEXT,subtitle TEXT,image_url TEXT,button_label TEXT,button_link TEXT,
       sort_order INTEGER NOT NULL DEFAULT 0,is_active BOOLEAN NOT NULL DEFAULT TRUE,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+    await this.db.query(`ALTER TABLE storefront_banners ADD COLUMN IF NOT EXISTS mobile_image_url TEXT`);
+    await this.db.query(`ALTER TABLE storefront_banners ADD COLUMN IF NOT EXISTS kicker TEXT`);
+    await this.db.query(`ALTER TABLE storefront_banners ADD COLUMN IF NOT EXISTS subtitle_ar TEXT`);
+    await this.db.query(`ALTER TABLE storefront_banners ADD COLUMN IF NOT EXISTS button_label_ar TEXT`);
+    await this.db.query(`ALTER TABLE storefront_banners ADD COLUMN IF NOT EXISTS overlay_strength NUMERIC(4,2) NOT NULL DEFAULT .65`);
+    await this.db.query(`ALTER TABLE storefront_banners ADD COLUMN IF NOT EXISTS text_position VARCHAR(20) NOT NULL DEFAULT 'left'`);
+    await this.db.query(`ALTER TABLE storefront_banners ADD COLUMN IF NOT EXISTS starts_at TIMESTAMPTZ`);
+    await this.db.query(`ALTER TABLE storefront_banners ADD COLUMN IF NOT EXISTS ends_at TIMESTAMPTZ`);
   }
 
   private defaults(){
@@ -29,6 +37,13 @@ export class StorefrontService implements OnModuleInit {
       featured_title:'Shop the Collection',featured_title_ar:'تسوق المجموعة',
       promo_title:'Style for every moment',promo_subtitle:'Discover clothing, shoes, bags and accessories selected for modern life.',
       promo_image_url:'',support_phone:'',instagram_url:'',whatsapp_url:'',
+      store_tagline:'FASHION · أزياء',logo_url:'',primary_color:'#0f766e',
+      category_enabled:true,category_title:'Find your style',category_title_ar:'اكتشف أسلوبك',
+      promo_enabled:true,promo_button_label:'Explore all products',promo_button_link:'#products',
+      newsletter_enabled:true,newsletter_title:'New drops, offers & inspiration',
+      newsletter_subtitle:'Join our list for collection updates and exclusive promotions.',
+      footer_about:'Modern fashion retail from Saudi Arabia.',support_email:'',
+      seo_title:'NuxFashion · Saudi Fashion Store',seo_description:'Shop clothing, shoes, bags and accessories online.',
     };
   }
 
@@ -49,7 +64,8 @@ export class StorefrontService implements OnModuleInit {
     const companyId=await this.tenantId();
     const company=await this.db.query(`SELECT id,name FROM companies WHERE id=$1`,[companyId]);
     const settings=await this.settings(companyId);
-    const banners=await this.db.query(`SELECT * FROM storefront_banners WHERE company_id=$1 AND is_active=true ORDER BY sort_order,created_at`,[companyId]);
+    const banners=await this.db.query(`SELECT * FROM storefront_banners WHERE company_id=$1 AND is_active=true
+      AND (starts_at IS NULL OR starts_at<=NOW()) AND (ends_at IS NULL OR ends_at>=NOW()) ORDER BY sort_order,created_at`,[companyId]);
     return {
       name:company.rows[0]?.name||'NuxFashion',
       currency:'SAR',vat_rate:15,...settings,banners:banners.rows,
@@ -62,7 +78,7 @@ export class StorefrontService implements OnModuleInit {
     return {settings:await this.settings(companyId),banners:banners.rows};
   }
   async updateSettings(companyId:string,body:any){
-    const allowed=['announcement','announcement_ar','shipping_fee','free_shipping_from','delivery_estimate','returns_days','featured_title','featured_title_ar','promo_title','promo_subtitle','promo_image_url','support_phone','instagram_url','whatsapp_url'];
+    const allowed=['announcement','announcement_ar','shipping_fee','free_shipping_from','delivery_estimate','returns_days','featured_title','featured_title_ar','promo_title','promo_subtitle','promo_image_url','support_phone','instagram_url','whatsapp_url','store_tagline','logo_url','primary_color','category_enabled','category_title','category_title_ar','promo_enabled','promo_button_label','promo_button_link','newsletter_enabled','newsletter_title','newsletter_subtitle','footer_about','support_email','seo_title','seo_description'];
     const clean:Object=Object.fromEntries(allowed.filter(k=>body[k]!==undefined).map(k=>[k,body[k]]));
     await this.db.query(`INSERT INTO storefront_settings(company_id,config) VALUES($1,$2::jsonb)
       ON CONFLICT(company_id) DO UPDATE SET config=storefront_settings.config||EXCLUDED.config,updated_at=NOW()`,[companyId,JSON.stringify(clean)]);
@@ -70,15 +86,15 @@ export class StorefrontService implements OnModuleInit {
   }
   async createBanner(companyId:string,body:any){
     if(!String(body.title||'').trim())throw new BadRequestException('Banner title is required');
-    const result=await this.db.query(`INSERT INTO storefront_banners(id,company_id,title,title_ar,subtitle,image_url,button_label,button_link,sort_order,is_active)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,[randomUUID(),companyId,body.title,body.title_ar||null,body.subtitle||null,body.image_url||null,body.button_label||'Shop Now',body.button_link||'#collection',Number(body.sort_order||0),body.is_active!==false]);
+    const result=await this.db.query(`INSERT INTO storefront_banners(id,company_id,title,title_ar,subtitle,subtitle_ar,image_url,mobile_image_url,kicker,button_label,button_label_ar,button_link,sort_order,is_active,overlay_strength,text_position,starts_at,ends_at)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *`,[randomUUID(),companyId,body.title,body.title_ar||null,body.subtitle||null,body.subtitle_ar||null,body.image_url||null,body.mobile_image_url||null,body.kicker||null,body.button_label||'Shop Now',body.button_label_ar||null,body.button_link||'#collection',Number(body.sort_order||0),body.is_active!==false,Number(body.overlay_strength??.65),body.text_position||'left',body.starts_at||null,body.ends_at||null]);
     return result.rows[0];
   }
   async updateBanner(companyId:string,id:string,body:any){
     const current=await this.db.query(`SELECT * FROM storefront_banners WHERE id=$1 AND company_id=$2`,[id,companyId]);
     if(!current.rows[0])throw new NotFoundException('Banner not found');const b={...current.rows[0],...body};
-    const result=await this.db.query(`UPDATE storefront_banners SET title=$1,title_ar=$2,subtitle=$3,image_url=$4,button_label=$5,button_link=$6,sort_order=$7,is_active=$8,updated_at=NOW() WHERE id=$9 AND company_id=$10 RETURNING *`,
-      [b.title,b.title_ar||null,b.subtitle||null,b.image_url||null,b.button_label||'Shop Now',b.button_link||'#collection',Number(b.sort_order||0),b.is_active!==false,id,companyId]);
+    const result=await this.db.query(`UPDATE storefront_banners SET title=$1,title_ar=$2,subtitle=$3,subtitle_ar=$4,image_url=$5,mobile_image_url=$6,kicker=$7,button_label=$8,button_label_ar=$9,button_link=$10,sort_order=$11,is_active=$12,overlay_strength=$13,text_position=$14,starts_at=$15,ends_at=$16,updated_at=NOW() WHERE id=$17 AND company_id=$18 RETURNING *`,
+      [b.title,b.title_ar||null,b.subtitle||null,b.subtitle_ar||null,b.image_url||null,b.mobile_image_url||null,b.kicker||null,b.button_label||'Shop Now',b.button_label_ar||null,b.button_link||'#collection',Number(b.sort_order||0),b.is_active!==false,Number(b.overlay_strength??.65),b.text_position||'left',b.starts_at||null,b.ends_at||null,id,companyId]);
     return result.rows[0];
   }
   async deleteBanner(companyId:string,id:string){await this.db.query(`DELETE FROM storefront_banners WHERE id=$1 AND company_id=$2`,[id,companyId]);return{success:true}}
