@@ -487,8 +487,10 @@ export default function POSSale(){
       {showHeld&&<HeldOrders onRetrieve={h=>{setCart(Array.isArray(h.cart)?h.cart:[]);setCustId(h.custId||'');setMethod(h.method||'Cash');setDiscPct(h.discPct||'');setOrderNote(h.orderNote||h.note||'');}} onClose={()=>setShowHeld(false)}/>}
       {pickerProd&&<VariantPicker product={pickerProd} onAdd={addToCart} onClose={()=>setPickerProd(null)}/>}
 
-      {/* Top bar */}
-      <div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 16px',background:'#fff',borderBottom:'1px solid #e5e7eb',flexShrink:0}}>
+      <div style={{display:'flex',flex:1,overflow:'hidden'}}>
+        {/* Product workspace */}
+        <div style={{display:'flex',flexDirection:'column',flex:1,minWidth:0,overflow:'hidden'}}>
+      <div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',background:'#fff',borderBottom:'1px solid #e5e7eb',flexShrink:0}}>
         <div style={{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',background:'#6366f1',color:'#fff',borderRadius:8,fontSize:12,fontWeight:700,flexShrink:0}}><i className="ti ti-clock" style={{fontSize:13}}/><Clock/></div>
         <div style={{flex:1,display:'flex',alignItems:'center',gap:8,padding:'7px 12px',background:'#f9fafb',border:'1px solid #e5e7eb',borderRadius:10}}>
           <i className="ti ti-barcode" style={{fontSize:15,color:'#9ca3af'}}/>
@@ -553,19 +555,21 @@ export default function POSSale(){
             </div>
           )}
         </div>
+        </div>
+        </div>
 
         {/* Cart */}
-        <div style={{width:310,background:'#fff',borderLeft:'1px solid #e5e7eb',display:'flex',flexDirection:'column',flexShrink:0}}>
-          <div style={{padding:'10px 14px',borderBottom:'1px solid #f0f0f0',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-            <span style={{fontWeight:800,fontSize:14}}>Order List</span>
+        <div style={{width:350,background:'#fff',borderLeft:'1px solid #e5e7eb',display:'flex',flexDirection:'column',flexShrink:0,boxShadow:'-4px 0 18px rgba(15,23,42,.05)'}}>
+          <div style={{padding:'13px 15px',borderBottom:'1px solid #e5e7eb',display:'flex',justifyContent:'space-between',alignItems:'center',background:'linear-gradient(135deg,#fff,#f8faff)'}}>
+            <div><span style={{fontWeight:900,fontSize:15,display:'flex',alignItems:'center',gap:6}}><i className="ti ti-receipt" style={{color:'#6366f1'}}/>Current Order</span><div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>Items added to this sale</div></div>
             <div style={{display:'flex',gap:6,alignItems:'center'}}>
-              <span style={{fontSize:11,padding:'2px 8px',borderRadius:6,background:'#ede9fe',color:'#6366f1',fontWeight:700}}>{cart.length} items</span>
+              <span style={{fontSize:11,padding:'3px 9px',borderRadius:10,background:'#ede9fe',color:'#6366f1',fontWeight:800}}>{cart.reduce((sum,item)=>sum+item.qty,0)} pcs</span>
               {cart.length>0&&<button onClick={()=>setCart([])} style={{fontSize:11,padding:'2px 8px',borderRadius:6,background:'#fef2f2',color:'#ef4444',fontWeight:600,border:'none',cursor:'pointer'}}>Clear</button>}
             </div>
           </div>
           <div style={{flex:1,overflowY:'auto',padding:'6px 0'}}>
             {cart.length===0?(
-              <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',color:'#d1d5db',gap:8}}><i className="ti ti-shopping-cart" style={{fontSize:44}}/><span style={{fontSize:13,fontWeight:600}}>Cart is empty</span></div>
+              <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',color:'#cbd5e1',gap:8,padding:24,textAlign:'center'}}><div style={{width:62,height:62,borderRadius:18,background:'#f1f5f9',display:'flex',alignItems:'center',justifyContent:'center'}}><i className="ti ti-shopping-cart" style={{fontSize:30,color:'#94a3b8'}}/></div><span style={{fontSize:14,fontWeight:700,color:'#64748b'}}>Order is empty</span><span style={{fontSize:11}}>Scan a barcode or select a product to begin</span></div>
             ):cart.map(item=>(
               <div key={item.id} style={{padding:'8px 14px',borderBottom:'1px solid #f5f5f5'}}>
                 <div style={{display:'flex',alignItems:'flex-start',gap:8}}>
