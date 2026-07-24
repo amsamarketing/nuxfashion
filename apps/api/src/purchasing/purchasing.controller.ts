@@ -53,6 +53,14 @@ export class PurchasingController {
   getGRNs(@Req() req: Request) {
     return this.service.getGRNs((req.user as any).companyId);
   }
+  @Post('orders/:id/payments')
+  recordPayment(@Param('id') id:string,@Body() body:any,@Req() req:Request){
+    return this.service.recordPayment((req.user as any).companyId,(req.user as any).sub,id,body);
+  }
+  @Post('orders/:id/returns')
+  createReturn(@Param('id') id:string,@Body() body:any,@Req() req:Request){
+    return this.service.createReturn((req.user as any).companyId,(req.user as any).sub,id,body);
+  }
   @Patch('suppliers/:id')
   updateSupplier(@Param('id') id: string, @Body() dto: any, @Req() req: Request) {
     return this.service.updateSupplier((req.user as any).companyId, id, dto);

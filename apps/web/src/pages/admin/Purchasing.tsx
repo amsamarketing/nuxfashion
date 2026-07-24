@@ -1,335 +1,59 @@
-import { api } from '../../lib/api';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import {api} from '../../lib/api';
+import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query';
+import {useMemo,useState} from 'react';
+import {useToast} from '../../components/Toast';
+const cash=(v:any)=>`SAR ${Number(v||0).toLocaleString('en-SA',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+const tone:Record<string,string>={draft:'grey',approved:'blue',partially_received:'pending',received:'active',cancelled:'danger'};
+const label=(v:string)=>String(v||'').replaceAll('_',' ').replace(/\b\w/g,x=>x.toUpperCase());
+function Field({title,children}:any){return <label className="purch-field"><span>{title}</span>{children}</label>}
+function Modal({title,sub,close,children,footer,wide=false}:any){return <div className="branch-modal-shade" onClick={close}><div className={`purch-modal ${wide?'wide':''}`} onClick={e=>e.stopPropagation()}><header><div><h2>{title}</h2><p>{sub}</p></div><button onClick={close}><i className="ti ti-x"/></button></header><div className="purch-modal-body">{children}</div><footer>{footer}</footer></div></div>}
 
-const fmt = (n: any) => Number(n || 0).toLocaleString('en-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const STATUS_COLOR: Record<string, string> = { draft: 'grey', pending: 'amber', approved: 'indigo', received: 'green', cancelled: 'red', partial: 'teal' };
-
-/* ── Supplier Modal ── */
-function SupplierModal({ sup, onClose }: { sup: any; onClose: () => void }) {
-  const qc = useQueryClient();
-  const isEdit = !!sup?.id;
-  const [form, setForm] = useState({ name: sup?.name || '', contact_person: sup?.contact_person || '', email: sup?.email || '', phone: sup?.phone || '', address: sup?.address || '', city: sup?.city || '', country: sup?.country || 'Saudi Arabia', tax_number: sup?.tax_number || '', payment_terms: sup?.payment_terms || '30', notes: sup?.notes || '' });
-  const F = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
-  const save = useMutation({
-    mutationFn: () => isEdit ? api.patch(`/purchasing/suppliers/${sup.id}`, form) : api.post('/purchasing/suppliers', form),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['suppliers'] }); onClose(); },
-  });
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={onClose}>
-      <div style={{ width: 'min(560px,100%)', background: 'var(--cd)', borderRadius: 16, overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--bd)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{isEdit ? 'Edit Supplier' : 'Add Supplier'}</h2>
-          <button className="btn-nx ghost sm" onClick={onClose}><i className="ti ti-x" /></button>
-        </div>
-        <div style={{ padding: 24, display: 'grid', gap: 12, maxHeight: '70vh', overflowY: 'auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div><label style={{ fontSize: 12, color: 'var(--mu)', display: 'block', marginBottom: 4 }}>Company Name *</label><input className="nx-input" style={{ width: '100%' }} value={form.name} onChange={e => F('name', e.target.value)} placeholder="Al-Noor Textiles" /></div>
-            <div><label style={{ fontSize: 12, color: 'var(--mu)', display: 'block', marginBottom: 4 }}>Contact Name</label><input className="nx-input" style={{ width: '100%' }} value={form.contact_person} onChange={e => F('contact_person', e.target.value)} placeholder="Ahmed Ali" /></div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div><label style={{ fontSize: 12, color: 'var(--mu)', display: 'block', marginBottom: 4 }}>Email</label><input className="nx-input" type="email" style={{ width: '100%' }} value={form.email} onChange={e => F('email', e.target.value)} /></div>
-            <div><label style={{ fontSize: 12, color: 'var(--mu)', display: 'block', marginBottom: 4 }}>Phone</label><input className="nx-input" style={{ width: '100%' }} value={form.phone} onChange={e => F('phone', e.target.value)} placeholder="+966 5X XXX XXXX" /></div>
-          </div>
-          <div><label style={{ fontSize: 12, color: 'var(--mu)', display: 'block', marginBottom: 4 }}>Address</label><input className="nx-input" style={{ width: '100%' }} value={form.address} onChange={e => F('address', e.target.value)} /></div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div><label style={{ fontSize: 12, color: 'var(--mu)', display: 'block', marginBottom: 4 }}>City</label><input className="nx-input" style={{ width: '100%' }} value={form.city} onChange={e => F('city', e.target.value)} /></div>
-            <div><label style={{ fontSize: 12, color: 'var(--mu)', display: 'block', marginBottom: 4 }}>Country</label><input className="nx-input" style={{ width: '100%' }} value={form.country} onChange={e => F('country', e.target.value)} /></div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div><label style={{ fontSize: 12, color: 'var(--mu)', display: 'block', marginBottom: 4 }}>VAT / Tax Number</label><input className="nx-input" style={{ width: '100%' }} value={form.tax_number} onChange={e => F('tax_number', e.target.value)} placeholder="3XXXXXXXXXX" /></div>
-            <div><label style={{ fontSize: 12, color: 'var(--mu)', display: 'block', marginBottom: 4 }}>Payment Terms (days)</label>
-              <select className="nx-select" style={{ width: '100%' }} value={form.payment_terms} onChange={e => F('payment_terms', e.target.value)}>
-                {['0', '7', '14', '30', '45', '60', '90'].map(d => <option key={d} value={d}>{d === '0' ? 'Cash on delivery' : `Net ${d} days`}</option>)}
-              </select>
-            </div>
-          </div>
-          <div><label style={{ fontSize: 12, color: 'var(--mu)', display: 'block', marginBottom: 4 }}>Notes</label><textarea className="nx-input" style={{ width: '100%', height: 60, resize: 'none' }} value={form.notes} onChange={e => F('notes', e.target.value)} /></div>
-        </div>
-        <div style={{ padding: '16px 24px', borderTop: '1px solid var(--bd)', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button className="btn-nx ghost" onClick={onClose}>Cancel</button>
-          <button className="btn-nx primary" onClick={() => save.mutate()} disabled={!form.name || save.isPending}>{save.isPending ? 'Saving...' : 'Save Supplier'}</button>
-        </div>
-      </div>
-    </div>
-  );
+function SupplierModal({supplier,close}:any){
+  const qc=useQueryClient(),{toast}=useToast();const [f,setF]=useState({name:supplier?.name||'',code:supplier?.code||'',contact_person:supplier?.contact_person||'',phone:supplier?.phone||'',email:supplier?.email||'',address:supplier?.address||'',city:supplier?.city||'',tax_number:supplier?.tax_number||'',payment_terms:Number(supplier?.payment_terms??30),notes:supplier?.notes||''});
+  const save=useMutation({mutationFn:()=>supplier?api.patch(`/purchasing/suppliers/${supplier.id}`,f):api.post('/purchasing/suppliers',f),onSuccess:()=>{qc.invalidateQueries({queryKey:['suppliers']});toast('Supplier saved');close()},onError:(e:any)=>toast(e.response?.data?.message||'Could not save supplier','error')});
+  return <Modal title={supplier?'Edit Supplier':'New Supplier'} sub="Vendor identity, VAT details and payment terms" close={close} footer={<><button className="btn-nx ghost" onClick={close}>Cancel</button><button className="btn-nx primary" disabled={!f.name||save.isPending} onClick={()=>save.mutate()}>{save.isPending?'Saving…':'Save Supplier'}</button></>}>
+    <div className="purch-form-grid">{[['Company Name *','name'],['Supplier Code','code'],['Contact Person','contact_person'],['Phone','phone'],['Email','email'],['VAT Number','tax_number'],['City','city'],['Address','address']].map(([a,k])=><Field key={k} title={a}><input value={(f as any)[k]} onChange={e=>setF(x=>({...x,[k]:e.target.value}))}/></Field>)}<Field title="Payment Terms"><select value={f.payment_terms} onChange={e=>setF(x=>({...x,payment_terms:Number(e.target.value)}))}>{[0,7,14,30,45,60,90].map(x=><option value={x} key={x}>{x?`Net ${x} days`:'Cash on delivery'}</option>)}</select></Field><Field title="Notes"><input value={f.notes} onChange={e=>setF(x=>({...x,notes:e.target.value}))}/></Field></div>
+  </Modal>;
 }
 
-/* ── Create PO Modal ── */
-function POModal({ onClose }: { onClose: () => void }) {
-  const qc = useQueryClient();
-  const { data: suppData } = useQuery({ queryKey: ['suppliers'], queryFn: async () => { const r = await api.get('/purchasing/suppliers'); return r.data; } });
-  const { data: prodData } = useQuery({ queryKey: ['products-brief'], queryFn: async () => { const r = await api.get('/catalog/products?limit=200'); return r.data; } });
-  const suppliers: any[] = Array.isArray(suppData) ? suppData : suppData?.suppliers || suppData?.data || [];
-  const products: any[] = Array.isArray(prodData) ? prodData : prodData?.products || prodData?.data || [];
-
-  const [suppId, setSuppId] = useState('');
-  const [whId, setWhId] = useState('');
-  const { data: whData } = useQuery({ queryKey: ['warehouses-brief'], queryFn: async () => { const r = await api.get('/inventory/warehouses'); return r.data; } });
-  const warehouses: any[] = Array.isArray(whData) ? whData : whData?.warehouses || whData?.data || [];
-  const [expectedDate, setExpectedDate] = useState('');
-  const [notes, setNotes] = useState('');
-  const [lines, setLines] = useState<any[]>([{ product_id: '', variant_id: '', size: '', color: '', quantity_ordered: 1, unit_cost: '', tax_rate: 15 }]);
-
-  const addLine = () => setLines(l => [...l, { product_id: '', variant_id: '', size: '', color: '', quantity_ordered: 1, unit_cost: '', tax_rate: 15 }]);
-  const delLine = (i: number) => setLines(l => l.filter((_, j) => j !== i));
-  const setLine = (i: number, k: string, v: any) => setLines(l => l.map((r, j) => j === i ? { ...r, [k]: v } : r));
-
-  const total = lines.reduce((s, l) => s + (parseFloat(l.unit_cost) || 0) * (parseInt(l.quantity_ordered) || 0), 0);
-
-  const save = useMutation({
-    mutationFn: () => api.post('/purchasing/orders', { supplier_id: suppId, warehouse_id: whId, expected_date: expectedDate, notes, lines: lines.filter(l => l.product_id && l.quantity_ordered && l.unit_cost) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['po'] }); onClose(); },
-  });
-
-  const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'Free Size'];
-  const COLORS = ['Black', 'White', 'Red', 'Blue', 'Green', 'Yellow', 'Pink', 'Purple', 'Orange', 'Brown', 'Grey', 'Navy', 'Beige', 'Maroon'];
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={onClose}>
-      <div style={{ width: 'min(820px,100%)', background: 'var(--cd)', borderRadius: 16, overflow: 'hidden', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--bd)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>New Purchase Order</h2>
-          <button className="btn-nx ghost sm" onClick={onClose}><i className="ti ti-x" /></button>
-        </div>
-        <div style={{ padding: 24, overflowY: 'auto', flex: 1, display: 'grid', gap: 16 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div><label style={{ fontSize: 12, color: 'var(--mu)', display: 'block', marginBottom: 4 }}>Supplier *</label>
-              <select className="nx-select" style={{ width: '100%' }} value={suppId} onChange={e => setSuppId(e.target.value)}>
-                <option value="">Select supplier...</option>
-                {suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </div>
-            <div><label style={{ fontSize: 12, color: 'var(--mu)', display: 'block', marginBottom: 4 }}>Destination Warehouse *</label>
-              <select className="nx-select" style={{ width: '100%' }} value={whId} onChange={e => setWhId(e.target.value)}>
-                <option value="">Select warehouse...</option>
-                {warehouses.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}
-              </select>
-            </div>
-            <div><label style={{ fontSize: 12, color: 'var(--mu)', display: 'block', marginBottom: 4 }}>Expected Date</label><input className="nx-input" type="date" style={{ width: '100%' }} value={expectedDate} onChange={e => setExpectedDate(e.target.value)} /></div>
-          </div>
-
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <label style={{ fontSize: 12, color: 'var(--mu)', fontWeight: 600 }}>ORDER ITEMS</label>
-              <button className="btn-nx ghost sm" onClick={addLine}><i className="ti ti-plus" /> Add Item</button>
-            </div>
-            <div style={{ display: 'grid', gap: 8 }}>
-              {lines.map((line, i) => (
-                <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 80px 100px 36px', gap: 6, alignItems: 'center' }}>
-                  <select className="nx-select" value={line.product_id} onChange={e => setLine(i, 'product_id', e.target.value)}>
-                    <option value="">Product...</option>
-                    {products.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                  <select className="nx-select" value={line.size} onChange={e => setLine(i, 'size', e.target.value)}>
-                    <option value="">Size</option>
-                    {SIZES.map(s => <option key={s}>{s}</option>)}
-                  </select>
-                  <select className="nx-select" value={line.color} onChange={e => setLine(i, 'color', e.target.value)}>
-                    <option value="">Color</option>
-                    {COLORS.map(c => <option key={c}>{c}</option>)}
-                  </select>
-                  <input className="nx-input" type="number" min="1" value={line.quantity_ordered} onChange={e => setLine(i, 'quantity_ordered', e.target.value)} placeholder="Qty" />
-                  <input className="nx-input" type="number" step="0.01" value={line.unit_cost} onChange={e => setLine(i, 'unit_cost', e.target.value)} placeholder="Unit cost" />
-                  <button className="btn-nx ghost sm" style={{ color: '#ef4444', padding: '0 8px' }} onClick={() => delLine(i)}><i className="ti ti-trash" /></button>
-                </div>
-              ))}
-            </div>
-            <div style={{ textAlign: 'right', marginTop: 12, fontWeight: 700, fontSize: 16 }}>Total: SAR {fmt(total)}</div>
-          </div>
-
-          <div><label style={{ fontSize: 12, color: 'var(--mu)', display: 'block', marginBottom: 4 }}>Notes</label><textarea className="nx-input" style={{ width: '100%', height: 60, resize: 'none' }} value={notes} onChange={e => setNotes(e.target.value)} /></div>
-        </div>
-        <div style={{ padding: '16px 24px', borderTop: '1px solid var(--bd)', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button className="btn-nx ghost" onClick={onClose}>Cancel</button>
-          <button className="btn-nx primary" onClick={() => save.mutate()} disabled={!suppId || !whId || save.isPending}>{save.isPending ? 'Creating...' : 'Create PO'}</button>
-        </div>
-      </div>
-    </div>
-  );
+function POModal({close}:any){
+  const qc=useQueryClient(),{toast}=useToast();const [search,setSearch]=useState('');const [f,setF]=useState<any>({supplier_id:'',warehouse_id:'',expected_date:'',freight_amount:'0',customs_amount:'0',other_costs:'0',notes:''});const [lines,setLines]=useState<Record<string,any>>({});
+  const {data:suppliers=[]}=useQuery<any[]>({queryKey:['suppliers'],queryFn:()=>api.get('/purchasing/suppliers').then(r=>r.data)});
+  const {data:warehouses=[]}=useQuery<any[]>({queryKey:['warehouses'],queryFn:()=>api.get('/inventory/warehouses').then(r=>r.data)});
+  const {data:products=[]}=useQuery<any[]>({queryKey:['purchase-products'],queryFn:()=>api.get('/catalog/products?limit=500').then(r=>r.data)});
+  const variants=(Array.isArray(products)?products:[]).flatMap((p:any)=>(p.variants||[]).map((v:any)=>({...v,product_name:p.name})));const needle=search.toLowerCase();const found=variants.filter((v:any)=>!needle||[v.product_name,v.sku,v.barcode,v.size,v.color].some(x=>String(x||'').toLowerCase().includes(needle))).slice(0,80);const chosen:any[]=Object.values(lines);
+  const subtotal=chosen.reduce((s,l)=>s+Number(l.quantity_ordered)*Number(l.unit_cost),0),vat=chosen.reduce((s,l)=>s+Number(l.quantity_ordered)*Number(l.unit_cost)*Number(l.tax_rate)/100,0),landed=Number(f.freight_amount||0)+Number(f.customs_amount||0)+Number(f.other_costs||0);
+  const add=(v:any)=>setLines(x=>({...x,[v.id]:x[v.id]||{variant_id:v.id,product_name:v.product_name,sku:v.sku,size:v.size,color:v.color,quantity_ordered:1,unit_cost:Number(v.cost_price||0),tax_rate:15}}));
+  const save=useMutation({mutationFn:()=>api.post('/purchasing/orders',{...f,lines:chosen}),onSuccess:()=>{qc.invalidateQueries({queryKey:['purchase-orders']});toast('Draft purchase order created');close()},onError:(e:any)=>toast(e.response?.data?.message||'Could not create PO','error')});
+  return <Modal wide title="Create Purchase Order" sub="Select exact SKU/size/color variants and destination stock location" close={close} footer={<><div className="purch-footer-total"><span>Grand Total</span><b>{cash(subtotal+vat+landed)}</b></div><button className="btn-nx ghost" onClick={close}>Cancel</button><button className="btn-nx primary" disabled={!f.supplier_id||!f.warehouse_id||!chosen.length||save.isPending} onClick={()=>save.mutate()}>{save.isPending?'Creating…':`Create Draft PO (${chosen.length})`}</button></>}>
+    <div className="purch-form-grid"><Field title="Supplier *"><select value={f.supplier_id} onChange={e=>setF((x:any)=>({...x,supplier_id:e.target.value}))}><option value="">Select supplier</option>{suppliers.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></Field><Field title="Destination Warehouse *"><select value={f.warehouse_id} onChange={e=>setF((x:any)=>({...x,warehouse_id:e.target.value}))}><option value="">Select warehouse</option>{warehouses.filter(w=>w.is_active!==false).map(w=><option key={w.id} value={w.id}>{w.name} · {w.code}</option>)}</select></Field><Field title="Expected Delivery"><input type="date" value={f.expected_date} onChange={e=>setF((x:any)=>({...x,expected_date:e.target.value}))}/></Field><Field title="Notes"><input value={f.notes} onChange={e=>setF((x:any)=>({...x,notes:e.target.value}))}/></Field></div>
+    <div className="po-builder"><section><h3>Find Products</h3><div className="po-search"><i className="ti ti-search"/><input autoFocus value={search} onChange={e=>setSearch(e.target.value)} placeholder="Scan barcode or search product, SKU, size, color…"/></div><div className="po-results">{found.map((v:any)=><button key={v.id} disabled={Boolean(lines[v.id])} onClick={()=>add(v)}><span><b>{v.product_name}</b><small>{v.sku||v.barcode}{v.size?` · ${v.size}`:''}{v.color?` · ${v.color}`:''}</small></span><em>{cash(v.cost_price)} cost</em><i className={`ti ${lines[v.id]?'ti-check':'ti-plus'}`}/></button>)}</div></section><section><h3>Order Lines <small>{chosen.length} variants</small></h3><div className="po-lines">{!chosen.length?<div className="purch-empty">Add exact product variants from the left.</div>:chosen.map(l=><div key={l.variant_id}><span><b>{l.product_name}</b><small>{l.sku}{l.size?` · ${l.size}`:''}{l.color?` · ${l.color}`:''}</small></span><input title="Quantity" type="number" min="1" value={l.quantity_ordered} onChange={e=>setLines(x=>({...x,[l.variant_id]:{...x[l.variant_id],quantity_ordered:Number(e.target.value)}}))}/><input title="Unit cost" type="number" min="0" step=".01" value={l.unit_cost} onChange={e=>setLines(x=>({...x,[l.variant_id]:{...x[l.variant_id],unit_cost:Number(e.target.value)}}))}/><button onClick={()=>setLines(x=>{const n={...x};delete n[l.variant_id];return n})}><i className="ti ti-trash"/></button></div>)}</div></section></div>
+    <div className="po-costs"><Field title="Freight"><input type="number" value={f.freight_amount} onChange={e=>setF((x:any)=>({...x,freight_amount:e.target.value}))}/></Field><Field title="Customs / Duty"><input type="number" value={f.customs_amount} onChange={e=>setF((x:any)=>({...x,customs_amount:e.target.value}))}/></Field><Field title="Other Landed Costs"><input type="number" value={f.other_costs} onChange={e=>setF((x:any)=>({...x,other_costs:e.target.value}))}/></Field><span><small>Subtotal</small><b>{cash(subtotal)}</b></span><span><small>VAT</small><b>{cash(vat)}</b></span></div>
+  </Modal>;
 }
 
-/* ── PO Detail Panel ── */
-function PODetail({ po, onClose, onApprove, onReceive, onCancel }: { po: any; onClose: () => void; onApprove: () => void; onReceive: () => void; onCancel: () => void }) {
-  const { data } = useQuery({
-    queryKey: ['po-detail', po.id],
-    queryFn: async () => { const r = await api.get(`/purchasing/orders/${po.id}`); return r.data; },
-  });
-  const detail = data || po;
-  const items: any[] = detail.items || detail.order_items || [];
-  return (
-    <div style={{ background: 'var(--cd)', borderRadius: 14, border: '1px solid var(--bd)', overflow: 'hidden', position: 'sticky', top: 80 }}>
-      <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--bd)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 16 }}>{detail.po_number || detail.order_number || `PO-${detail.id?.slice(0, 8)}`}</div>
-          <div style={{ fontSize: 12, color: 'var(--mu)' }}>{detail.supplier?.name || detail.supplier_name || '—'}</div>
-        </div>
-        <button className="btn-nx ghost sm" onClick={onClose}><i className="ti ti-x" /></button>
-      </div>
-      <div style={{ padding: 20, maxHeight: 520, overflowY: 'auto' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
-          {[['Status', <span key="s" className={`nx-badge ${STATUS_COLOR[detail.status] || 'grey'}`}>{detail.status}</span>], ['Total', `SAR ${fmt(detail.total_amount || detail.total)}`], ['Expected', detail.expected_date ? new Date(detail.expected_date).toLocaleDateString() : '—'], ['Created', detail.created_at ? new Date(detail.created_at).toLocaleDateString() : '—']].map(([k, v]: any) => (
-            <div key={k} style={{ paddingBottom: 8, borderBottom: '1px solid var(--bd)' }}>
-              <div style={{ fontSize: 10, color: 'var(--mu)', marginBottom: 2 }}>{k}</div>
-              <div style={{ fontWeight: 600, fontSize: 13 }}>{v}</div>
-            </div>
-          ))}
-        </div>
-        <div style={{ fontSize: 12, color: 'var(--mu)', marginBottom: 8, fontWeight: 600 }}>ORDER ITEMS ({items.length})</div>
-        {items.length === 0 ? <div style={{ color: 'var(--mu)', fontSize: 13 }}>No items</div> : items.map((it: any, i: number) => (
-          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--bd)' }}>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: 13 }}>{it.product_name || it.product?.name || '—'}</div>
-              <div style={{ fontSize: 11, color: 'var(--mu)' }}>{it.size ? `${it.size}` : ''}{it.color ? ` · ${it.color}` : ''}{it.sku ? ` · ${it.sku}` : ''}</div>
-              <div style={{ fontSize: 11, color: 'var(--mu)' }}>Qty: {it.quantity} × SAR {fmt(it.unit_cost)}</div>
-            </div>
-            <div style={{ fontWeight: 700, fontSize: 14 }}>SAR {fmt((it.quantity || 0) * (it.unit_cost || 0))}</div>
-          </div>
-        ))}
-        {detail.notes && <div style={{ marginTop: 12, padding: 12, background: 'var(--bg)', borderRadius: 8, fontSize: 13, color: 'var(--mu)' }}>{detail.notes}</div>}
-      </div>
-      <div style={{ padding: '12px 20px', borderTop: '1px solid var(--bd)', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {detail.status === 'pending' && <button className="btn-nx primary sm" onClick={onApprove}><i className="ti ti-check" /> Approve</button>}
-        {detail.status === 'approved' && <button className="btn-nx sm" style={{ background: '#10b981', color: '#fff', border: 'none' }} onClick={onReceive}><i className="ti ti-package-import" /> Mark Received</button>}
-        {!['cancelled', 'received'].includes(detail.status) && <button className="btn-nx ghost sm" style={{ color: '#ef4444' }} onClick={onCancel}><i className="ti ti-x" /> Cancel</button>}
-        <button className="btn-nx ghost sm" onClick={() => window.print()}><i className="ti ti-printer" /> Print</button>
-      </div>
-    </div>
-  );
+function ReceiveModal({po,close}:any){
+  const qc=useQueryClient(),{toast}=useToast();const {data}=useQuery<any>({queryKey:['purchase-order',po.id],queryFn:()=>api.get(`/purchasing/orders/${po.id}`).then(r=>r.data)});const [invoice,setInvoice]=useState('');const [notes,setNotes]=useState('');const [qty,setQty]=useState<Record<string,number>>({});
+  const lines=data?.lines||[];const receiving=lines.map((l:any)=>({...l,quantity_received:Number(qty[l.id]||0)})).filter((l:any)=>l.quantity_received>0);
+  const save=useMutation({mutationFn:()=>api.post('/purchasing/receive',{po_id:po.id,supplier_invoice:invoice,notes,lines:receiving.map((l:any)=>({po_line_id:l.id,variant_id:l.variant_id,quantity_received:l.quantity_received,unit_cost:Number(l.unit_cost)}))}),onSuccess:()=>{qc.invalidateQueries({queryKey:['purchase-orders']});qc.invalidateQueries({queryKey:['purchase-order',po.id]});toast('Goods receipt posted and stock updated');close()},onError:(e:any)=>toast(e.response?.data?.message||'Could not receive goods','error')});
+  return <Modal wide title={`Receive ${po.po_number}`} sub="Enter actual quantities; partial receiving is supported" close={close} footer={<><button className="btn-nx ghost" onClick={close}>Cancel</button><button className="btn-nx primary" disabled={!receiving.length||save.isPending} onClick={()=>save.mutate()}>{save.isPending?'Posting GRN…':`Receive ${receiving.reduce((s:any,l:any)=>s+l.quantity_received,0)} Units`}</button></>}><div className="purch-form-grid"><Field title="Supplier Invoice Number"><input value={invoice} onChange={e=>setInvoice(e.target.value)} placeholder="Required for audit trail"/></Field><Field title="Receiving Notes"><input value={notes} onChange={e=>setNotes(e.target.value)}/></Field></div><div className="receive-table"><div className="head"><span>Product / Variant</span><span>Ordered</span><span>Previously</span><span>Remaining</span><span>Receive Now</span></div>{lines.map((l:any)=>{const remaining=Number(l.quantity_ordered)-Number(l.quantity_received);return <div key={l.id}><span><b>{l.product_name}</b><small>{l.sku}{l.size?` · ${l.size}`:''}{l.color?` · ${l.color}`:''}</small></span><b>{l.quantity_ordered}</b><b>{l.quantity_received}</b><b>{remaining}</b><input type="number" min="0" max={remaining} value={qty[l.id]||0} onChange={e=>setQty(x=>({...x,[l.id]:Math.min(remaining,Math.max(0,Number(e.target.value)))}))}/></div>})}</div></Modal>;
 }
 
-/* ── Main Page ── */
-export default function Purchasing() {
-  const qc = useQueryClient();
-  const [tab, setTab] = useState<'orders' | 'suppliers'>('orders');
-  const [filter, setFilter] = useState('all');
-  const [sel, setSel] = useState<any>(null);
-  const [showPO, setShowPO] = useState(false);
-  const [showSupp, setShowSupp] = useState(false);
-  const [editSupp, setEditSupp] = useState<any>(null);
-  const [search, setSearch] = useState('');
+function PaymentModal({po,close}:any){const qc=useQueryClient(),{toast}=useToast();const outstanding=Number(po.total)-Number(po.paid_amount||0);const [f,setF]=useState({amount:String(outstanding),method:'bank',reference:'',notes:''});const save=useMutation({mutationFn:()=>api.post(`/purchasing/orders/${po.id}/payments`,{...f,amount:Number(f.amount)}),onSuccess:()=>{qc.invalidateQueries({queryKey:['purchase-orders']});qc.invalidateQueries({queryKey:['purchase-order',po.id]});toast('Supplier payment recorded');close()},onError:(e:any)=>toast(e.response?.data?.message||'Could not record payment','error')});return <Modal title="Record Supplier Payment" sub={`${po.po_number} · Outstanding ${cash(outstanding)}`} close={close} footer={<><button className="btn-nx ghost" onClick={close}>Cancel</button><button className="btn-nx primary" disabled={!Number(f.amount)||save.isPending} onClick={()=>save.mutate()}>Post Payment</button></>}><div className="purch-form-grid"><Field title="Amount"><input type="number" max={outstanding} value={f.amount} onChange={e=>setF(x=>({...x,amount:e.target.value}))}/></Field><Field title="Method"><select value={f.method} onChange={e=>setF(x=>({...x,method:e.target.value}))}>{['bank','cash','card','cheque'].map(x=><option key={x} value={x}>{label(x)}</option>)}</select></Field><Field title="Reference"><input value={f.reference} onChange={e=>setF(x=>({...x,reference:e.target.value}))}/></Field><Field title="Notes"><input value={f.notes} onChange={e=>setF(x=>({...x,notes:e.target.value}))}/></Field></div></Modal>}
 
-  const { data: poData, isLoading: poLoading } = useQuery({ queryKey: ['po'], queryFn: async () => { const r = await api.get('/purchasing/orders?limit=200'); return r.data; } });
-  const { data: suppData, isLoading: suppLoading } = useQuery({ queryKey: ['suppliers'], queryFn: async () => { const r = await api.get('/purchasing/suppliers'); return r.data; } });
+function ReturnModal({po,close}:any){const qc=useQueryClient(),{toast}=useToast();const {data}=useQuery<any>({queryKey:['purchase-order',po.id],queryFn:()=>api.get(`/purchasing/orders/${po.id}`).then(r=>r.data)});const [reason,setReason]=useState('');const [credit,setCredit]=useState('');const [qty,setQty]=useState<Record<string,number>>({});const lines=(data?.lines||[]).filter((x:any)=>Number(x.quantity_received)>0);const returns=lines.map((l:any)=>({variant_id:l.variant_id,quantity:Number(qty[l.variant_id]||0)})).filter((x:any)=>x.quantity>0);const save=useMutation({mutationFn:()=>api.post(`/purchasing/orders/${po.id}/returns`,{reason,credit_note:credit,lines:returns}),onSuccess:()=>{qc.invalidateQueries({queryKey:['purchase-order',po.id]});qc.invalidateQueries({queryKey:['purchase-orders']});toast('Purchase return posted and stock reduced');close()},onError:(e:any)=>toast(e.response?.data?.message||'Could not post return','error')});return <Modal title="Return Goods to Supplier" sub="Stock will be removed from the PO destination warehouse" close={close} footer={<><button className="btn-nx ghost" onClick={close}>Cancel</button><button className="btn-nx primary" disabled={!returns.length||save.isPending} onClick={()=>save.mutate()}>Post Purchase Return</button></>}><div className="purch-form-grid"><Field title="Reason"><input value={reason} onChange={e=>setReason(e.target.value)}/></Field><Field title="Supplier Credit Note"><input value={credit} onChange={e=>setCredit(e.target.value)}/></Field></div><div className="return-lines">{lines.map((l:any)=><label key={l.id}><span><b>{l.product_name}</b><small>{l.sku} · Received {l.quantity_received}</small></span><input type="number" min="0" max={l.quantity_received} value={qty[l.variant_id]||0} onChange={e=>setQty(x=>({...x,[l.variant_id]:Math.min(Number(l.quantity_received),Number(e.target.value))}))}/></label>)}</div></Modal>}
 
-  const allOrders: any[] = Array.isArray(poData) ? poData : poData?.orders || poData?.data || [];
-  const suppliers: any[] = Array.isArray(suppData) ? suppData : suppData?.suppliers || suppData?.data || [];
+function Detail({order,close,approve,receive,pay,returns}:any){const {data}=useQuery<any>({queryKey:['purchase-order',order.id],queryFn:()=>api.get(`/purchasing/orders/${order.id}`).then(r=>r.data)});const d=data||order,lines=d.lines||[];return <aside className="purch-detail"><header><div><h2>{d.po_number}</h2><p>{d.supplier_name} · {d.warehouse_name}</p></div><button onClick={close}><i className="ti ti-x"/></button></header><div className="purch-detail-body"><div className="purch-detail-status"><span className={`nx-badge ${tone[d.status]||'grey'}`}>{label(d.status)}</span><span className={`nx-badge ${d.payment_status==='paid'?'active':d.payment_status==='partial'?'pending':'danger'}`}>{label(d.payment_status||'unpaid')}</span></div><div className="purch-detail-totals"><span><small>Subtotal</small><b>{cash(d.subtotal)}</b></span><span><small>VAT</small><b>{cash(d.tax_amount)}</b></span><span><small>Landed Cost</small><b>{cash(Number(d.freight_amount||0)+Number(d.customs_amount||0)+Number(d.other_costs||0))}</b></span><span><small>Grand Total</small><b>{cash(d.total)}</b></span><span><small>Paid</small><b>{cash(d.paid_amount)}</b></span><span><small>Outstanding</small><b>{cash(Number(d.total)-Number(d.paid_amount||0))}</b></span></div><h3>Order Lines</h3><div className="purch-detail-lines">{lines.map((l:any)=><div key={l.id}><span><b>{l.product_name}</b><small>{l.sku}{l.size?` · ${l.size}`:''}{l.color?` · ${l.color}`:''}</small></span><em><b>{l.quantity_received}/{l.quantity_ordered}</b><small>{cash(l.unit_cost)} each</small></em></div>)}</div>{d.receipts?.length>0&&<><h3>Goods Receipts</h3>{d.receipts.map((x:any)=><div className="purch-history" key={x.id}><i className="ti ti-package-import"/><span><b>{x.grn_number}</b><small>{x.supplier_invoice||'No supplier invoice'} · {new Date(x.received_at).toLocaleDateString()}</small></span></div>)}</>}</div><footer>{d.status==='draft'&&<button className="btn-nx primary" onClick={approve}>Approve PO</button>}{['approved','partially_received'].includes(d.status)&&<button className="btn-nx primary" onClick={receive}>Receive Goods</button>}{d.status!=='cancelled'&&d.payment_status!=='paid'&&<button className="btn-nx ghost" onClick={pay}>Record Payment</button>}{['received','partially_received'].includes(d.status)&&<button className="btn-nx ghost" onClick={returns}>Return Goods</button>}</footer></aside>}
 
-  const orders = allOrders.filter(o => {
-    const matchFilter = filter === 'all' || o.status === filter;
-    const matchSearch = !search || (o.po_number || o.order_number || '').toLowerCase().includes(search.toLowerCase()) || (o.supplier?.name || o.supplier_name || '').toLowerCase().includes(search.toLowerCase());
-    return matchFilter && matchSearch;
-  });
-
-  const totalSpend = allOrders.filter(o => o.status !== 'cancelled').reduce((s, o) => s + (parseFloat(o.total_amount || o.total) || 0), 0);
-  const pendingCount = allOrders.filter(o => o.status === 'pending').length;
-  const approvedCount = allOrders.filter(o => o.status === 'approved').length;
-
-  const approve = useMutation({ mutationFn: (id: string) => api.patch(`/purchasing/orders/${id}/approve`, {}), onSuccess: () => { qc.invalidateQueries({ queryKey: ['po'] }); qc.invalidateQueries({ queryKey: ['po-detail', sel?.id] }); } });
-  const receive = useMutation({ mutationFn: (id: string) => api.patch(`/purchasing/orders/${id}/receive`, {}), onSuccess: () => { qc.invalidateQueries({ queryKey: ['po'] }); qc.invalidateQueries({ queryKey: ['po-detail', sel?.id] }); } });
-  const cancel = useMutation({ mutationFn: (id: string) => api.patch(`/purchasing/orders/${id}/cancel`, {}), onSuccess: () => { qc.invalidateQueries({ queryKey: ['po'] }); qc.invalidateQueries({ queryKey: ['po-detail', sel?.id] }); } });
-
-  const FILTERS = [['all', 'All'], ['draft', 'Draft'], ['pending', 'Pending'], ['approved', 'Approved'], ['received', 'Received'], ['cancelled', 'Cancelled']];
-
-  return (
-    <div>
-      <div className="nx-page-head">
-        <div><h1 className="nx-page-title">Purchasing</h1><p className="nx-page-sub">{allOrders.length} orders · {suppliers.length} suppliers</p></div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn-nx ghost" onClick={() => { setEditSupp(null); setShowSupp(true); }}><i className="ti ti-user-plus" /> Add Supplier</button>
-          <button className="btn-nx primary" onClick={() => setShowPO(true)}><i className="ti ti-plus" /> New PO</button>
-        </div>
-      </div>
-
-      <div className="nx-stats cols-4" style={{ marginBottom: 20 }}>
-        <div className="nx-stat"><div className="nx-stat-icon indigo"><i className="ti ti-file-invoice" /></div><div className="nx-stat-body"><div className="nx-stat-val">{allOrders.length}</div><div className="nx-stat-lbl">Total Orders</div></div></div>
-        <div className="nx-stat"><div className="nx-stat-icon amber"><i className="ti ti-clock" /></div><div className="nx-stat-body"><div className="nx-stat-val">{pendingCount}</div><div className="nx-stat-lbl">Pending Approval</div></div></div>
-        <div className="nx-stat"><div className="nx-stat-icon teal"><i className="ti ti-truck" /></div><div className="nx-stat-body"><div className="nx-stat-val">{approvedCount}</div><div className="nx-stat-lbl">In Transit</div></div></div>
-        <div className="nx-stat"><div className="nx-stat-icon green"><i className="ti ti-currency-riyal" /></div><div className="nx-stat-body"><div className="nx-stat-val">SAR {fmt(totalSpend)}</div><div className="nx-stat-lbl">Total Spend</div></div></div>
-      </div>
-
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--bd)', paddingBottom: 0 }}>
-        {[['orders', 'Purchase Orders'], ['suppliers', 'Suppliers']].map(([id, l]) => (
-          <button key={id} onClick={() => setTab(id as any)} style={{ padding: '8px 16px', border: 'none', background: 'none', borderBottom: tab === id ? '2px solid var(--ac)' : '2px solid transparent', color: tab === id ? 'var(--ac)' : 'var(--mu)', fontWeight: tab === id ? 600 : 400, cursor: 'pointer', fontSize: 13 }}>{l}</button>
-        ))}
-      </div>
-
-      {tab === 'orders' && (
-        <div style={{ display: 'grid', gridTemplateColumns: sel ? '1fr 380px' : '1fr', gap: 16, alignItems: 'start' }}>
-          <div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-              {FILTERS.map(([id, l]) => (
-                <button key={id} onClick={() => setFilter(id)} className={filter === id ? 'btn-nx primary sm' : 'btn-nx ghost sm'}>{l}{id !== 'all' ? ` (${allOrders.filter(o => o.status === id).length})` : ''}</button>
-              ))}
-              <input className="nx-input" style={{ marginLeft: 'auto', width: 200 }} placeholder="Search PO / supplier..." value={search} onChange={e => setSearch(e.target.value)} />
-            </div>
-            <div className="nx-card" style={{ padding: 0, overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead><tr style={{ borderBottom: '1px solid var(--bd)' }}>
-                  {['PO Number', 'Supplier', 'Items', 'Total', 'Expected', 'Status', 'Actions'].map(h => (
-                    <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, color: 'var(--mu)', fontWeight: 600 }}>{h}</th>
-                  ))}
-                </tr></thead>
-                <tbody>
-                  {poLoading ? <tr><td colSpan={7} style={{ padding: 32, textAlign: 'center', color: 'var(--mu)' }}>Loading...</td></tr>
-                  : orders.length === 0 ? <tr><td colSpan={7} style={{ padding: 32, textAlign: 'center', color: 'var(--mu)' }}>No orders found</td></tr>
-                  : orders.map((o: any) => (
-                    <tr key={o.id} style={{ borderBottom: '1px solid var(--bd)', background: sel?.id === o.id ? 'var(--acg)' : 'transparent', cursor: 'pointer' }} onClick={() => setSel(o)}>
-                      <td style={{ padding: '12px 14px', fontWeight: 600, fontSize: 13 }}>{o.po_number || o.order_number || `PO-${o.id?.slice(0, 8)}`}</td>
-                      <td style={{ padding: '12px 14px', fontSize: 13 }}>{o.supplier?.name || o.supplier_name || '—'}</td>
-                      <td style={{ padding: '12px 14px', fontSize: 13 }}>{o.items_count || o.item_count || '—'}</td>
-                      <td style={{ padding: '12px 14px', fontWeight: 600, fontSize: 13 }}>SAR {fmt(o.total_amount || o.total)}</td>
-                      <td style={{ padding: '12px 14px', fontSize: 12, color: 'var(--mu)' }}>{o.expected_date ? new Date(o.expected_date).toLocaleDateString() : '—'}</td>
-                      <td style={{ padding: '12px 14px' }}><span className={`nx-badge ${STATUS_COLOR[o.status] || 'grey'}`}>{o.status}</span></td>
-                      <td style={{ padding: '12px 14px' }}>
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          {o.status === 'pending' && <button className="btn-nx ghost sm" title="Approve" onClick={e => { e.stopPropagation(); approve.mutate(o.id); }}><i className="ti ti-check" /></button>}
-                          {o.status === 'approved' && <button className="btn-nx ghost sm" title="Mark Received" onClick={e => { e.stopPropagation(); receive.mutate(o.id); }}><i className="ti ti-package-import" /></button>}
-                          {!['cancelled', 'received'].includes(o.status) && <button className="btn-nx ghost sm" title="Cancel" style={{ color: '#ef4444' }} onClick={e => { e.stopPropagation(); cancel.mutate(o.id); }}><i className="ti ti-x" /></button>}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          {sel && <PODetail po={sel} onClose={() => setSel(null)} onApprove={() => approve.mutate(sel.id)} onReceive={() => receive.mutate(sel.id)} onCancel={() => cancel.mutate(sel.id)} />}
-        </div>
-      )}
-
-      {tab === 'suppliers' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 16 }}>
-          {suppLoading ? <div style={{ color: 'var(--mu)' }}>Loading...</div>
-          : suppliers.length === 0 ? <div style={{ color: 'var(--mu)' }}>No suppliers yet.</div>
-          : suppliers.map((s: any) => (
-            <div key={s.id} className="nx-card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--acg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><i className="ti ti-building-store" style={{ fontSize: 20, color: 'var(--ac)' }} /></div>
-                <span className="nx-badge green">Active</span>
-              </div>
-              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 2 }}>{s.name}</div>
-              <div style={{ fontSize: 12, color: 'var(--mu)', marginBottom: 10 }}>{s.contact_person || '—'}</div>
-              <div style={{ display: 'grid', gap: 4, marginBottom: 12 }}>
-                {s.phone && <div style={{ fontSize: 12 }}><i className="ti ti-phone" style={{ marginRight: 6, color: 'var(--mu)' }} />{s.phone}</div>}
-                {s.email && <div style={{ fontSize: 12 }}><i className="ti ti-mail" style={{ marginRight: 6, color: 'var(--mu)' }} />{s.email}</div>}
-                {s.city && <div style={{ fontSize: 12 }}><i className="ti ti-map-pin" style={{ marginRight: 6, color: 'var(--mu)' }} />{s.city}{s.country ? ', ' + s.country : ''}</div>}
-                {s.payment_terms && <div style={{ fontSize: 12 }}><i className="ti ti-calendar" style={{ marginRight: 6, color: 'var(--mu)' }} />Net {s.payment_terms} days</div>}
-              </div>
-              <div style={{ borderTop: '1px solid var(--bd)', paddingTop: 10, display: 'flex', gap: 6 }}>
-                <button className="btn-nx ghost sm" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { setEditSupp(s); setShowSupp(true); }}><i className="ti ti-edit" /> Edit</button>
-                <button className="btn-nx ghost sm" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { setSuppId_filter(s.id); setTab('orders'); }}><i className="ti ti-file-invoice" /> Orders</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {showPO && <POModal onClose={() => setShowPO(false)} />}
-      {showSupp && <SupplierModal sup={editSupp} onClose={() => setShowSupp(false)} />}
-    </div>
-  );
+export default function Purchasing(){
+  const qc=useQueryClient(),{toast}=useToast();const [tab,setTab]=useState('orders'),[filter,setFilter]=useState('all'),[search,setSearch]=useState(''),[selected,setSelected]=useState<any>(null),[modal,setModal]=useState(''),[supplier,setSupplier]=useState<any>(null);
+  const {data:orders=[],isLoading}=useQuery<any[]>({queryKey:['purchase-orders'],queryFn:()=>api.get('/purchasing/orders').then(r=>r.data)});const {data:suppliers=[]}=useQuery<any[]>({queryKey:['suppliers'],queryFn:()=>api.get('/purchasing/suppliers').then(r=>r.data)});
+  const shown=useMemo(()=>orders.filter(o=>(filter==='all'||o.status===filter)&&(!search||[o.po_number,o.supplier_name,o.warehouse_name].some(v=>String(v||'').toLowerCase().includes(search.toLowerCase())))),[orders,filter,search]);const total=orders.filter(x=>x.status!=='cancelled').reduce((s,x)=>s+Number(x.total||0),0),outstanding=orders.filter(x=>x.status!=='cancelled').reduce((s,x)=>s+Math.max(0,Number(x.total)-Number(x.paid_amount||0)),0);
+  const approve=useMutation({mutationFn:(id:string)=>api.patch(`/purchasing/orders/${id}/approve`),onSuccess:()=>{qc.invalidateQueries({queryKey:['purchase-orders']});qc.invalidateQueries({queryKey:['purchase-order',selected?.id]});toast('Purchase order approved')},onError:(e:any)=>toast(e.response?.data?.message||'Could not approve','error')});
+  return <div className="purch-page"><div className="nx-page-head"><div><h1 className="nx-page-title">Purchasing Control Center</h1><p className="nx-page-sub">Purchase orders, receiving, supplier invoices, payments and returns</p></div><div><button className="btn-nx ghost" onClick={()=>{setSupplier(null);setModal('supplier')}}><i className="ti ti-user-plus"/> Supplier</button><button className="btn-nx primary" onClick={()=>setModal('po')}><i className="ti ti-plus"/> New Purchase Order</button></div></div>
+    <div className="nx-stats cols-4"><div className="nx-stat"><div className="nx-stat-icon indigo"><i className="ti ti-file-invoice"/></div><div className="nx-stat-body"><div className="nx-stat-val">{orders.length}</div><div className="nx-stat-lbl">Purchase Orders</div></div></div><div className="nx-stat"><div className="nx-stat-icon amber"><i className="ti ti-truck-delivery"/></div><div className="nx-stat-body"><div className="nx-stat-val">{orders.filter(x=>['approved','partially_received'].includes(x.status)).length}</div><div className="nx-stat-lbl">Awaiting Receipt</div></div></div><div className="nx-stat"><div className="nx-stat-icon green"><i className="ti ti-cash"/></div><div className="nx-stat-body"><div className="nx-stat-val">{cash(total)}</div><div className="nx-stat-lbl">Purchase Value</div></div></div><div className="nx-stat"><div className="nx-stat-icon red"><i className="ti ti-clock-dollar"/></div><div className="nx-stat-body"><div className="nx-stat-val">{cash(outstanding)}</div><div className="nx-stat-lbl">Supplier Payable</div></div></div></div>
+    <div className="nx-tabs">{[['orders','Purchase Orders'],['suppliers','Suppliers']].map(([id,x])=><button className={`nx-tab ${tab===id?'on':''}`} key={id} onClick={()=>setTab(id)}>{x}</button>)}</div>
+    {tab==='orders'?<><div className="purch-toolbar"><div><i className="ti ti-search"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search PO, supplier or warehouse…"/></div><select value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">All statuses</option>{['draft','approved','partially_received','received','cancelled'].map(x=><option key={x} value={x}>{label(x)}</option>)}</select></div><div className={`purch-layout ${selected?'open':''}`}><div className="purch-table-wrap"><table><thead><tr><th>PO / Supplier</th><th>Destination</th><th>Ordered / Received</th><th>VAT</th><th>Total</th><th>Payment</th><th>Expected / Due</th><th>Status</th></tr></thead><tbody>{isLoading?<tr><td colSpan={8} className="purch-empty">Loading…</td></tr>:shown.map(o=><tr key={o.id} className={selected?.id===o.id?'selected':''} onClick={()=>setSelected(o)}><td><b>{o.po_number}</b><small>{o.supplier_name}</small></td><td><b>{o.warehouse_name}</b><small>{o.items_count} variants</small></td><td><b>{o.received_units}/{o.ordered_units} units</b></td><td><b>{cash(o.tax_amount)}</b></td><td><b>{cash(o.total)}</b></td><td><span className={`nx-badge ${o.payment_status==='paid'?'active':o.payment_status==='partial'?'pending':'danger'}`}>{label(o.payment_status||'unpaid')}</span><small>{cash(Number(o.total)-Number(o.paid_amount||0))} due</small></td><td><b>{o.expected_date?new Date(o.expected_date).toLocaleDateString():'—'}</b><small>Due {o.due_date?new Date(o.due_date).toLocaleDateString():'—'}</small></td><td><span className={`nx-badge ${tone[o.status]||'grey'}`}>{label(o.status)}</span></td></tr>)}</tbody></table></div>{selected&&<Detail order={selected} close={()=>setSelected(null)} approve={()=>approve.mutate(selected.id)} receive={()=>setModal('receive')} pay={()=>setModal('payment')} returns={()=>setModal('return')}/>}</div></>:<div className="supplier-list">{suppliers.map(s=><article key={s.id}><header><span><i className="ti ti-building-store"/></span><div><h3>{s.name}</h3><p>{s.code||'No code'} · {s.city||'City not set'}</p></div><button onClick={()=>{setSupplier(s);setModal('supplier')}}><i className="ti ti-edit"/></button></header><div><span><small>Orders</small><b>{s.order_count}</b></span><span><small>Lifetime Purchases</small><b>{cash(s.lifetime_purchases)}</b></span><span><small>Outstanding</small><b>{cash(s.outstanding)}</b></span></div><footer><span><i className="ti ti-phone"/> {s.phone||'Not set'}</span><span>Net {s.payment_terms||0} days</span></footer></article>)}</div>}
+    {modal==='supplier'&&<SupplierModal supplier={supplier} close={()=>setModal('')}/>} {modal==='po'&&<POModal close={()=>setModal('')}/>} {modal==='receive'&&selected&&<ReceiveModal po={selected} close={()=>setModal('')}/>} {modal==='payment'&&selected&&<PaymentModal po={selected} close={()=>setModal('')}/>} {modal==='return'&&selected&&<ReturnModal po={selected} close={()=>setModal('')}/>}
+  </div>;
 }
-
-function setSuppId_filter(_id: string) {}
