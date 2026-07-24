@@ -438,7 +438,7 @@ export default function POSSale(){
   return(
     <div style={{display:'flex',flexDirection:'column',height:'calc(100vh - 56px)',background:'#f3f4f6',overflow:'hidden'}}>
       {showCustModal&&<CustModal/>}
-      {showPayModal&&<PaymentModal/>}
+      {showPayModal&&PaymentModal()}
       {showOrders&&<OrdersModal/>}
       {showHeld&&<HeldOrders onRetrieve={h=>{setCart(Array.isArray(h.cart)?h.cart:[]);setCustId(h.custId||'');setMethod(h.method||'Cash');setDiscPct(h.discPct||'');setOrderNote(h.orderNote||h.note||'');}} onClose={()=>setShowHeld(false)}/>}
       {pickerProd&&<VariantPicker product={pickerProd} onAdd={addToCart} onClose={()=>setPickerProd(null)}/>}
