@@ -224,8 +224,8 @@ export class BranchesService implements OnModuleInit {
     const defaults=[['Branch Cash','cash'],['Card Terminal','card'],['Mada Terminal','mada'],['Tabby','tabby'],['Tamara','tamara'],['Bank Transfer','bank_transfer']];
     for(const [name,method] of defaults)await this.db.query(
       `INSERT INTO branch_payment_accounts(id,branch_id,name,method,is_default)
-       SELECT $1,$2,$3,$4,true WHERE NOT EXISTS(
-         SELECT 1 FROM branch_payment_accounts WHERE branch_id=$2 AND method=$4 AND is_active=true)`,
+       SELECT $1,$2,$3,$4::varchar,true WHERE NOT EXISTS(
+         SELECT 1 FROM branch_payment_accounts WHERE branch_id=$2 AND method=$4::varchar AND is_active=true)`,
       [randomUUID(),branchId,name,method],
     );
   }
