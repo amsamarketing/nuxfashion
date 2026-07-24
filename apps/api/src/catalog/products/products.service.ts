@@ -66,7 +66,7 @@ export class ProductsService {
     const product = result.rows[0];
     if (dto.variants?.length) {
       for (const v of dto.variants) {
-        await this.addVariant(product.id, v);
+        await this.addVariant(product.id, v, companyId);
       }
     }
     return this.findOne(product.id, companyId);
@@ -79,10 +79,10 @@ export class ProductsService {
        description=COALESCE($3,description), description_ar=COALESCE($4,description_ar),
        category_id=COALESCE($5,category_id), brand_id=COALESCE($6,brand_id),
        sku_prefix=COALESCE($7,sku_prefix), image_url=COALESCE($8,image_url),
-       is_active=COALESCE($9,is_active),
-       updated_at=NOW() WHERE id=$10 AND company_id=$11 RETURNING *`,
+       is_active=COALESCE($9,is_active), tags=COALESCE($10,tags),
+       updated_at=NOW() WHERE id=$11 AND company_id=$12 RETURNING *`,
       [dto.name, dto.name_ar, dto.description, dto.description_ar,
-       dto.category_id, dto.brand_id, dto.sku_prefix, dto.image_url, dto.is_active, id, companyId],
+       dto.category_id, dto.brand_id, dto.sku_prefix, dto.image_url, dto.is_active, dto.tags, id, companyId],
     );
     return result.rows[0];
   }
@@ -93,7 +93,12 @@ export class ProductsService {
     return { message: 'Product deleted' };
   }
 
-  async addVariant(productId: string, dto: CreateVariantDto) {
+  async addVariant(productId: string, dto: CreateVariantDto, companyId: string) {
+    const owner = await this.db.query(
+      `SELECT id FROM products WHERE id=$1 AND company_id=$2 AND deleted_at IS NULL`,
+      [productId, companyId],
+    );
+    if (!owner.rows[0]) throw new NotFoundException('Product not found');
     const result = await this.db.query(
       `INSERT INTO product_variants (product_id, name, name_ar, sku, barcode, color, size, cost_price, selling_price, compare_price, stock_quantity, low_stock_threshold)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
@@ -104,20 +109,35 @@ export class ProductsService {
     return result.rows[0];
   }
 
-  async updateVariant(variantId: string, dto: Partial<CreateVariantDto>) {
+  async updateVariant(variantId: string, dto: Partial<CreateVariantDto>, companyId: string) {
+    const owner = await this.db.query(
+      `SELECT v.id FROM product_variants v JOIN products p ON p.id=v.product_id
+       WHERE v.id=$1 AND p.company_id=$2 AND p.deleted_at IS NULL`,
+      [variantId, companyId],
+    );
+    if (!owner.rows[0]) throw new NotFoundException('Variant not found');
     const result = await this.db.query(
-      `UPDATE product_variants SET name=COALESCE($1,name), sku=COALESCE($2,sku),
-       color=COALESCE($3,color), size=COALESCE($4,size),
-       cost_price=COALESCE($5,cost_price), selling_price=COALESCE($6,selling_price),
-       stock_quantity=COALESCE($7,stock_quantity), updated_at=NOW()
-       WHERE id=$8 RETURNING *`,
-      [dto.name, dto.sku, dto.color, dto.size, dto.cost_price, dto.selling_price, dto.stock_quantity, variantId],
+      `UPDATE product_variants SET name=COALESCE($1,name), name_ar=COALESCE($2,name_ar),
+       sku=COALESCE($3,sku), barcode=COALESCE($4,barcode),
+       color=COALESCE($5,color), size=COALESCE($6,size),
+       cost_price=COALESCE($7,cost_price), selling_price=COALESCE($8,selling_price),
+       compare_price=COALESCE($9,compare_price), stock_quantity=COALESCE($10,stock_quantity),
+       low_stock_threshold=COALESCE($11,low_stock_threshold), updated_at=NOW()
+       WHERE id=$12 RETURNING *`,
+      [dto.name, dto.name_ar, dto.sku, dto.barcode, dto.color, dto.size, dto.cost_price,
+       dto.selling_price, dto.compare_price, dto.stock_quantity, dto.low_stock_threshold, variantId],
     );
     if (!result.rows[0]) throw new NotFoundException('Variant not found');
     return result.rows[0];
   }
 
-  async removeVariant(variantId: string) {
+  async removeVariant(variantId: string, companyId: string) {
+    const owner = await this.db.query(
+      `SELECT v.id FROM product_variants v JOIN products p ON p.id=v.product_id
+       WHERE v.id=$1 AND p.company_id=$2 AND p.deleted_at IS NULL`,
+      [variantId, companyId],
+    );
+    if (!owner.rows[0]) throw new NotFoundException('Variant not found');
     await this.db.query(`DELETE FROM product_variants WHERE id=$1`, [variantId]);
     return { message: 'Variant deleted' };
   }

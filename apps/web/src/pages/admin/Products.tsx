@@ -329,6 +329,7 @@ export default function Products(){
   const [filterCat,setFilterCat]=useState('');
   const [filterBrand,setFilterBrand]=useState('');
   const [filterStatus,setFilterStatus]=useState('all');
+  const [sortBy,setSortBy]=useState('newest');
   const [selected,setSelected]=useState<any>(null);
   const [detailTab,setDetailTab]=useState('info');
   const [showProd,setShowProd]=useState(false);
@@ -364,11 +365,13 @@ export default function Products(){
     let list=products;
     if(filterStatus==='active') list=list.filter(p=>p.is_active);
     if(filterStatus==='inactive') list=list.filter(p=>!p.is_active);
+    if(filterStatus==='out') list=list.filter(p=>totalStock(p)===0);
+    if(filterStatus==='incomplete') list=list.filter(p=>!p.image_url||!p.category_id||!(p.variants||[]).length||(p.variants||[]).some((v:any)=>!Number(v.selling_price)||!v.sku||!v.barcode));
     if(filterCat) list=list.filter(p=>p.category_id===filterCat);
     if(filterBrand) list=list.filter(p=>p.brand_id===filterBrand);
-    if(search) list=list.filter(p=>p.name?.toLowerCase().includes(search.toLowerCase())||p.sku_prefix?.toLowerCase().includes(search.toLowerCase()));
-    return list;
-  },[products,filterStatus,filterCat,filterBrand,search]);
+    if(search){const needle=search.toLowerCase();list=list.filter(p=>[p.name,p.name_ar,p.sku_prefix,p.category_name,p.brand_name,...(p.variants||[]).flatMap((v:any)=>[v.sku,v.barcode,v.color,v.size])].some(v=>String(v||'').toLowerCase().includes(needle)));}
+    return [...list].sort((a,b)=>sortBy==='name'?String(a.name).localeCompare(String(b.name)):sortBy==='stock'?totalStock(b)-totalStock(a):sortBy==='price'?Number((a.variants||[])[0]?.selling_price||0)-Number((b.variants||[])[0]?.selling_price||0):new Date(b.created_at||0).getTime()-new Date(a.created_at||0).getTime());
+  },[products,filterStatus,filterCat,filterBrand,search,sortBy]);
 
   const catMap=Object.fromEntries(categories.map(c=>[c.id,c.name]));
   const brandMap=Object.fromEntries(brands.map(b=>[b.id,b.name]));
@@ -376,7 +379,10 @@ export default function Products(){
   const subCats=categories.filter(c=>c.parent_id);
 
   const priceRange=(p:any)=>{const vs=p.variants||[];if(!vs.length)return null;const prices=vs.map((v:any)=>v.selling_price).filter(Boolean);if(!prices.length)return null;const mn=Math.min(...prices),mx=Math.max(...prices);return mn===mx?`SAR ${mn}`:`SAR ${mn}–${mx}`;};
-  const totalStock=(p:any)=>(p.variants||[]).reduce((s:number,v:any)=>s+(v.stock_quantity||0),0);
+  function totalStock(p:any){return (p.variants||[]).reduce((s:number,v:any)=>s+Number(v.stock_quantity||0),0);}
+  const totalVariants=products.reduce((s,p)=>s+(p.variants||[]).length,0);
+  const outProducts=products.filter(p=>totalStock(p)===0).length;
+  const incompleteProducts=products.filter(p=>!p.image_url||!p.category_id||!(p.variants||[]).length||(p.variants||[]).some((v:any)=>!Number(v.selling_price)||!v.sku||!v.barcode)).length;
   const exportProducts=()=>{
     const head=['name','name_ar','description','description_ar','sku_prefix','category','brand','image_url','active','active_pos','active_ecommerce','tags'];
     const rows=products.map(p=>[p.name,p.name_ar,p.description,p.description_ar,p.sku_prefix,catMap[p.category_id]||'',brandMap[p.brand_id]||'',p.image_url,p.is_active!==false,!(p.tags||[]).includes(NO_POS),!(p.tags||[]).includes(NO_ECOM),(p.tags||[]).filter((t:string)=>!t.startsWith('channel:')).join('|')]);
@@ -406,9 +412,9 @@ export default function Products(){
 
       <div className="nx-stats cols-4" style={{marginBottom:16}}>
         <div className="nx-stat"><div className="nx-stat-icon indigo"><i className="ti ti-shirt"/></div><div className="nx-stat-body"><div className="nx-stat-val">{products.length}</div><div className="nx-stat-lbl">Total Products</div></div></div>
-        <div className="nx-stat"><div className="nx-stat-icon green"><i className="ti ti-check"/></div><div className="nx-stat-body"><div className="nx-stat-val">{products.filter(p=>p.is_active).length}</div><div className="nx-stat-lbl">Active</div></div></div>
-        <div className="nx-stat"><div className="nx-stat-icon teal"><i className="ti ti-category"/></div><div className="nx-stat-body"><div className="nx-stat-val">{categories.length}</div><div className="nx-stat-lbl">Categories</div></div></div>
-        <div className="nx-stat"><div className="nx-stat-icon amber"><i className="ti ti-building-store"/></div><div className="nx-stat-body"><div className="nx-stat-val">{brands.length}</div><div className="nx-stat-lbl">Brands</div></div></div>
+        <div className="nx-stat"><div className="nx-stat-icon teal"><i className="ti ti-box-multiple"/></div><div className="nx-stat-body"><div className="nx-stat-val">{totalVariants}</div><div className="nx-stat-lbl">Total Variants</div></div></div>
+        <div className="nx-stat"><div className="nx-stat-icon red"><i className="ti ti-package-off"/></div><div className="nx-stat-body"><div className="nx-stat-val">{outProducts}</div><div className="nx-stat-lbl">Out of Stock</div></div></div>
+        <div className="nx-stat"><div className="nx-stat-icon amber"><i className="ti ti-alert-triangle"/></div><div className="nx-stat-body"><div className="nx-stat-val">{incompleteProducts}</div><div className="nx-stat-lbl">Needs Attention</div></div></div>
       </div>
 
       <div style={{display:'flex',gap:4,marginBottom:14,borderBottom:'1px solid var(--bd)'}}>
@@ -419,8 +425,8 @@ export default function Products(){
 
       {/* PRODUCTS TAB */}
       {tab==='products'&&(<div>
-        <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap'}}>
-          <input className="nx-input" placeholder="Search products..." value={search} onChange={e=>setSearch(e.target.value)} style={{width:200}}/>
+        <div className="product-list-toolbar">
+          <div className="product-list-search"><i className="ti ti-search"/><input placeholder="Search product, SKU, barcode, size or color..." value={search} onChange={e=>setSearch(e.target.value)}/></div>
           <select className="nx-select" value={filterCat} onChange={e=>setFilterCat(e.target.value)}>
             <option value="">All Categories</option>
             {categories.map(c=><option key={c.id} value={c.id}>{c.parent_id?'  ↳ ':''}{c.name}</option>)}
@@ -429,40 +435,34 @@ export default function Products(){
             <option value="">All Brands</option>
             {brands.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
-          {[['all','All'],['active','Active'],['inactive','Inactive']].map(([k,l])=>(
-            <button key={k} onClick={()=>setFilterStatus(k)} className={`btn-nx ${filterStatus===k?'primary':'ghost'} sm`}>{l}</button>
-          ))}
+          <select className="nx-select" value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}><option value="all">All Statuses</option><option value="active">Active</option><option value="inactive">Draft / Inactive</option><option value="out">Out of Stock</option><option value="incomplete">Needs Attention</option></select>
+          <select className="nx-select" value={sortBy} onChange={e=>setSortBy(e.target.value)}><option value="newest">Newest First</option><option value="name">Name A–Z</option><option value="stock">Highest Stock</option><option value="price">Lowest Price</option></select>
+          {(search||filterCat||filterBrand||filterStatus!=='all')&&<button className="btn-nx ghost sm" onClick={()=>{setSearch('');setFilterCat('');setFilterBrand('');setFilterStatus('all')}}><i className="ti ti-filter-off"/> Clear</button>}
         </div>
         {prodLoading?<div style={{padding:40,textAlign:'center',color:'var(--mu)'}}>Loading...</div>:filtered.length===0?<div className="nx-card" style={{textAlign:'center',padding:48,color:'var(--mu)'}}><i className="ti ti-shirt" style={{fontSize:40,display:'block',opacity:.3,marginBottom:8}}/><p style={{fontWeight:600}}>No products found</p></div>:(
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:12}}>
+          <div className="product-list-wrap"><table className="product-list-table"><thead><tr><th>Product</th><th>Model / Category</th><th>Variants</th><th>Price</th><th>Stock</th><th>Channels</th><th>Status</th><th>Actions</th></tr></thead><tbody>
             {filtered.map(p=>{
               const stock=totalStock(p);
               const price=priceRange(p);
-              const isLow=stock>0&&stock<10;
+              const threshold=(p.variants||[]).reduce((s:number,v:any)=>s+Number(v.low_stock_threshold||5),0);
+              const isLow=stock>0&&stock<=Math.max(5,threshold);
               const isOut=stock===0;
+              const tags:string[]=p.tags||[];const posOn=!tags.includes(NO_POS);const webOn=!tags.includes(NO_ECOM);
+              const missing=[!p.image_url&&'Image',!p.category_id&&'Category',!(p.variants||[]).length&&'Variants',(p.variants||[]).some((v:any)=>!Number(v.selling_price))&&'Price',(p.variants||[]).some((v:any)=>!v.barcode)&&'Barcode'].filter(Boolean);
               return(
-                <div key={p.id} onClick={()=>{setSelected(p);setDetailTab('info');}} style={{cursor:'pointer',border:`2px solid ${selected?.id===p.id?'var(--ac)':'var(--bd)'}`,borderRadius:12,background:'var(--cd)',overflow:'hidden',transition:'border-color .15s'}}>
-                  <div style={{height:120,background:'var(--bg)',display:'flex',alignItems:'center',justifyContent:'center',position:'relative'}}>
-                    {p.image_url?<img src={p.image_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<i className="ti ti-shirt" style={{fontSize:40,color:'var(--mu)',opacity:.4}}/>}
-                    <span style={{position:'absolute',top:6,right:6,fontSize:10,padding:'2px 7px',borderRadius:10,fontWeight:700,background:p.is_active?'#d1fae5':'#fee2e2',color:p.is_active?'#065f46':'#991b1b'}}>{p.is_active?'Active':'Draft'}</span>
-                    {isOut&&<span style={{position:'absolute',bottom:6,left:6,fontSize:10,padding:'2px 7px',borderRadius:10,fontWeight:700,background:'#fee2e2',color:'#991b1b'}}>Out of Stock</span>}
-                    {isLow&&!isOut&&<span style={{position:'absolute',bottom:6,left:6,fontSize:10,padding:'2px 7px',borderRadius:10,fontWeight:700,background:'#fef9c3',color:'#854d0e'}}>Low Stock</span>}
-                  </div>
-                  <div style={{padding:'10px 12px'}}>
-                    <div style={{fontWeight:700,fontSize:13,marginBottom:3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{p.name}</div>
-                    <div style={{fontSize:11,color:'var(--mu)',marginBottom:6,display:'flex',gap:4,flexWrap:'wrap'}}>
-                      {p.brand_id&&<span style={{padding:'1px 6px',borderRadius:8,background:'var(--acg)',color:'var(--ac)',fontWeight:600}}>{brandMap[p.brand_id]||''}</span>}
-                      {p.category_id&&<span style={{padding:'1px 6px',borderRadius:8,background:'var(--bg)',border:'1px solid var(--bd)'}}>{catMap[p.category_id]||''}</span>}
-                    </div>
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                      <span style={{fontWeight:700,fontSize:13,color:'var(--ac)'}}>{price||'—'}</span>
-                      <span style={{fontSize:11,color:'var(--mu)'}}>{(p.variants||[]).length} vars</span>
-                    </div>
-                  </div>
-                </div>
+                <tr key={p.id} className={selected?.id===p.id?'selected':''} onClick={()=>{setSelected(p);setDetailTab('info');}}>
+                  <td><div className="product-list-identity">{p.image_url?<img src={p.image_url} alt=""/>:<span><i className="ti ti-shirt"/></span>}<div><b>{p.name}</b>{p.name_ar&&<small dir="rtl">{p.name_ar}</small>}{missing.length>0&&<em title={`Missing: ${missing.join(', ')}`}><i className="ti ti-alert-circle"/> {missing.join(', ')}</em>}</div></div></td>
+                  <td><b className="product-model">{p.sku_prefix||'No model'}</b><small className="product-cell-sub">{catMap[p.category_id]||'Uncategorized'}{p.brand_id?` · ${brandMap[p.brand_id]}`:''}</small></td>
+                  <td><b>{(p.variants||[]).length}</b><small className="product-cell-sub">{[...new Set((p.variants||[]).map((v:any)=>v.color).filter(Boolean))].length} colors · {[...new Set((p.variants||[]).map((v:any)=>v.size).filter(Boolean))].length} sizes</small></td>
+                  <td><b className="product-price">{price||'Not set'}</b></td>
+                  <td><b className={isOut?'stock-out':isLow?'stock-low':'stock-good'}>{stock} units</b><small className="product-cell-sub">{isOut?'Out of stock':isLow?'Low stock':'Available'}</small></td>
+                  <td><div className="product-channels"><span className={posOn?'on':'off'}><i className="ti ti-device-desktop"/> POS</span><span className={webOn?'on':'off'}><i className="ti ti-world"/> Web</span></div></td>
+                  <td><span className={`nx-badge ${p.is_active?'active':'inactive'}`}>{p.is_active?'Active':'Draft'}</span></td>
+                  <td><div className="product-row-actions"><button title="Manage variants" onClick={e=>{e.stopPropagation();setSelected(p);setDetailTab('variants')}}><i className="ti ti-box-multiple"/></button><button title="Edit product" onClick={e=>{e.stopPropagation();setEditProd(p);setShowProd(true)}}><i className="ti ti-edit"/></button><button className="danger" title="Delete" onClick={e=>{e.stopPropagation();if(confirm('Delete product?'))delProduct.mutate(p.id)}}><i className="ti ti-trash"/></button></div></td>
+                </tr>
               );
             })}
-          </div>
+          </tbody></table></div>
         )}
       </div>)}
 

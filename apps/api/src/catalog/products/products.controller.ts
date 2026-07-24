@@ -35,17 +35,17 @@ export class ProductsController {
   }
 
   @Post(':id/variants')
-  addVariant(@Param('id') id: string, @Body() dto: CreateVariantDto) {
-    return this.service.addVariant(id, dto);
+  addVariant(@Param('id') id: string, @Body() dto: CreateVariantDto, @Req() req: Request) {
+    return this.service.addVariant(id, dto, (req.user as any).companyId);
   }
 
   @Patch('variants/:variantId')
-  updateVariant(@Param('variantId') variantId: string, @Body() dto: Partial<CreateVariantDto>) {
-    return this.service.updateVariant(variantId, dto);
+  updateVariant(@Param('variantId') variantId: string, @Body() dto: Partial<CreateVariantDto>, @Req() req: Request) {
+    return this.service.updateVariant(variantId, dto, (req.user as any).companyId);
   }
 
   @Delete('variants/:variantId')
-  removeVariant(@Param('variantId') variantId: string) {
-    return this.service.removeVariant(variantId);
+  removeVariant(@Param('variantId') variantId: string, @Req() req: Request) {
+    return this.service.removeVariant(variantId, (req.user as any).companyId);
   }
 }
