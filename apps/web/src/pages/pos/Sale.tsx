@@ -457,7 +457,7 @@ export default function POSSale(){
           <button onClick={()=>setShowPayModal(false)} style={{background:'none',border:'none',fontSize:24,cursor:'pointer',color:'rgba(255,255,255,.7)'}}>×</button>
         </div>
         <div style={{padding:20,display:'flex',flexDirection:'column',gap:14,overflowY:'auto'}}>
-          {customer?.name&&customer?.phone?(
+          {customer?.name&&customer?.phone?(<>
             <div style={{padding:'10px 12px',border:'1px solid #bbf7d0',background:'#f0fdf4',borderRadius:9,display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
               <div style={{display:'flex',alignItems:'center',gap:9}}><span style={{width:30,height:30,borderRadius:'50%',background:'#dcfce7',display:'flex',alignItems:'center',justifyContent:'center',color:'#15803d'}}><i className="ti ti-user-check"/></span><div><div style={{fontSize:10,fontWeight:800,color:'#15803d'}}>CUSTOMER CONFIRMED</div><div style={{fontSize:13,fontWeight:700}}>{customer.name}</div><div style={{fontSize:11,color:'#64748b'}}>{customer.phone}</div></div></div>
               <button className="btn-nx ghost sm" onClick={()=>{setNewCustPhone(customer.phone||'');setNewCustName('');setCustId('');}}>Change</button>
@@ -487,7 +487,7 @@ export default function POSSale(){
                 ))}
               </div>}
             </div>}
-          ):(
+          </>):(
             <div style={{padding:13,border:'1px solid #99f6e4',background:'#f8fafc',borderRadius:10}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}><div><div style={{fontSize:10,fontWeight:800,color:'#115e59'}}>CUSTOMER · STEP 1</div><div style={{fontSize:12,color:'#64748b',marginTop:2}}>Enter phone to find loyalty profile</div></div><button style={{border:0,background:'none',color:'#0f766e',fontSize:11,fontWeight:700,cursor:'pointer'}} onClick={()=>setShowCustModal(true)}>Search by name</button></div>
               <div style={{display:'flex',gap:7}}>
