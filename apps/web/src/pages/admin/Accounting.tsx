@@ -59,21 +59,37 @@ function AccountModal({acct,accounts,onClose}:{acct:any;accounts:any[];onClose:(
 /* ── Expense Modal ── */
 function ExpenseModal({categories,branches,onClose}:{categories:any[];branches:any[];onClose:()=>void}){
   const qc=useQueryClient();
-  const [form,setForm]=useState({branch_id:'',category_id:'',date:new Date().toISOString().slice(0,10),description:'',amount:'',tax_amount:'',payment_method:'cash',vendor:'',receipt_ref:'',notes:''});
+  const [form,setForm]=useState({allocation_method:'single',branch_id:'',category_id:'',date:new Date().toISOString().slice(0,10),description:'',amount:'',tax_amount:'',payment_method:'cash',vendor:'',receipt_ref:'',notes:''});
+  const [manual,setManual]=useState<Record<string,string>>({});
   const F=(k:string,v:any)=>setForm(f=>({...f,[k]:v}));
+  const manualTotal=Object.values(manual).reduce((s,v)=>s+(parseFloat(v)||0),0);
   const save=useMutation({
-    mutationFn:()=>api.post('/finance/expenses',{...form,amount:parseFloat(form.amount),tax_amount:parseFloat(form.tax_amount)||undefined,category_id:form.category_id||undefined,branch_id:form.branch_id||undefined}),
+    mutationFn:()=>api.post('/finance/expenses',{...form,amount:parseFloat(form.amount),tax_amount:parseFloat(form.tax_amount)||undefined,
+      category_id:form.category_id||undefined,branch_id:form.branch_id||undefined,
+      allocations:form.allocation_method==='manual'?Object.entries(manual).filter(([,v])=>parseFloat(v)>0).map(([branch_id,percent])=>({branch_id,percent:parseFloat(percent)})):undefined}),
     onSuccess:()=>{qc.invalidateQueries({queryKey:['expenses']});onClose();},
   });
   return(
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:16}} onClick={onClose}>
-      <div style={{width:'min(560px,100%)',background:'var(--cd)',borderRadius:16,overflow:'hidden'}} onClick={e=>e.stopPropagation()}>
+      <div style={{width:'min(680px,100%)',maxHeight:'92vh',background:'var(--cd)',borderRadius:16,overflow:'auto'}} onClick={e=>e.stopPropagation()}>
         <div style={{padding:'18px 22px',borderBottom:'1px solid var(--bd)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <h2 style={{margin:0,fontSize:17,fontWeight:700}}>Record Expense</h2>
           <button className="btn-nx ghost sm" onClick={onClose}><i className="ti ti-x"/></button>
         </div>
         <div style={{padding:20,display:'grid',gap:12}}>
-          {inp('Branch / Profit Centre',<select className="nx-select" style={{width:'100%'}} value={form.branch_id} onChange={e=>F('branch_id',e.target.value)}><option value="">— Head Office / Unallocated —</option>{branches.map(b=><option key={b.id} value={b.id}>{b.name} ({b.code})</option>)}</select>)}
+          {inp('Expense Allocation',<select className="nx-select" style={{width:'100%'}} value={form.allocation_method} onChange={e=>F('allocation_method',e.target.value)}>
+            <option value="single">Single branch</option><option value="head_office">Head Office / Business only</option>
+            <option value="equal">All branches — equal split</option><option value="manual">All branches — manual percentage</option>
+            <option value="revenue">All branches — monthly revenue ratio</option>
+          </select>)}
+          {form.allocation_method==='single'&&inp('Branch / Profit Centre',<select className="nx-select" style={{width:'100%'}} value={form.branch_id} onChange={e=>F('branch_id',e.target.value)}><option value="">— Select branch —</option>{branches.map(b=><option key={b.id} value={b.id}>{b.name} ({b.code})</option>)}</select>)}
+          {form.allocation_method==='manual'&&<div style={{padding:12,border:'1px solid var(--bd)',borderRadius:10,background:'var(--bg)'}}>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:8,fontSize:12,fontWeight:700}}><span>Branch allocation</span><span style={{color:Math.abs(manualTotal-100)<.01?'#16a34a':'#dc2626'}}>{manualTotal.toFixed(2)}% / 100%</span></div>
+            {branches.map(b=><div key={b.id} style={{display:'grid',gridTemplateColumns:'1fr 110px',gap:10,alignItems:'center',marginTop:7}}><span style={{fontSize:12}}>{b.name}</span><input className="nx-input" type="number" min="0" max="100" step=".01" value={manual[b.id]||''} onChange={e=>setManual(m=>({...m,[b.id]:e.target.value}))} placeholder="%"/></div>)}
+          </div>}
+          {(form.allocation_method==='equal'||form.allocation_method==='revenue')&&<div style={{padding:'9px 11px',borderRadius:8,background:'#eff6ff',color:'#1e40af',fontSize:11}}>
+            One audit expense will be divided across active branches; consolidated business total will remain unchanged.
+          </div>}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
             {inp('Date *',<input className="nx-input" type="date" style={{width:'100%'}} value={form.date} onChange={e=>F('date',e.target.value)}/>)}
             {inp('Category',<select className="nx-select" style={{width:'100%'}} value={form.category_id} onChange={e=>F('category_id',e.target.value)}><option value="">— Uncategorized —</option>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>)}
@@ -98,7 +114,7 @@ function ExpenseModal({categories,branches,onClose}:{categories:any[];branches:a
         </div>
         <div style={{padding:'14px 20px',borderTop:'1px solid var(--bd)',display:'flex',gap:8,justifyContent:'flex-end'}}>
           <button className="btn-nx ghost" onClick={onClose}>Cancel</button>
-          <button className="btn-nx primary" onClick={()=>save.mutate()} disabled={!form.description||!form.amount||!form.date||save.isPending}>{save.isPending?'Saving...':'Save Expense'}</button>
+          <button className="btn-nx primary" onClick={()=>save.mutate()} disabled={!form.description||!form.amount||!form.date||(form.allocation_method==='single'&&!form.branch_id)||(form.allocation_method==='manual'&&Math.abs(manualTotal-100)>.01)||save.isPending}>{save.isPending?'Saving...':'Save & Allocate Expense'}</button>
         </div>
       </div>
     </div>
@@ -225,6 +241,7 @@ export default function Accounting(){
   const [dateTo,setDateTo]=useState(new Date().toISOString().slice(0,10));
   const [expSearch,setExpSearch]=useState('');
   const [expCat,setExpCat]=useState('');
+  const [expBranch,setExpBranch]=useState('');
   const [jSearch,setJSearch]=useState('');
   const [showJournal,setShowJournal]=useState(false);
   const [showExpense,setShowExpense]=useState(false);
@@ -258,9 +275,12 @@ export default function Accounting(){
   const filteredExp=useMemo(()=>{
     let list=expenses;
     if(expCat) list=list.filter(e=>e.category_id===expCat);
+    if(expBranch) list=list.filter(e=>e.branch_id===expBranch||e.allocations?.some((a:any)=>a.branch_id===expBranch));
     if(expSearch) list=list.filter(e=>e.description?.toLowerCase().includes(expSearch.toLowerCase())||e.vendor?.toLowerCase().includes(expSearch.toLowerCase())||e.receipt_ref?.toLowerCase().includes(expSearch.toLowerCase()));
     return list;
-  },[expenses,expCat,expSearch]);
+  },[expenses,expCat,expBranch,expSearch]);
+  const expenseValue=(e:any,key:'amount'|'tax_amount')=>expBranch
+    ?Number(e.allocations?.find((a:any)=>a.branch_id===expBranch)?.[key]||0):Number(e[key]||0);
 
   const filteredJournal=useMemo(()=>journal.filter(j=>!jSearch||j.description?.toLowerCase().includes(jSearch.toLowerCase())||j.reference_type?.toLowerCase().includes(jSearch.toLowerCase())),[journal,jSearch]);
 
@@ -417,7 +437,8 @@ export default function Accounting(){
       <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>
         <input className="nx-input" placeholder="Search expenses..." value={expSearch} onChange={e=>setExpSearch(e.target.value)} style={{width:200}}/>
         <select className="nx-select" value={expCat} onChange={e=>setExpCat(e.target.value)}><option value="">All Categories</option>{expCategories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
-        <div style={{marginLeft:'auto',padding:'6px 12px',background:'var(--acg)',borderRadius:8,fontSize:13,fontWeight:600,color:'var(--ac)'}}>Total: {fmt(filteredExp.reduce((s,e)=>s+(e.amount||0),0))}</div>
+        <select className="nx-select" value={expBranch} onChange={e=>setExpBranch(e.target.value)}><option value="">Complete Business</option>{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select>
+        <div style={{marginLeft:'auto',padding:'6px 12px',background:'var(--acg)',borderRadius:8,fontSize:13,fontWeight:600,color:'var(--ac)'}}>{expBranch?'Allocated':'Business'} Total: {fmt(filteredExp.reduce((s,e)=>s+expenseValue(e,'amount'),0))}</div>
       </div>
       {expLoading?<div style={{padding:32,textAlign:'center',color:'var(--mu)'}}>Loading...</div>:(
         <div className="nx-card" style={{padding:0,overflow:'hidden'}}>
@@ -430,12 +451,15 @@ export default function Accounting(){
                 <tr key={e.id} style={{borderBottom:'1px solid var(--bd)'}}>
                   <td style={{padding:'10px 12px',fontSize:12,color:'var(--mu)',whiteSpace:'nowrap'}}>{e.date?new Date(e.date).toLocaleDateString():'—'}</td>
                   <td style={{padding:'10px 12px',fontWeight:600,fontSize:13}}>{e.description}</td>
-                  <td style={{padding:'10px 12px',fontSize:11}}>{e.branch_name||'Head Office'}</td>
+                  <td style={{padding:'10px 12px',fontSize:11}}>{e.branch_name||(
+                    e.allocations?.length?<span title={e.allocations.map((a:any)=>`${a.branch_name} ${Number(a.percent).toFixed(1)}%`).join(', ')}>
+                      {e.allocation_method==='equal'?'Equal split':e.allocation_method==='revenue'?'Revenue split':e.allocation_method==='manual'?'Manual split':`${e.allocations.length} branches`}
+                    </span>:'Head Office / Business')}</td>
                   <td style={{padding:'10px 12px'}}><span className="nx-badge grey">{catMap[e.category_id]||'—'}</span></td>
                   <td style={{padding:'10px 12px',fontSize:12}}>{e.vendor||'—'}</td>
                   <td style={{padding:'10px 12px',fontSize:12}}>{PAY_METHOD[e.payment_method]||e.payment_method||'—'}</td>
-                  <td style={{padding:'10px 12px',fontWeight:700,color:'#ef4444'}}>{fmt(e.amount)}</td>
-                  <td style={{padding:'10px 12px',fontSize:12,color:'var(--mu)'}}>{e.tax_amount?fmt(e.tax_amount):'—'}</td>
+                  <td style={{padding:'10px 12px',fontWeight:700,color:'#ef4444'}}>{fmt(expenseValue(e,'amount'))}</td>
+                  <td style={{padding:'10px 12px',fontSize:12,color:'var(--mu)'}}>{expenseValue(e,'tax_amount')?fmt(expenseValue(e,'tax_amount')):'—'}</td>
                   <td style={{padding:'10px 12px',fontSize:11,fontFamily:'monospace',color:'var(--mu)'}}>{e.receipt_ref||'—'}</td>
                 </tr>
               ))}
@@ -525,10 +549,15 @@ export default function Accounting(){
 
       {reportTab==='vat'&&(<div className="nx-card">
         {!(vatData as any)?.output_vat&&!(vatData as any)?.input_vat?<div style={{padding:32,textAlign:'center',color:'var(--mu)'}}>Loading VAT data...</div>:(
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:20}}>
-            <div><div style={{fontWeight:700,fontSize:14,marginBottom:12}}>Output VAT (Sales)</div><div style={{fontSize:28,fontWeight:800,color:'#22c55e'}}>{fmt((vatData as any)?.output_vat||0)}</div><div style={{fontSize:12,color:'var(--mu)',marginTop:4}}>VAT collected from customers</div></div>
-            <div><div style={{fontWeight:700,fontSize:14,marginBottom:12}}>Input VAT (Purchases)</div><div style={{fontSize:28,fontWeight:800,color:'#ef4444'}}>{fmt((vatData as any)?.input_vat||0)}</div><div style={{fontSize:12,color:'var(--mu)',marginTop:4}}>VAT paid to suppliers</div></div>
-            <div style={{padding:16,background:'var(--acg)',borderRadius:10}}><div style={{fontWeight:700,fontSize:14,marginBottom:12,color:'var(--ac)'}}>VAT Payable / Refundable</div><div style={{fontSize:28,fontWeight:800,color:'var(--ac)'}}>{fmt(((vatData as any)?.output_vat||0)-((vatData as any)?.input_vat||0))}</div><div style={{fontSize:12,color:'var(--mu)',marginTop:4}}>Positive = payable to GAZT</div></div>
+          <div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:20}}>
+            <div><div style={{fontWeight:700,fontSize:14,marginBottom:12}}>Output VAT (Sales)</div><div style={{fontSize:28,fontWeight:800,color:'#22c55e'}}>{fmt(Number((vatData as any)?.output_vat?.vat||0))}</div><div style={{fontSize:12,color:'var(--mu)',marginTop:4}}>VAT collected from customers</div></div>
+            <div><div style={{fontWeight:700,fontSize:14,marginBottom:12}}>Input VAT</div><div style={{fontSize:28,fontWeight:800,color:'#ef4444'}}>{fmt(Number((vatData as any)?.input_vat?.total||0))}</div><div style={{fontSize:12,color:'var(--mu)',marginTop:4}}>Purchases + allocated expenses</div></div>
+            <div style={{padding:16,background:'var(--acg)',borderRadius:10}}><div style={{fontWeight:700,fontSize:14,marginBottom:12,color:'var(--ac)'}}>Business VAT Payable</div><div style={{fontSize:28,fontWeight:800,color:'var(--ac)'}}>{fmt(Number((vatData as any)?.vat_payable||0))}</div><div style={{fontSize:12,color:'var(--mu)',marginTop:4}}>Consolidated under one CR/VAT</div></div>
+          </div>
+          {!!(vatData as any)?.branches?.length&&<div style={{marginTop:22,borderTop:'1px solid var(--bd)',paddingTop:16}}><div style={{fontWeight:750,marginBottom:10}}>Branch VAT Management View</div>
+            {(vatData as any).branches.map((b:any)=><div key={b.branch_id} style={{display:'grid',gridTemplateColumns:'1fr repeat(3,140px)',gap:10,padding:'9px 0',borderBottom:'1px solid var(--bd)',fontSize:12}}><b>{b.name}</b><span>Output {fmt(Number(b.output_vat))}</span><span>Expense input {fmt(Number(b.expense_input_vat))}</span><strong style={{color:Number(b.net_vat)>=0?'#dc2626':'#16a34a'}}>Net {fmt(Number(b.net_vat))}</strong></div>)}
+          </div>}
           </div>
         )}
       </div>)}

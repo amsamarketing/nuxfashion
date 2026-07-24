@@ -333,8 +333,10 @@ export class BranchesService implements OnModuleInit {
        JOIN product_variants pv ON pv.id=rl.variant_id WHERE o.warehouse_id=$1 AND rl.restock=true
        AND r.created_at::date BETWEEN $2 AND $3`,[branch.warehouse_id,d.from,d.to]);
     const expenses=await this.db.query(
-      `SELECT COALESCE(SUM(amount),0) expenses,COALESCE(SUM(tax_amount),0) input_vat,COUNT(*)::int expense_count
-       FROM expenses WHERE company_id=$1 AND branch_id=$2 AND date BETWEEN $3 AND $4`,
+      `SELECT COALESCE(SUM(a.amount),0) expenses,COALESCE(SUM(a.tax_amount),0) input_vat,
+       COUNT(DISTINCT e.id)::int expense_count
+       FROM expense_allocations a JOIN expenses e ON e.id=a.expense_id
+       WHERE e.company_id=$1 AND a.branch_id=$2 AND e.date BETWEEN $3 AND $4`,
       [companyId,branchId,d.from,d.to]);
     const stock=await this.db.query(
       `SELECT COALESCE(SUM(i.quantity*pv.cost_price),0) cost_value,COALESCE(SUM(i.quantity*pv.selling_price),0) retail_value,
@@ -355,7 +357,10 @@ export class BranchesService implements OnModuleInit {
     await this.syncWarehouses(companyId);const d=this.dates(from,to);
     const branches=await this.db.query(`SELECT id FROM branches WHERE company_id=$1 AND is_active=true ORDER BY name`,[companyId]);
     const rows=[];for(const b of branches.rows)rows.push(await this.branchReport(companyId,b.id,d.from,d.to));
-    const unallocated=await this.db.query(`SELECT COALESCE(SUM(amount),0) amount,COUNT(*)::int count FROM expenses WHERE company_id=$1 AND branch_id IS NULL AND date BETWEEN $2 AND $3`,[companyId,d.from,d.to]);
+    const unallocated=await this.db.query(
+      `SELECT COALESCE(SUM(e.amount),0) amount,COUNT(*)::int count FROM expenses e
+       WHERE e.company_id=$1 AND e.date BETWEEN $2 AND $3
+       AND NOT EXISTS(SELECT 1 FROM expense_allocations a WHERE a.expense_id=e.id)`,[companyId,d.from,d.to]);
     const totals=rows.reduce((a:any,x:any)=>({revenue:a.revenue+x.sales.net_revenue,cogs:a.cogs+x.cogs,gross_profit:a.gross_profit+x.gross_profit,expenses:a.expenses+x.expenses,net_profit:a.net_profit+x.net_profit,orders:a.orders+Number(x.sales.orders)}),{revenue:0,cogs:0,gross_profit:0,expenses:0,net_profit:0,orders:0});
     return {period:d,branches:rows,totals,unallocated_expenses:Number(unallocated.rows[0].amount),unallocated_expense_count:unallocated.rows[0].count};
   }

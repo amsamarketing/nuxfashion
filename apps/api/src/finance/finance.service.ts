@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { CreateJournalEntryDto } from './dto/create-journal-entry.dto';
@@ -7,8 +7,24 @@ import { CreateExpenseCategoryDto } from './dto/create-expense-category.dto';
 import { randomUUID } from 'crypto';
 
 @Injectable()
-export class FinanceService {
+export class FinanceService implements OnModuleInit {
   constructor(private db: DatabaseService) {}
+
+  async onModuleInit() {
+    await this.db.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS allocation_method VARCHAR(20) NOT NULL DEFAULT 'head_office'`);
+    await this.db.query(`CREATE TABLE IF NOT EXISTS expense_allocations(
+      id UUID PRIMARY KEY,expense_id UUID NOT NULL REFERENCES expenses(id) ON DELETE CASCADE,
+      branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+      allocation_percent NUMERIC(9,6) NOT NULL,amount NUMERIC(16,2) NOT NULL,
+      tax_amount NUMERIC(16,2) NOT NULL,total NUMERIC(16,2) NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),UNIQUE(expense_id,branch_id)
+    )`);
+    await this.db.query(
+      `INSERT INTO expense_allocations(id,expense_id,branch_id,allocation_percent,amount,tax_amount,total)
+       SELECT gen_random_uuid(),e.id,e.branch_id,100,e.amount,e.tax_amount,e.total FROM expenses e
+       WHERE e.branch_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM expense_allocations a WHERE a.expense_id=e.id)`,
+    );
+  }
 
   // ── Chart of Accounts ──────────────────────────────────────────────────────
 
@@ -134,26 +150,49 @@ export class FinanceService {
     const taxAmount = dto.tax_amount ?? (dto.amount * 0.15);
     const total = dto.amount + taxAmount;
     const expenseNumber = `EXP-${Date.now()}`;
-    const result = await this.db.query(
-      `INSERT INTO expenses (company_id,branch_id,expense_number,category_id,date,description,
+    const mode=dto.allocation_method||(dto.branch_id?'single':'head_office');
+    let shares:Array<{branch_id:string;percent:number}>=[];
+    const active=await this.db.query(`SELECT id FROM branches WHERE company_id=$1 AND is_active=true ORDER BY name`,[companyId]);
+    const valid=new Set(active.rows.map((b:any)=>b.id));
+    if(mode==='single'){
+      if(!dto.branch_id||!valid.has(dto.branch_id))throw new BadRequestException('Select a valid branch');
+      shares=[{branch_id:dto.branch_id,percent:100}];
+    }else if(mode==='equal'){
+      if(!active.rows.length)throw new BadRequestException('No active branches available');
+      shares=active.rows.map((b:any)=>({branch_id:b.id,percent:100/active.rows.length}));
+    }else if(mode==='manual'){
+      shares=(dto.allocations||[]).filter(x=>valid.has(x.branch_id)&&Number(x.percent)>0).map(x=>({branch_id:x.branch_id,percent:Number(x.percent)}));
+      const sum=shares.reduce((s,x)=>s+x.percent,0);
+      if(!shares.length||Math.abs(sum-100)>.01)throw new BadRequestException('Manual branch allocation must total 100%');
+    }else if(mode==='revenue'){
+      const sales=await this.db.query(
+        `SELECT b.id,COALESCE(SUM(o.total),0)::numeric revenue FROM branches b LEFT JOIN sales_orders o
+         ON o.warehouse_id=b.warehouse_id AND o.status='paid' AND date_trunc('month',o.created_at)=date_trunc('month',$2::date)
+         WHERE b.company_id=$1 AND b.is_active=true GROUP BY b.id`,[companyId,dto.date]);
+      const sum=sales.rows.reduce((s:number,x:any)=>s+Number(x.revenue),0);
+      if(sum<=0)throw new BadRequestException('Revenue allocation needs branch sales in the expense month');
+      shares=sales.rows.filter((x:any)=>Number(x.revenue)>0).map((x:any)=>({branch_id:x.id,percent:Number(x.revenue)/sum*100}));
+    }else if(mode!=='head_office')throw new BadRequestException('Invalid allocation method');
+    return this.db.transaction(async client=>{
+      const result=await client.query(
+        `INSERT INTO expenses (company_id,branch_id,allocation_method,expense_number,category_id,date,description,
          amount,tax_amount,total,payment_method,vendor,receipt_ref,submitted_by,notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
-      [companyId, dto.branch_id ?? null, expenseNumber, dto.category_id ?? null, dto.date, dto.description,
-       dto.amount, taxAmount, total, dto.payment_method ?? 'cash',
-       dto.vendor ?? null, dto.receipt_ref ?? null, userId, dto.notes ?? null],
-    );
-    if(dto.branch_id){
-      const methods=dto.payment_method==='bank_transfer'?['bank_transfer']:dto.payment_method==='card'?['card','mada']:['cash'];
-      const account=await this.db.query(
-        `SELECT a.id FROM branch_payment_accounts a JOIN branches b ON b.id=a.branch_id
-         WHERE a.branch_id=$1 AND b.company_id=$2 AND a.method=ANY($3::text[]) AND a.is_active=true
-         ORDER BY a.is_default DESC LIMIT 1`,[dto.branch_id,companyId,methods]);
-      if(account.rows[0])await this.db.query(
-        `INSERT INTO branch_account_transactions(id,branch_id,account_id,direction,amount,reference_type,reference_id,note,created_by)
-         VALUES($1,$2,$3,'debit',$4,'expense',$5,$6,$7)`,
-        [randomUUID(),dto.branch_id,account.rows[0].id,total,result.rows[0].id,`Expense ${expenseNumber}`,userId]);
-    }
-    return result.rows[0];
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
+        [companyId,mode==='single'?dto.branch_id:null,mode,expenseNumber,dto.category_id??null,dto.date,dto.description,
+         dto.amount,taxAmount,total,dto.payment_method??'cash',dto.vendor??null,dto.receipt_ref??null,userId,dto.notes??null]);
+      let allocatedAmount=0,allocatedTax=0;
+      for(let i=0;i<shares.length;i++){
+        const last=i===shares.length-1;
+        const amount=last?dto.amount-allocatedAmount:Number((dto.amount*shares[i].percent/100).toFixed(2));
+        const tax=last?taxAmount-allocatedTax:Number((taxAmount*shares[i].percent/100).toFixed(2));
+        allocatedAmount+=amount;allocatedTax+=tax;
+        await client.query(
+          `INSERT INTO expense_allocations(id,expense_id,branch_id,allocation_percent,amount,tax_amount,total)
+           VALUES($1,$2,$3,$4,$5,$6,$7)`,
+          [randomUUID(),result.rows[0].id,shares[i].branch_id,shares[i].percent,amount,tax,amount+tax]);
+      }
+      return {...result.rows[0],allocations:shares};
+    });
   }
 
   async getExpenses(companyId: string, from?: string, to?: string, categoryId?: string) {
@@ -164,7 +203,10 @@ export class FinanceService {
     if (to)         { conditions.push(`e.date<=$${idx++}`);         params.push(to); }
     if (categoryId) { conditions.push(`e.category_id=$${idx++}`);  params.push(categoryId); }
     const result = await this.db.query(
-      `SELECT e.*, ec.name as category_name, u.name as submitted_by_name,b.name as branch_name
+      `SELECT e.*, ec.name as category_name, u.name as submitted_by_name,b.name as branch_name,
+       COALESCE((SELECT json_agg(jsonb_build_object('branch_id',a.branch_id,'branch_name',ab.name,
+       'percent',a.allocation_percent,'amount',a.amount,'tax_amount',a.tax_amount,'total',a.total) ORDER BY ab.name)
+       FROM expense_allocations a JOIN branches ab ON ab.id=a.branch_id WHERE a.expense_id=e.id),'[]') allocations
        FROM expenses e
        LEFT JOIN expense_categories ec ON ec.id=e.category_id
        LEFT JOIN branches b ON b.id=e.branch_id
@@ -244,6 +286,15 @@ export class FinanceService {
        FROM expenses WHERE company_id=$1 AND date BETWEEN $2 AND $3`,
       [companyId, from, to],
     );
+    const branchVat = await this.db.query(
+      `SELECT b.id branch_id,b.name,
+       COALESCE((SELECT SUM(o.tax_amount) FROM sales_orders o WHERE o.warehouse_id=b.warehouse_id
+         AND o.status='paid' AND o.created_at::date BETWEEN $2 AND $3),0)::numeric output_vat,
+       COALESCE((SELECT SUM(a.tax_amount) FROM expense_allocations a JOIN expenses e ON e.id=a.expense_id
+         WHERE a.branch_id=b.id AND e.date BETWEEN $2 AND $3),0)::numeric expense_input_vat
+       FROM branches b WHERE b.company_id=$1 AND b.is_active=true ORDER BY b.name`,
+      [companyId,from,to],
+    );
 
     const outputVat  = parseFloat(salesVat.rows[0].total);
     const inputVat   = parseFloat(purchaseVat.rows[0].total) + parseFloat(expenseVat.rows[0].total);
@@ -255,6 +306,7 @@ export class FinanceService {
       input_vat:   { purchases_vat: purchaseVat.rows[0].total, expenses_vat: expenseVat.rows[0].total, total: inputVat },
       vat_payable: vatPayable,
       vat_rate: '15%',
+      branches: branchVat.rows.map((b:any)=>({...b,net_vat:Number(b.output_vat)-Number(b.expense_input_vat)})),
     };
   }
 
