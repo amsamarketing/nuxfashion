@@ -97,6 +97,8 @@ export default function POSSale(){
   const [showPayModal,setShowPayModal]=useState(false);
   const [showCustModal,setShowCustModal]=useState(false);
   const [custSearch,setCustSearch]=useState('');
+  const [newCustName,setNewCustName]=useState('');
+  const [newCustPhone,setNewCustPhone]=useState('');
   const [catFilter,setCatFilter]=useState('');
   const [couponInput,setCouponInput]=useState('');
   const [appliedCoupon,setAppliedCoupon]=useState<any>(null);
@@ -134,6 +136,7 @@ export default function POSSale(){
   const {data:custData=[]}=useQuery({queryKey:['customers'],queryFn:()=>api.get('/customers').then(r=>r.data)});
   const {data:catData=[]}=useQuery({queryKey:['categories'],queryFn:()=>api.get('/catalog/categories').then(r=>r.data).catch(()=>[])});
   const {data:recentOrders=[]}=useQuery({queryKey:['pos-orders'],queryFn:()=>api.get('/sales/orders?limit=20').then(r=>Array.isArray(r.data)?r.data:r.data?.data||[]).catch(()=>[])});
+  const {data:currentSession}=useQuery<any>({queryKey:['pos-current-session'],queryFn:()=>api.get('/sales/sessions/current').then(r=>r.data)});
 
   const products:any[]=Array.isArray(prodData)?prodData:( prodData as any)?.products||( prodData as any)?.data||[];
   const warehouses:any[]=Array.isArray(whData)?whData:[];
@@ -144,6 +147,11 @@ export default function POSSale(){
   const custPoints=customer?.loyalty_points||0;
   const walletBal=getWalletBalance(customer);
   const defaultWarehouseId=warehouses[0]?.id??null;
+  const quickCustomer=useMutation({
+    mutationFn:()=>api.post('/customers',{name:newCustName.trim(),phone:newCustPhone.trim()}),
+    onSuccess:async r=>{setCustId(r.data.id);setNewCustName('');setNewCustPhone('');setShowCustModal(false);await qc.invalidateQueries({queryKey:['customers']});toast('Customer added','success');},
+    onError:(e:any)=>toast(getErr(e),'error'),
+  });
 
   const filteredProducts=products.filter((p:any)=>{
     if(p.is_active===false||(p.tags||[]).includes('channel:no-pos'))return false;
@@ -243,7 +251,9 @@ export default function POSSale(){
 
   const chargeMut=useMutation({
     mutationFn:async()=>{
-      const body:any={customer_id:custId||null,lines:cart.map(i=>({variant_id:i.id,quantity:i.qty,unit_price:i.price,discount_amount:i.discount||0})),subtotal:sub,tax_amount:tax,discount_amount:totalDisc,total:gross,notes:orderNote||undefined};
+      if(!currentSession?.id)throw new Error('Start a POS shift before taking payment');
+      if(!customer?.name||!customer?.phone)throw new Error('Customer name and phone are required before payment');
+      const body:any={customer_id:custId,pos_session_id:currentSession.id,lines:cart.map(i=>({variant_id:i.id,quantity:i.qty,unit_price:i.price,discount_amount:i.discount||0})),subtotal:sub,tax_amount:tax,discount_amount:totalDisc,total:gross,notes:orderNote||undefined};
       if(defaultWarehouseId)body.warehouse_id=defaultWarehouseId;
       const order=await api.post('/sales/orders',body);
       const payments:any[]=[];
@@ -304,9 +314,13 @@ export default function POSSale(){
           <button onClick={()=>{setShowCustModal(false);setCustSearch('');}} style={{background:'none',border:'none',fontSize:22,cursor:'pointer',color:'#999'}}>×</button>
         </div>
         <div style={{overflowY:'auto',flex:1}}>
-          <div onClick={()=>{setCustId('');setShowCustModal(false);setCustSearch('');setUseWallet(false);setRedeemPts(false);}} style={{padding:'12px 16px',cursor:'pointer',borderBottom:'1px solid #f5f5f5',display:'flex',alignItems:'center',gap:10}} onMouseEnter={e=>(e.currentTarget.style.background='#f5f5f5')} onMouseLeave={e=>(e.currentTarget.style.background='')}>
-            <div style={{width:36,height:36,borderRadius:'50%',background:'#f0f0f0',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>👤</div>
-            <span style={{fontWeight:600,fontSize:13}}>Walk-in Customer</span>
+          <div style={{padding:14,borderBottom:'1px solid #e5e7eb',background:'#f8fafc'}}>
+            <div style={{fontSize:11,fontWeight:800,color:'#6366f1',marginBottom:8}}>QUICK ADD CUSTOMER — REQUIRED FOR PAYMENT</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7}}>
+              <input value={newCustName} onChange={e=>setNewCustName(e.target.value)} placeholder="Customer name *" style={{padding:'9px 10px',border:'1px solid #d1d5db',borderRadius:8,fontSize:12}}/>
+              <input value={newCustPhone} onChange={e=>setNewCustPhone(e.target.value)} placeholder="Phone *" inputMode="tel" style={{padding:'9px 10px',border:'1px solid #d1d5db',borderRadius:8,fontSize:12}}/>
+            </div>
+            <button className="btn-nx primary sm" style={{width:'100%',justifyContent:'center',marginTop:7}} disabled={!newCustName.trim()||!newCustPhone.trim()||quickCustomer.isPending} onClick={()=>quickCustomer.mutate()}>{quickCustomer.isPending?'Adding...':'Add & Select Customer'}</button>
           </div>
           {customers.filter((c:any)=>!custSearch||c.name?.toLowerCase().includes(custSearch.toLowerCase())||c.phone?.includes(custSearch)).map((c:any)=>(
             <div key={c.id} onClick={()=>{setCustId(c.id);setShowCustModal(false);setCustSearch('');setUseWallet(false);setRedeemPts(false);}} style={{padding:'12px 16px',cursor:'pointer',borderBottom:'1px solid #f5f5f5',display:'flex',alignItems:'center',gap:12}} onMouseEnter={e=>(e.currentTarget.style.background='#f5f5f5')} onMouseLeave={e=>(e.currentTarget.style.background='')}>
@@ -351,6 +365,10 @@ export default function POSSale(){
           <button onClick={()=>setShowPayModal(false)} style={{background:'none',border:'none',fontSize:24,cursor:'pointer',color:'rgba(255,255,255,.7)'}}>×</button>
         </div>
         <div style={{padding:20,display:'flex',flexDirection:'column',gap:14,overflowY:'auto'}}>
+          <div style={{padding:'10px 12px',border:`1px solid ${customer?.name&&customer?.phone?'#bbf7d0':'#fecaca'}`,background:customer?.name&&customer?.phone?'#f0fdf4':'#fef2f2',borderRadius:9,display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
+            <div><div style={{fontSize:10,fontWeight:800,color:customer?.name&&customer?.phone?'#15803d':'#b91c1c'}}>CUSTOMER {customer?.name&&customer?.phone?'CONFIRMED':'REQUIRED'}</div><div style={{fontSize:13,fontWeight:700}}>{customer?`${customer.name} · ${customer.phone||'Phone missing'}`:'Add customer name and phone before payment'}</div></div>
+            <button className="btn-nx ghost sm" onClick={()=>setShowCustModal(true)}>{customer?'Change':'Add customer'}</button>
+          </div>
           <div>
             <div style={{fontSize:11,fontWeight:700,color:'#999',marginBottom:8}}>PAYMENT METHOD</div>
             <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6}}>
@@ -395,7 +413,7 @@ export default function POSSale(){
             </div>
           )}
           <input value={orderNote} onChange={e=>setOrderNote(e.target.value)} placeholder="Order note (optional)…" style={{padding:'8px 12px',border:'1px solid #e5e7eb',borderRadius:8,fontSize:13}}/>
-          <button disabled={cart.length===0||chargeMut.isPending} onClick={()=>chargeMut.mutate()} style={{padding:'16px 0',borderRadius:12,background:cart.length===0?'#e5e7eb':'#6366f1',color:'#fff',border:'none',cursor:cart.length===0?'not-allowed':'pointer',fontSize:15,fontWeight:800}}>
+          <button disabled={cart.length===0||!currentSession?.id||!customer?.name||!customer?.phone||chargeMut.isPending} onClick={()=>chargeMut.mutate()} style={{padding:'16px 0',borderRadius:12,background:cart.length===0||!currentSession?.id||!customer?.name||!customer?.phone?'#e5e7eb':'#6366f1',color:'#fff',border:'none',cursor:cart.length===0||!currentSession?.id||!customer?.name||!customer?.phone?'not-allowed':'pointer',fontSize:15,fontWeight:800}}>
             {chargeMut.isPending?'Processing…':`✓ Charge ${sar(cashDue)}`}
           </button>
         </div>
@@ -540,7 +558,7 @@ export default function POSSale(){
           {label:'Retrieve',icon:'ti-player-play',color:'#6ee7b7',bg:'rgba(110,231,183,.15)',action:()=>setShowHeld(true)},
           {label:'Orders',icon:'ti-list',color:'#93c5fd',bg:'rgba(147,197,253,.15)',action:()=>setShowOrders(true)},
           {label:'Void',icon:'ti-ban',color:'#f87171',bg:'rgba(248,113,113,.15)',action:()=>{if(cart.length&&confirm('Void current sale?'))resetSale();}},
-          {label:'Payment',icon:'ti-credit-card',color:'#fff',bg:'#6366f1',action:()=>{if(!cart.length){toast('Add items first','error');return;}setShowPayModal(true);}},
+          {label:'Payment',icon:'ti-credit-card',color:'#fff',bg:'#6366f1',action:()=>{if(!cart.length){toast('Add items first','error');return;}if(!currentSession?.id){toast('Start shift from Z-Report before payment','error');return;}setShowPayModal(true);}},
         ].map(btn=>(
           <button key={btn.label} onClick={btn.action} style={{flex:btn.label==='Payment'?2:1,height:40,display:'flex',alignItems:'center',justifyContent:'center',gap:5,background:btn.bg,color:btn.color,border:'none',borderRadius:8,cursor:'pointer',fontSize:11,fontWeight:700}} onMouseEnter={e=>(e.currentTarget.style.opacity='.75')} onMouseLeave={e=>(e.currentTarget.style.opacity='1')}>
             <i className={'ti '+btn.icon} style={{fontSize:14}}/>{btn.label}

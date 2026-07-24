@@ -22,6 +22,14 @@ export class SalesController {
   closeSession(@Param('id') id: string, @Body() dto: CloseSessionDto, @Req() req: Request) {
     return this.service.closeSession((req.user as any).companyId, (req.user as any).sub, id, dto);
   }
+  @Get('sessions/current')
+  getCurrentSession(@Req() req: Request) {
+    return this.service.getCurrentSession((req.user as any).companyId, (req.user as any).sub);
+  }
+  @Get('sessions/:id/report')
+  getSessionReport(@Param('id') id: string, @Req() req: Request) {
+    return this.service.getSessionReport((req.user as any).companyId, id);
+  }
   @Get('sessions')
   getSessions(@Req() req: Request) {
     return this.service.getSessions((req.user as any).companyId);

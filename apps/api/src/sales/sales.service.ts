@@ -29,8 +29,8 @@ export class SalesService {
 
   async closeSession(companyId: string, userId: string, sessionId: string, dto: CloseSessionDto) {
     const session = await this.db.query(
-      `SELECT * FROM pos_sessions WHERE id=$1 AND company_id=$2 AND status='open'`,
-      [sessionId, companyId],
+      `SELECT * FROM pos_sessions WHERE id=$1 AND company_id=$2 AND cashier_id=$3 AND status='open'`,
+      [sessionId, companyId, userId],
     );
     if (!session.rows[0]) throw new NotFoundException('Open session not found');
     const cashSales = await this.db.query(
@@ -39,7 +39,13 @@ export class SalesService {
        WHERE o.pos_session_id=$1 AND p.method='cash' AND p.status='completed'`,
       [sessionId],
     );
-    const expected = parseFloat(session.rows[0].opening_cash) + parseFloat(cashSales.rows[0].total);
+    const cashReturns = await this.db.query(
+      `SELECT COALESCE(SUM(r.refund_amount),0) as total
+       FROM returns r JOIN sales_orders o ON o.id=r.original_order_id
+       WHERE o.pos_session_id=$1 AND r.refund_method='cash'`,
+      [sessionId],
+    );
+    const expected = parseFloat(session.rows[0].opening_cash) + parseFloat(cashSales.rows[0].total) - parseFloat(cashReturns.rows[0].total);
     const diff = dto.closing_cash - expected;
     const result = await this.db.query(
       `UPDATE pos_sessions SET status='closed', closing_cash=$1, expected_cash=$2,
@@ -48,6 +54,49 @@ export class SalesService {
       [dto.closing_cash, expected, diff, dto.notes ?? null, sessionId],
     );
     return result.rows[0];
+  }
+
+  async getCurrentSession(companyId: string, userId: string) {
+    const result = await this.db.query(
+      `SELECT s.*, u.name as cashier_name, w.name as warehouse_name
+       FROM pos_sessions s JOIN users u ON u.id=s.cashier_id JOIN warehouses w ON w.id=s.warehouse_id
+       WHERE s.company_id=$1 AND s.cashier_id=$2 AND s.status='open'
+       ORDER BY s.opened_at DESC LIMIT 1`, [companyId, userId],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async getSessionReport(companyId: string, sessionId: string) {
+    const session = await this.db.query(
+      `SELECT s.*,u.name as cashier_name,w.name as warehouse_name
+       FROM pos_sessions s JOIN users u ON u.id=s.cashier_id JOIN warehouses w ON w.id=s.warehouse_id
+       WHERE s.id=$1 AND s.company_id=$2`, [sessionId, companyId],
+    );
+    if (!session.rows[0]) throw new NotFoundException('Session not found');
+    const totals = await this.db.query(
+      `SELECT COUNT(*)::int transactions,COALESCE(SUM(total),0) total_sales,
+       COALESCE(SUM(discount_amount),0) total_discount,
+       COALESCE(SUM(COALESCE(tax_amount,total*15/115)),0) total_tax
+       FROM sales_orders WHERE pos_session_id=$1 AND status NOT IN ('draft','cancelled')`, [sessionId],
+    );
+    const payments = await this.db.query(
+      `SELECT p.method,COUNT(*)::int transactions,COALESCE(SUM(p.amount),0) total
+       FROM payments p JOIN sales_orders o ON o.id=p.order_id
+       WHERE o.pos_session_id=$1 AND p.status='completed' GROUP BY p.method ORDER BY total DESC`, [sessionId],
+    );
+    const returns = await this.db.query(
+      `SELECT COUNT(*)::int return_count,COALESCE(SUM(r.refund_amount),0) total_returned,
+       COALESCE(SUM(r.refund_amount) FILTER (WHERE r.refund_method='cash'),0) cash_returns
+       FROM returns r JOIN sales_orders o ON o.id=r.original_order_id WHERE o.pos_session_id=$1`, [sessionId],
+    );
+    const items = await this.db.query(
+      `SELECT p.name,COALESCE(SUM(l.quantity),0)::int qty,COALESCE(SUM(l.line_total),0) revenue
+       FROM sales_order_lines l JOIN sales_orders o ON o.id=l.order_id
+       JOIN product_variants pv ON pv.id=l.variant_id JOIN products p ON p.id=pv.product_id
+       WHERE o.pos_session_id=$1 AND o.status NOT IN ('draft','cancelled')
+       GROUP BY p.name ORDER BY qty DESC LIMIT 8`, [sessionId],
+    );
+    return { session:session.rows[0], totals:totals.rows[0], payments:payments.rows, returns:returns.rows[0], top_items:items.rows };
   }
 
   async getSessions(companyId: string) {
@@ -106,6 +155,19 @@ export class SalesService {
   // ─── Orders ──────────────────────────────────────────────────────────────────
 
   async createOrder(companyId: string, userId: string, dto: CreateOrderDto) {
+    if (!dto.customer_id) throw new BadRequestException('Customer name and phone are required');
+    const customer = await this.db.query(
+      `SELECT id FROM customers WHERE id=$1 AND company_id=$2 AND is_active=true
+       AND NULLIF(TRIM(name),'') IS NOT NULL AND NULLIF(TRIM(phone),'') IS NOT NULL`,
+      [dto.customer_id, companyId],
+    );
+    if (!customer.rows[0]) throw new BadRequestException('Select a customer with both name and phone');
+    if (!dto.pos_session_id) throw new BadRequestException('Start a POS shift before creating a sale');
+    const activeSession = await this.db.query(
+      `SELECT id FROM pos_sessions WHERE id=$1 AND company_id=$2 AND cashier_id=$3 AND status='open'`,
+      [dto.pos_session_id, companyId, userId],
+    );
+    if (!activeSession.rows[0]) throw new BadRequestException('Your POS shift is not open');
     // Calculate line totals
     let subtotal = 0;
     const processedLines = dto.lines.map(line => {

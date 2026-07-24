@@ -1,355 +1,108 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
+import { useToast } from '../../components/Toast';
+import { getErr } from '../../lib/err';
 
-const SAR = (n: number) => `SAR ${n.toLocaleString('en-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const SAR=(value:any)=>`SAR ${Number(value||0).toLocaleString('en-SA',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+const PAYMENT_LABELS:Record<string,string>={cash:'Cash',card:'Card',mada:'Mada',apple_pay:'Apple Pay',stc_pay:'STC Pay',tabby:'Tabby',tamara:'Tamara',bank_transfer:'Bank Transfer',store_credit:'Store Credit',gift_card:'Gift Card',wallet:'Wallet',loyalty_points:'Loyalty Points'};
 
-export default function ZReport() {
-  const [openingFloat, setOpeningFloat] = useState(500);
-  const [actualCounted, setActualCounted] = useState<number | null>(null);
-  const [countInput, setCountInput] = useState('');
-  const shiftKey = `closed_shift_${new Date().toISOString().slice(0,10)}`;
-  const [shiftClosed, setShiftClosed] = useState(() => !!localStorage.getItem(shiftKey));
-  const [showCloseModal, setShowCloseModal] = useState(false);
+export default function ZReport(){
+  const qc=useQueryClient();
+  const {toast}=useToast();
+  const [selectedId,setSelectedId]=useState('');
+  const [showOpen,setShowOpen]=useState(false);
+  const [showClose,setShowClose]=useState(false);
+  const [warehouseId,setWarehouseId]=useState('');
+  const [openingCash,setOpeningCash]=useState('500');
+  const [openingNotes,setOpeningNotes]=useState('');
+  const [closingCash,setClosingCash]=useState('');
+  const [closingNotes,setClosingNotes]=useState('');
 
-  const today = new Date().toISOString().slice(0, 10);
+  const {data:warehouses=[]}=useQuery<any[]>({queryKey:['warehouses'],queryFn:()=>api.get('/inventory/warehouses').then(r=>Array.isArray(r.data)?r.data:[])});
+  const {data:sessions=[]}=useQuery<any[]>({queryKey:['pos-sessions'],queryFn:()=>api.get('/sales/sessions').then(r=>Array.isArray(r.data)?r.data:[])});
+  const {data:current}=useQuery<any>({queryKey:['pos-current-session'],queryFn:()=>api.get('/sales/sessions/current').then(r=>r.data)});
+  const reportId=selectedId||current?.id||sessions[0]?.id||'';
+  const {data:report,isLoading}=useQuery<any>({queryKey:['pos-session-report',reportId],queryFn:()=>api.get(`/sales/sessions/${reportId}/report`).then(r=>r.data),enabled:!!reportId});
 
-  const { data: allOrders = [], isLoading } = useQuery<any[]>({
-    queryKey: ['z-report-orders', today],
-    queryFn: async () => {
-      const res = await api.get('/sales/orders?limit=500');
-      return (Array.isArray(res) ? res : (res as any).data ?? (res as any).orders ?? [])
-        .filter((o: any) => o.created_at?.slice(0, 10) === today);
-    },
+  const refresh=async()=>{await Promise.all([qc.invalidateQueries({queryKey:['pos-current-session']}),qc.invalidateQueries({queryKey:['pos-sessions']}),qc.invalidateQueries({queryKey:['pos-session-report']})]);};
+  const openShift=useMutation({
+    mutationFn:()=>api.post('/sales/sessions/open',{warehouse_id:warehouseId||warehouses[0]?.id,opening_cash:Number(openingCash||0),notes:openingNotes||undefined}),
+    onSuccess:async r=>{setSelectedId(r.data.id);setShowOpen(false);setOpeningNotes('');await refresh();toast('Shift started successfully','success');},
+    onError:(e:any)=>toast(getErr(e),'error'),
+  });
+  const closeShift=useMutation({
+    mutationFn:()=>api.post(`/sales/sessions/${current.id}/close`,{closing_cash:Number(closingCash),notes:closingNotes||undefined}),
+    onSuccess:async r=>{setSelectedId(r.data.id);setShowClose(false);setClosingCash('');setClosingNotes('');await refresh();toast('Shift closed and Z-Report finalized','success');},
+    onError:(e:any)=>toast(getErr(e),'error'),
   });
 
-  const { data: allReturns = [] } = useQuery<any[]>({
-    queryKey: ['z-report-returns', today],
-    queryFn: async () => {
-      const res = await api.get('/sales/returns?limit=500').catch(() => []);
-      return (Array.isArray(res) ? res : (res as any).data ?? (res as any).returns ?? [])
-        .filter((r: any) => r.created_at?.slice(0, 10) === today);
-    },
-  });
+  const totals=report?.totals||{};
+  const returns=report?.returns||{};
+  const shift=report?.session;
+  const payments:any[]=report?.payments||[];
+  const totalSales=Number(totals.total_sales||0);
+  const cashSales=Number(payments.find(p=>p.method==='cash')?.total||0);
+  const expected=Number(shift?.expected_cash??(Number(shift?.opening_cash||0)+cashSales-Number(returns.cash_returns||0)));
+  const actual=shift?.closing_cash==null?null:Number(shift.closing_cash);
+  const variance=actual==null?null:Number(shift.cash_difference??actual-expected);
+  const transactions=Number(totals.transactions||0);
+  const netSales=totalSales-Number(returns.total_returned||0);
+  const duration=shift?`${new Date(shift.opened_at).toLocaleString('en-SA')} — ${shift.closed_at?new Date(shift.closed_at).toLocaleString('en-SA'):'Open now'}`:'';
 
-  const paidOrders = allOrders.filter(o => !['cancelled','draft'].includes(o.status));
-
-  // Totals
-  const totalSales = paidOrders.reduce((s, o) => s + parseFloat(o.total || 0), 0);
-  const totalTax = paidOrders.reduce((s, o) => s + (parseFloat(o.tax_amount) || parseFloat(o.total || 0) * 15 / 115), 0);
-  const totalDiscount = paidOrders.reduce((s, o) => s + parseFloat(o.discount_amount || o.discount || 0), 0);
-  const transactions = paidOrders.length;
-  const avgBasket = transactions > 0 ? totalSales / transactions : 0;
-  const returnCount = allReturns.length;
-  const totalReturned = allReturns.reduce((s, r) => s + parseFloat(r.total_refund || r.refund_amount || 0), 0);
-
-  // Payment breakdown by method
-  const paymentMethods: Record<string, number> = {};
-  for (const o of paidOrders) {
-    const method = (o.payment_method || o.payments?.[0]?.method || 'card').toLowerCase().replace(/ /g, '_');
-    paymentMethods[method] = (paymentMethods[method] || 0) + parseFloat(o.total || 0);
-  }
-  const pmLabels: Record<string, string> = {
-    cash: 'Cash', card: 'Card (mada/Visa/MC)', mada: 'Card (mada/Visa/MC)',
-    tabby: 'Tabby', tamara: 'Tamara', apple_pay: 'Apple Pay',
-    store_wallet: 'Store wallet', credit_card: 'Card (mada/Visa/MC)',
-    bank_transfer: 'Bank transfer',
-  };
-  const mergedPM: Record<string, number> = {};
-  for (const [k, v] of Object.entries(paymentMethods)) {
-    const label = pmLabels[k] || k;
-    mergedPM[label] = (mergedPM[label] || 0) + v;
-  }
-  const pmEntries = Object.entries(mergedPM).sort((a, b) => b[1] - a[1]);
-
-  // Cash reconciliation
-  const cashSales = mergedPM['Cash'] || 0;
-  const cashRefunds = allReturns
-    .filter(r => (r.refund_method || '').toLowerCase() === 'cash')
-    .reduce((s, r) => s + parseFloat(r.total_refund || r.refund_amount || 0), 0);
-  const expectedInDrawer = openingFloat + cashSales - cashRefunds;
-  const counted = actualCounted ?? expectedInDrawer;
-  const variance = counted - expectedInDrawer;
-
-  // Top selling items from line items if available
-  const itemMap: Record<string, { name: string; qty: number; revenue: number }> = {};
-  for (const o of paidOrders) {
-    for (const l of o.lines ?? o.items ?? o.order_lines ?? []) {
-      const name = l.product_name || l.name || l.sku || 'Unknown';
-      if (!itemMap[name]) itemMap[name] = { name, qty: 0, revenue: 0 };
-      itemMap[name].qty += parseInt(l.quantity || l.qty || 1);
-      itemMap[name].revenue += parseFloat(l.subtotal || l.total || 0);
-    }
-  }
-  const topItems = Object.values(itemMap).sort((a, b) => b.qty - a.qty).slice(0, 6);
-
-  const shift = (() => {
-    const h = new Date().getHours();
-    if (h < 14) return '07:00–15:00 Morning shift';
-    if (h < 22) return '15:00–23:00 Evening shift';
-    return '23:00–07:00 Night shift';
-  })();
-
-  const handlePrint = () => {
-    const w = window.open('', '_blank', 'width=900,height=700');
-    if (!w) return;
-    w.document.write(`<html><head><title>Z-Report</title>
-    <style>body{font-family:sans-serif;padding:24px;color:#111}
-    h1{font-size:20px;margin:0}p{color:#666;font-size:13px;margin:4px 0 16px}
-    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
-    .card{border:1px solid #ddd;border-radius:8px;padding:12px 16px}
-    .card label{font-size:12px;color:#888;display:block;margin-bottom:4px}
-    .card strong{font-size:18px}
-    table{width:100%;border-collapse:collapse;margin-bottom:16px}
-    td{padding:6px 8px;border-bottom:1px solid #eee;font-size:13px}
-    td:last-child{text-align:right;font-weight:600}
-    h3{font-size:14px;font-weight:600;margin:16px 0 8px}
-    .two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-    </style></head><body>
-    <h1>Z-Report — End of shift</h1>
-    <p>${shift} &nbsp;·&nbsp; ${new Date().toLocaleDateString('en-SA')}</p>
-    <div class="grid">
-      <div class="card"><label>Total sales</label><strong>${SAR(totalSales)}</strong></div>
-      <div class="card"><label>Transactions</label><strong>${transactions}</strong></div>
-      <div class="card"><label>Avg basket</label><strong>${SAR(avgBasket)}</strong></div>
-      <div class="card"><label>Returns</label><strong>${returnCount} · ${SAR(totalReturned)}</strong></div>
-      <div class="card"><label>Discounts given</label><strong>${SAR(totalDiscount)}</strong></div>
-      <div class="card"><label>Tax collected</label><strong>${SAR(totalTax)}</strong></div>
-    </div>
-    <div class="two">
-      <div><h3>Payment breakdown</h3><table>
-        ${pmEntries.map(([m, v]) => `<tr><td>${m}</td><td>${SAR(v)} <span style="color:#888;font-size:11px">${totalSales > 0 ? Math.round(v / totalSales * 100) : 0}%</span></td></tr>`).join('')}
-      </table></div>
-      <div><h3>Cash reconciliation</h3><table>
-        <tr><td>Opening float</td><td>${SAR(openingFloat)}</td></tr>
-        <tr><td>Cash sales</td><td>+ ${SAR(cashSales)}</td></tr>
-        <tr><td>Cash refunds</td><td>– ${SAR(cashRefunds)}</td></tr>
-        <tr><td>Expected in drawer</td><td>${SAR(expectedInDrawer)}</td></tr>
-        <tr><td>Actual counted</td><td>${SAR(counted)}</td></tr>
-        <tr><td>Variance</td><td style="color:${Math.abs(variance)<0.01?'green':'red'}">${SAR(variance)} ${Math.abs(variance)<0.01?'Balanced':'⚠ Discrepancy'}</td></tr>
-      </table></div>
-    </div>
-    </body></html>`);
-    w.document.close(); w.print();
+  const printReport=()=>{
+    if(!shift)return;
+    const win=window.open('','_blank','width=850,height=750');if(!win)return;
+    win.document.write(`<!doctype html><html><head><title>Z-Report ${shift.id}</title><style>body{font-family:Arial;padding:28px;color:#111}h1{font-size:22px;margin:0 0 4px}.muted{color:#666;font-size:12px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:20px 0}.card{border:1px solid #ddd;border-radius:8px;padding:12px}.card small{display:block;color:#666;margin-bottom:4px}.card b{font-size:17px}table{width:100%;border-collapse:collapse;margin:8px 0 20px}td{padding:7px;border-bottom:1px solid #eee}td:last-child{text-align:right;font-weight:bold}h3{font-size:14px;margin-top:20px}.sign{margin-top:40px;display:grid;grid-template-columns:1fr 1fr;gap:50px}.line{border-top:1px solid #333;padding-top:6px;font-size:12px}</style></head><body>
+      <h1>NuxFashion POS — Z-Report</h1><div class="muted">Final shift report · ${shift.status.toUpperCase()}</div>
+      <p><b>Cashier:</b> ${shift.cashier_name} &nbsp; <b>Location:</b> ${shift.warehouse_name}<br><b>Shift:</b> ${duration}<br><b>Session:</b> ${shift.id}</p>
+      <div class="grid"><div class="card"><small>Gross Sales</small><b>${SAR(totalSales)}</b></div><div class="card"><small>Returns</small><b>${SAR(returns.total_returned)}</b></div><div class="card"><small>Net Sales</small><b>${SAR(netSales)}</b></div><div class="card"><small>Transactions</small><b>${transactions}</b></div><div class="card"><small>VAT 15%</small><b>${SAR(totals.total_tax)}</b></div><div class="card"><small>Discounts</small><b>${SAR(totals.total_discount)}</b></div></div>
+      <h3>Payment Breakdown</h3><table>${payments.map(p=>`<tr><td>${PAYMENT_LABELS[p.method]||p.method} (${p.transactions})</td><td>${SAR(p.total)}</td></tr>`).join('')||'<tr><td>No payments</td><td>SAR 0.00</td></tr>'}</table>
+      <h3>Cash Reconciliation</h3><table><tr><td>Opening cash</td><td>${SAR(shift.opening_cash)}</td></tr><tr><td>Cash sales</td><td>+ ${SAR(cashSales)}</td></tr><tr><td>Cash refunds</td><td>− ${SAR(returns.cash_returns)}</td></tr><tr><td>Expected cash</td><td>${SAR(expected)}</td></tr><tr><td>Counted cash</td><td>${actual==null?'Not counted':SAR(actual)}</td></tr><tr><td>Difference</td><td>${variance==null?'—':SAR(variance)}</td></tr></table>
+      <div class="sign"><div class="line">Cashier signature</div><div class="line">Manager signature</div></div></body></html>`);
+    win.document.close();win.print();
   };
 
-  if (isLoading) return <div className="pos-page"><div className="pos-empty"><i className="ti ti-loader-2"/>Loading Z-Report…</div></div>;
+  if(!reportId&&!current)return <div className="pos-page"><div className="pos-page-inner"><StartEmpty onStart={()=>setShowOpen(true)}/>{showOpen&&openModal()}</div></div>;
+  function openModal(){return <Modal title="Start POS Shift" onClose={()=>setShowOpen(false)}>
+    <p style={{fontSize:12,color:'#6b7280',margin:'0 0 14px'}}>Count the drawer before sales. This opening amount becomes the starting cash for reconciliation.</p>
+    <label style={labelStyle}>Warehouse / Register *</label><select className="nx-select" style={{width:'100%',marginBottom:12}} value={warehouseId||warehouses[0]?.id||''} onChange={e=>setWarehouseId(e.target.value)}>{warehouses.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select>
+    <label style={labelStyle}>Opening Cash (SAR) *</label><input className="nx-input" type="number" min="0" style={{width:'100%',marginBottom:12}} value={openingCash} onChange={e=>setOpeningCash(e.target.value)}/>
+    <label style={labelStyle}>Opening Notes</label><textarea className="nx-input" style={{width:'100%',height:65,padding:10}} value={openingNotes} onChange={e=>setOpeningNotes(e.target.value)} placeholder="Drawer counted by cashier..."/>
+    <div style={footerStyle}><button className="btn-nx ghost" onClick={()=>setShowOpen(false)}>Cancel</button><button className="btn-nx primary" disabled={!warehouses.length||openShift.isPending} onClick={()=>openShift.mutate()}>{openShift.isPending?'Starting...':'Start Shift'}</button></div>
+  </Modal>}
 
-  return (
-    <div className="pos-page">
-      <div className="pos-page-inner">
-      {/* Header */}
-      <div className="pos-page-header">
-        <div className="pos-page-title">
-          <div className="pos-page-title-icon"><i className="ti ti-report"/></div>
-          <div>
-          <h2>Z-Report · End of shift</h2>
-          <p>
-            {shift} &nbsp;·&nbsp; {new Date().toLocaleDateString('en-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-          </p>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="pos-action ghost" onClick={handlePrint}><i className="ti ti-printer" /> Print</button>
-          <button className="pos-action ghost" onClick={handlePrint}><i className="ti ti-file-type-pdf" /> Export PDF</button>
-          {shiftClosed ? (
-            <span style={{ background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0', borderRadius: 8, padding: '6px 14px', fontSize: 14, fontWeight: 600 }}>
-              <i className="ti ti-check" /> Shift closed
-            </span>
-          ) : (
-            <button className="pos-action"
-              onClick={() => setShowCloseModal(true)}>
-              <i className="ti ti-lock" /> Close shift
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Top metric cards — row 1 */}
-      <div className="pos-kpi-grid">
-        {[
-          { label: 'Total sales', value: SAR(totalSales) },
-          { label: 'Transactions', value: transactions.toString() },
-          { label: 'Avg basket', value: SAR(avgBasket) },
-          { label: 'Returns', value: `${returnCount} · ${SAR(totalReturned)}` },
-        ].map(c => (
-          <div key={c.label} className="pos-kpi">
-            <div className="pos-kpi-label">{c.label}</div>
-            <div className="pos-kpi-value">{c.value}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Top metric cards — row 2 */}
-      <div className="pos-kpi-grid">
-        {[
-          { label: 'Discounts given', value: SAR(totalDiscount) },
-          { label: 'Tax collected', value: SAR(totalTax) },
-          { label: 'Loyalty pts issued', value: `${Math.round(totalSales / 10)} pts` },
-          { label: 'Gift cards redeemed', value: SAR(0) },
-        ].map(c => (
-          <div key={c.label} className="pos-kpi">
-            <div className="pos-kpi-label">{c.label}</div>
-            <div className="pos-kpi-value">{c.value}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Payment breakdown + Cash reconciliation */}
+  return <div className="pos-page"><div className="pos-page-inner">
+    <div className="pos-page-header"><div className="pos-page-title"><div className="pos-page-title-icon"><i className="ti ti-report"/></div><div><h2>Z-Report & Shift Control</h2><p>Auditable sales summary and cash reconciliation</p></div></div>
+      <div style={{display:'flex',gap:8}}><button className="pos-action ghost" onClick={printReport} disabled={!shift}><i className="ti ti-printer"/> Print / Save PDF</button>{current?<button className="pos-action danger" onClick={()=>{setClosingCash('');setShowClose(true)}}><i className="ti ti-lock"/> Close Shift</button>:<button className="pos-action" onClick={()=>setShowOpen(true)}><i className="ti ti-player-play"/> Start New Shift</button>}</div>
+    </div>
+    <div className="pos-panel" style={{marginBottom:12,display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
+      <div><div style={{display:'flex',alignItems:'center',gap:7,fontWeight:800}}><span style={{width:9,height:9,borderRadius:'50%',background:shift?.status==='open'?'#22c55e':'#94a3b8'}}/>{shift?.status==='open'?'SHIFT OPEN':'SHIFT CLOSED'}</div><div style={{fontSize:12,color:'#6b7280',marginTop:4}}>{shift?.cashier_name} · {shift?.warehouse_name} · {duration}</div></div>
+      <select className="nx-select" value={reportId} onChange={e=>setSelectedId(e.target.value)}>{sessions.map(s=><option key={s.id} value={s.id}>{s.status==='open'?'OPEN':'CLOSED'} · {s.cashier_name} · {new Date(s.opened_at).toLocaleString('en-SA')}</option>)}</select>
+    </div>
+    {isLoading?<div className="pos-empty">Loading report...</div>:<>
+      <div className="pos-kpi-grid">{[{l:'Gross Sales',v:SAR(totalSales)},{l:'Returns',v:SAR(returns.total_returned)},{l:'Net Sales',v:SAR(netSales)},{l:'Transactions',v:String(transactions)}].map(x=><div className="pos-kpi" key={x.l}><div className="pos-kpi-label">{x.l}</div><div className="pos-kpi-value">{x.v}</div></div>)}</div>
+      <div className="pos-kpi-grid">{[{l:'Average Basket',v:SAR(transactions?totalSales/transactions:0)},{l:'VAT 15%',v:SAR(totals.total_tax)},{l:'Discounts',v:SAR(totals.total_discount)},{l:'Return Count',v:String(returns.return_count||0)}].map(x=><div className="pos-kpi" key={x.l}><div className="pos-kpi-label">{x.l}</div><div className="pos-kpi-value">{x.v}</div></div>)}</div>
       <div className="pos-two-col">
-        {/* Payment breakdown */}
-        <div className="pos-panel">
-          <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 14 }}>Payment breakdown</div>
-          {pmEntries.length === 0 ? (
-            <p style={{ color: '#9ca3af', fontSize: 13 }}>No payments recorded today</p>
-          ) : pmEntries.map(([method, amount]) => {
-            const pct = totalSales > 0 ? Math.round(amount / totalSales * 100) : 0;
-            return (
-              <div key={method} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f3f4f6' }}>
-                <span style={{ fontSize: 14, color: '#374151' }}>{method}</span>
-                <span style={{ fontSize: 14 }}>
-                  <strong>{SAR(amount)}</strong>
-                  <span style={{ color: '#9ca3af', fontSize: 12, marginLeft: 6 }}>{pct}%</span>
-                </span>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Cash reconciliation */}
-        <div className="pos-panel">
-          <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 14 }}>Cash reconciliation</div>
-          {[
-            { label: 'Opening float', value: SAR(openingFloat), muted: false },
-            { label: 'Cash sales', value: `+ ${SAR(cashSales)}`, muted: false },
-            { label: 'Cash refunds', value: `– ${SAR(cashRefunds)}`, muted: false },
-            { label: 'Expected in drawer', value: SAR(expectedInDrawer), muted: false },
-            { label: 'Actual counted', value: SAR(counted), muted: false, edit: true },
-          ].map(row => (
-            <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f3f4f6', alignItems: 'center' }}>
-              <span style={{ fontSize: 14, color: '#374151' }}>{row.label}</span>
-              {row.edit ? (
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  {actualCounted === null ? (
-                    <>
-                      <input
-                        type="number"
-                        placeholder="Count..."
-                        value={countInput}
-                        onChange={e => setCountInput(e.target.value)}
-                        style={{ width: 90, padding: '2px 6px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}
-                      />
-                      <button className="bx" style={{ padding: '2px 8px', fontSize: 12 }}
-                        onClick={() => { const v = parseFloat(countInput); if (!isNaN(v)) { setActualCounted(v); } }}>
-                        Set
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <strong style={{ fontSize: 14 }}>{SAR(counted)}</strong>
-                      <button className="bx" style={{ padding: '2px 6px', fontSize: 11 }} onClick={() => { setActualCounted(null); setCountInput(''); }}>✕</button>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <strong style={{ fontSize: 14 }}>{row.value}</strong>
-              )}
-            </div>
-          ))}
-          {/* Variance */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 0', alignItems: 'center' }}>
-            <span style={{ fontSize: 14, color: '#374151' }}>Variance</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <strong style={{ fontSize: 14, color: Math.abs(variance) < 0.01 ? '#16a34a' : '#dc2626' }}>{SAR(variance)}</strong>
-              <span style={{
-                fontSize: 12, fontWeight: 600, padding: '2px 8px', borderRadius: 6,
-                background: Math.abs(variance) < 0.01 ? '#dcfce7' : '#fee2e2',
-                color: Math.abs(variance) < 0.01 ? '#15803d' : '#b91c1c',
-              }}>
-                {Math.abs(variance) < 0.01 ? 'Balanced' : '⚠ Discrepancy'}
-              </span>
-            </span>
-          </div>
-        </div>
+        <div className="pos-panel"><h3 style={headingStyle}>Payment Breakdown</h3>{payments.length?payments.map(p=><Row key={p.method} label={`${PAYMENT_LABELS[p.method]||p.method} · ${p.transactions} txn`} value={SAR(p.total)}/>):<div style={{color:'#9ca3af',fontSize:13}}>No payments in this shift</div>}</div>
+        <div className="pos-panel"><h3 style={headingStyle}>Cash Reconciliation</h3><Row label="Opening cash" value={SAR(shift?.opening_cash)}/><Row label="Cash sales" value={`+ ${SAR(cashSales)}`}/><Row label="Cash refunds" value={`− ${SAR(returns.cash_returns)}`}/><Row label="Expected cash" value={SAR(expected)} strong/><Row label="Counted cash" value={actual==null?'Pending shift close':SAR(actual)}/><Row label="Difference" value={variance==null?'—':SAR(variance)} color={variance==null?'#64748b':Math.abs(variance)<.01?'#16a34a':'#dc2626'} strong/></div>
       </div>
-
-      {/* Opening float editor */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20, fontSize: 13, color: '#6b7280' }}>
-        <span>Opening float:</span>
-        <input
-          type="number"
-          value={openingFloat}
-          onChange={e => setOpeningFloat(parseFloat(e.target.value) || 0)}
-          style={{ width: 90, padding: '4px 8px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}
-        />
-        <span style={{ color: '#9ca3af' }}>SAR — edit to match your actual opening float</span>
-      </div>
-
-      {/* Top selling items */}
-      {topItems.length > 0 && (
-        <div className="pos-panel">
-          <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 14 }}>Top selling items</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
-            {topItems.map(item => (
-              <div key={item.name} style={{ background: '#f9fafb', borderRadius: 8, padding: '12px 14px' }}>
-                <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{item.name}</div>
-                <div style={{ color: '#16a34a', fontSize: 13, fontWeight: 500 }}>{item.qty} units sold</div>
-                <div style={{ color: '#6b7280', fontSize: 13 }}>{SAR(item.revenue)}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {topItems.length === 0 && (
-        <div className="pos-panel" style={{ color: '#9ca3af', fontSize: 14 }}>
-          <i className="ti ti-chart-bar" style={{ marginRight: 8 }} />
-          No sales line items available for top items breakdown.
-          {transactions > 0 && ' (Orders fetched without line items — API list endpoint may not include lines.)'}
-        </div>
-      )}
-
-      {/* Close Shift Modal */}
-      {showCloseModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 32, width: 400, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
-            <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Close shift?</div>
-            <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 20 }}>
-              This will mark the shift as closed. You can still view the Z-report but no further changes will be recorded.
-            </p>
-            <div style={{ background: '#f9fafb', borderRadius: 10, padding: '14px 16px', marginBottom: 20, fontSize: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                <span style={{ color: '#6b7280' }}>Total sales</span>
-                <strong>{SAR(totalSales)}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                <span style={{ color: '#6b7280' }}>Transactions</span>
-                <strong>{transactions}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                <span style={{ color: '#6b7280' }}>Expected in drawer</span>
-                <strong>{SAR(expectedInDrawer)}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: '#6b7280' }}>Variance</span>
-                <strong style={{ color: Math.abs(variance) < 0.01 ? '#16a34a' : '#dc2626' }}>{SAR(variance)}</strong>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button className="bx" style={{ flex: 1 }} onClick={() => setShowCloseModal(false)}>Cancel</button>
-              <button className="bx a" style={{ flex: 1, background: '#2563eb', color: '#fff', borderColor: '#2563eb' }}
-                onClick={() => {
-                  localStorage.setItem(shiftKey, JSON.stringify({ closedAt: new Date().toISOString(), totalSales, transactions, expectedInDrawer, variance }));
-                  setShiftClosed(true);
-                  setShowCloseModal(false);
-                }}>
-                Confirm close shift
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      </div>
-    </div>
-  );
+      <div className="pos-panel" style={{marginTop:12}}><h3 style={headingStyle}>Top Selling Products</h3>{report?.top_items?.length?<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))',gap:8}}>{report.top_items.map((item:any)=><div key={item.name} style={{padding:11,border:'1px solid #e5e7eb',borderRadius:9}}><div style={{fontWeight:700,fontSize:13}}>{item.name}</div><div style={{fontSize:11,color:'#6b7280',marginTop:3}}>{item.qty} units · {SAR(item.revenue)}</div></div>)}</div>:<div style={{color:'#9ca3af',fontSize:13}}>No products sold in this shift</div>}</div>
+    </>}
+    {showOpen&&openModal()}
+    {showClose&&<Modal title="Close Shift & Finalize Z-Report" onClose={()=>setShowClose(false)}>
+      <div style={{padding:12,background:'#f8fafc',borderRadius:9,marginBottom:14}}><Row label="Expected drawer cash" value={SAR(expected)} strong/><Row label="Cash sales" value={SAR(cashSales)}/><Row label="Cash refunds" value={SAR(returns.cash_returns)}/></div>
+      <label style={labelStyle}>Actual Counted Cash (SAR) *</label><input autoFocus className="nx-input" type="number" min="0" style={{width:'100%',marginBottom:8,fontSize:18,fontWeight:800}} value={closingCash} onChange={e=>setClosingCash(e.target.value)}/>
+      {closingCash!==''&&<div style={{padding:'9px 11px',borderRadius:8,marginBottom:12,background:Math.abs(Number(closingCash)-expected)<.01?'#dcfce7':'#fee2e2',color:Math.abs(Number(closingCash)-expected)<.01?'#15803d':'#b91c1c',fontWeight:700,fontSize:12}}>Difference: {SAR(Number(closingCash)-expected)} · {Math.abs(Number(closingCash)-expected)<.01?'Balanced':'Explain discrepancy in notes'}</div>}
+      <label style={labelStyle}>Closing Notes</label><textarea className="nx-input" style={{width:'100%',height:65,padding:10}} value={closingNotes} onChange={e=>setClosingNotes(e.target.value)} placeholder="Cash count / discrepancy explanation..."/>
+      <div style={footerStyle}><button className="btn-nx ghost" onClick={()=>setShowClose(false)}>Cancel</button><button className="btn-nx primary" disabled={closingCash===''||closeShift.isPending} onClick={()=>closeShift.mutate()}>{closeShift.isPending?'Closing...':'Confirm & Close Shift'}</button></div>
+    </Modal>}
+  </div></div>;
 }
+
+function StartEmpty({onStart}:{onStart:()=>void}){return <div className="pos-empty" style={{marginTop:50}}><i className="ti ti-cash-register"/><div style={{fontWeight:800,color:'#374151',fontSize:17,marginBottom:5}}>No POS shift is open</div><div style={{fontSize:12,marginBottom:16}}>Count opening cash and select a register before accepting payments.</div><button className="pos-action" onClick={onStart}><i className="ti ti-player-play"/> Start Shift</button></div>}
+function Modal({title,onClose,children}:{title:string;onClose:()=>void;children:any}){return <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.55)',zIndex:2200,display:'flex',alignItems:'center',justifyContent:'center',padding:16}} onClick={onClose}><div style={{width:'min(460px,100%)',background:'#fff',borderRadius:16,overflow:'hidden'}} onClick={e=>e.stopPropagation()}><div style={{padding:'16px 20px',borderBottom:'1px solid #e5e7eb',display:'flex',justifyContent:'space-between',fontWeight:800}}>{title}<button onClick={onClose} style={{border:0,background:'none',fontSize:21,cursor:'pointer'}}>×</button></div><div style={{padding:20}}>{children}</div></div></div>}
+function Row({label,value,strong,color}:{label:string;value:string;strong?:boolean;color?:string}){return <div style={{display:'flex',justifyContent:'space-between',gap:10,padding:'8px 0',borderBottom:'1px solid #f1f5f9',fontSize:13}}><span style={{color:'#64748b'}}>{label}</span><span style={{fontWeight:strong?800:600,color}}>{value}</span></div>}
+const labelStyle={display:'block',fontSize:11,fontWeight:700,color:'#64748b',marginBottom:5} as const;
+const footerStyle={display:'flex',justifyContent:'flex-end',gap:8,marginTop:18} as const;
+const headingStyle={margin:'0 0 12px',fontSize:15} as const;
