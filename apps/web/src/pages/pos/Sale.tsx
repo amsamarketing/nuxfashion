@@ -306,7 +306,7 @@ export default function POSSale(){
   );
 
   const CustModal=()=>(
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.5)',zIndex:2000,display:'flex',alignItems:'flex-start',justifyContent:'center',paddingTop:80}} onClick={()=>{setShowCustModal(false);setCustSearch('');}}>
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.5)',zIndex:2300,display:'flex',alignItems:'flex-start',justifyContent:'center',paddingTop:80}} onClick={()=>{setShowCustModal(false);setCustSearch('');}}>
       <div style={{background:'#fff',borderRadius:16,width:440,maxHeight:480,display:'flex',flexDirection:'column',overflow:'hidden',boxShadow:'0 20px 60px rgba(0,0,0,.2)'}} onClick={e=>e.stopPropagation()}>
         <div style={{padding:'12px 16px',borderBottom:'1px solid #f0f0f0',display:'flex',alignItems:'center',gap:10}}>
           <i className="ti ti-search" style={{fontSize:16,color:'#999'}}/>
@@ -365,10 +365,24 @@ export default function POSSale(){
           <button onClick={()=>setShowPayModal(false)} style={{background:'none',border:'none',fontSize:24,cursor:'pointer',color:'rgba(255,255,255,.7)'}}>×</button>
         </div>
         <div style={{padding:20,display:'flex',flexDirection:'column',gap:14,overflowY:'auto'}}>
-          <div style={{padding:'10px 12px',border:`1px solid ${customer?.name&&customer?.phone?'#bbf7d0':'#fecaca'}`,background:customer?.name&&customer?.phone?'#f0fdf4':'#fef2f2',borderRadius:9,display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
-            <div><div style={{fontSize:10,fontWeight:800,color:customer?.name&&customer?.phone?'#15803d':'#b91c1c'}}>CUSTOMER {customer?.name&&customer?.phone?'CONFIRMED':'REQUIRED'}</div><div style={{fontSize:13,fontWeight:700}}>{customer?`${customer.name} · ${customer.phone||'Phone missing'}`:'Add customer name and phone before payment'}</div></div>
-            <button className="btn-nx ghost sm" onClick={()=>setShowCustModal(true)}>{customer?'Change':'Add customer'}</button>
-          </div>
+          {customer?.name&&customer?.phone?(
+            <div style={{padding:'10px 12px',border:'1px solid #bbf7d0',background:'#f0fdf4',borderRadius:9,display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
+              <div><div style={{fontSize:10,fontWeight:800,color:'#15803d'}}>CUSTOMER CONFIRMED</div><div style={{fontSize:13,fontWeight:700}}>{customer.name} · {customer.phone}</div></div>
+              <button className="btn-nx ghost sm" onClick={()=>setShowCustModal(true)}>Change</button>
+            </div>
+          ):(
+            <div style={{padding:12,border:'1px solid #fecaca',background:'#fef2f2',borderRadius:9}}>
+              <div style={{fontSize:10,fontWeight:800,color:'#b91c1c',marginBottom:8}}>CUSTOMER DETAILS REQUIRED BEFORE PAYMENT</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                <input autoFocus value={newCustName} onChange={e=>setNewCustName(e.target.value)} placeholder="Customer name *" style={{padding:'10px 11px',border:'1px solid #d1d5db',borderRadius:8,fontSize:13}}/>
+                <input value={newCustPhone} onChange={e=>setNewCustPhone(e.target.value)} onKeyDown={e=>e.key==='Enter'&&newCustName.trim()&&newCustPhone.trim()&&quickCustomer.mutate()} placeholder="Phone number *" inputMode="tel" style={{padding:'10px 11px',border:'1px solid #d1d5db',borderRadius:8,fontSize:13}}/>
+              </div>
+              <div style={{display:'flex',gap:8,marginTop:8}}>
+                <button className="btn-nx ghost sm" style={{flex:1,justifyContent:'center'}} onClick={()=>setShowCustModal(true)}>Select Existing</button>
+                <button className="btn-nx primary sm" style={{flex:1,justifyContent:'center'}} disabled={!newCustName.trim()||!newCustPhone.trim()||quickCustomer.isPending} onClick={()=>quickCustomer.mutate()}>{quickCustomer.isPending?'Saving...':'Save Customer'}</button>
+              </div>
+            </div>
+          )}
           <div>
             <div style={{fontSize:11,fontWeight:700,color:'#999',marginBottom:8}}>PAYMENT METHOD</div>
             <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6}}>
