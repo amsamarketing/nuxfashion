@@ -332,8 +332,8 @@ export class ReportsService {
     const attendance = await this.db.query(
       `SELECT COUNT(*) as records,
               AVG(hours_worked) as avg_hours,
-              COUNT(*) FILTER (WHERE status='absent') as absences,
-              COUNT(*) FILTER (WHERE status='late') as late_arrivals
+              COUNT(*) FILTER (WHERE a.status='absent') as absences,
+              COUNT(*) FILTER (WHERE a.status='late') as late_arrivals
        FROM attendance a
        JOIN employees e ON e.id=a.employee_id
        WHERE e.company_id=$1 AND a.date BETWEEN $2 AND $3`, [companyId, from, to]);
