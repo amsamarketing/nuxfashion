@@ -283,7 +283,7 @@ export class SalesService {
 
   async getOrder(companyId: string, orderId: string) {
     const order = await this.db.query(
-      `SELECT o.*, u.name as cashier_name, c.name as customer_name
+      `SELECT o.*, u.name as cashier_name, c.name as customer_name, c.phone as customer_phone
        FROM sales_orders o
        LEFT JOIN users u ON u.id=o.cashier_id
        LEFT JOIN customers c ON c.id=o.customer_id

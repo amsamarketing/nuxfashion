@@ -127,6 +127,8 @@ export default function POSSale(){
   const [cashGiven,setCashGiven]=useState('');
   const [orderNote,setOrderNote]=useState('');
   const [showOrders,setShowOrders]=useState(false);
+  const [orderSearch,setOrderSearch]=useState('');
+  const [printingOrder,setPrintingOrder]=useState('');
   const [showHeld,setShowHeld]=useState(false);
   const [pickerProd,setPickerProd]=useState<any>(null);
   const [editDisc,setEditDisc]=useState<string|null>(null);
@@ -391,21 +393,51 @@ export default function POSSale(){
     </div>
   );
 
+  const printDuplicate=async(orderId:string)=>{
+    setPrintingOrder(orderId);
+    try{
+      const {data:o}=await api.get('/sales/orders/'+orderId);
+      const payments=Array.isArray(o.payments)?o.payments:[];
+      const lines=Array.isArray(o.lines)?o.lines:[];
+      const paid=payments.reduce((sum:number,p:any)=>sum+Number(p.amount||0),0);
+      const total=paid||Number(o.total||0);
+      const tax=Number(o.tax_amount||o.vat_amount||0)||(total*15/115);
+      const subtotal=Number(o.subtotal||o.sub_total||0);
+      const discount=Number(o.discount_amount||0);
+      const vatNumber=import.meta.env.VITE_STORE_VAT_NUMBER||'VAT NUMBER NOT SET';
+      const invoiceTime=o.created_at||new Date().toISOString();
+      const qr=await QRCode.toDataURL(zatcaTlv('NuxFashion',vatNumber,invoiceTime,total,tax),{errorCorrectionLevel:'M',margin:1,width:180});
+      const barcode=invoiceBarcode(String(o.order_number));
+      const w=window.open('','_blank','width=380,height=700');if(!w)return;
+      w.document.write(`<!DOCTYPE html><html><head><title>Duplicate Invoice ${o.order_number}</title><style>@page{size:80mm auto;margin:4mm}*{box-sizing:border-box}body{width:72mm;margin:0 auto;font-family:Arial,sans-serif;color:#111;font-size:11px}.brand{text-align:center;border-bottom:2px solid #0f766e;padding-bottom:7px}.brand h1{font-size:21px;margin:0;color:#0f766e}.ar{text-align:center;direction:rtl;font-weight:bold;margin:2px}.muted{text-align:center;color:#64748b;font-size:9px;margin:2px}.copy{text-align:center;border:2px solid #111;padding:4px;margin:8px 0;font-size:12px;font-weight:900;letter-spacing:1px}.title{text-align:center;font-weight:bold;font-size:13px;margin:8px 0}.line{border-top:1px dashed #94a3b8;margin:7px 0}.r{display:flex;justify-content:space-between;gap:8px;margin:3px 0}.r span:first-child{max-width:68%}.items .r{padding:3px 0;border-bottom:1px dotted #e2e8f0}.total{font-size:16px;font-weight:900;color:#0f766e;padding:5px 0}.disc{color:#dc2626}.barcode,.qr{text-align:center;margin:8px 0}.barcode img{width:68mm;height:18mm;object-fit:contain}.qr img{width:34mm;height:34mm}.footer{text-align:center;font-size:9px;color:#475569;line-height:1.5}</style></head><body>
+        <div class="brand"><h1>NuxFashion</h1><div class="ar">نكس فاشن</div><div class="muted">VAT No: ${vatNumber}</div></div><div class="copy">DUPLICATE COPY · نسخة مكررة</div><div class="title">TAX INVOICE · فاتورة ضريبية</div>
+        <div class="r"><span>Invoice</span><b>${o.order_number}</b></div><div class="r"><span>Original date</span><span>${new Date(invoiceTime).toLocaleString('en-SA')}</span></div><div class="r"><span>Customer</span><b>${o.customer_name||'Walk-in'}</b></div>${o.customer_phone?`<div class="r"><span>Phone</span><span>${o.customer_phone}</span></div>`:''}<div class="line"></div>
+        <div class="items">${lines.map((line:any)=>`<div class="r"><span><b>${line.product_name||line.variant_name||line.sku||'Product'}</b><br><small>${line.quantity} × SAR ${Number(line.unit_price||0).toFixed(2)}</small></span><b>SAR ${Number(line.line_total||Number(line.unit_price||0)*Number(line.quantity||0)).toFixed(2)}</b></div>`).join('')}</div>
+        <div class="line"></div><div class="r"><span>Total Quantity / إجمالي الكمية</span><b>${lines.reduce((sum:number,line:any)=>sum+Number(line.quantity||0),0)}</b></div><div class="r"><span>Subtotal</span><b>SAR ${subtotal.toFixed(2)}</b></div>${discount>0?`<div class="r disc"><span>Discount / الخصم</span><b>− SAR ${discount.toFixed(2)}</b></div>`:''}<div class="r"><span>VAT 15% / الضريبة</span><b>SAR ${tax.toFixed(2)}</b></div><div class="r total"><span>TOTAL / الإجمالي</span><span>SAR ${total.toFixed(2)}</span></div>
+        <div class="line"></div><b>PAYMENT / الدفع</b>${payments.map((p:any)=>`<div class="r"><span>${String(p.method||'').replace(/_/g,' ').toUpperCase()}</span><b>SAR ${Number(p.amount||0).toFixed(2)}</b></div>`).join('')}<div class="barcode"><img src="${barcode}"><div class="muted">SCAN FOR RETURN · امسح الباركود للاسترجاع</div></div><div class="qr"><img src="${qr}"><div class="muted">ZATCA QR</div></div><div class="line"></div><div class="footer"><b>Duplicate printed ${new Date().toLocaleString('en-SA')}</b><br>Returns accepted according to store policy with original invoice.</div></body></html>`);
+      w.document.close();w.print();
+    }catch(e:any){toast(getErr(e),'error');}
+    finally{setPrintingOrder('');}
+  };
+
+  const filteredRecentOrders=(recentOrders as any[]).filter((o:any)=>!orderSearch.trim()||(o.order_number||'').toLowerCase().includes(orderSearch.trim().toLowerCase())||(o.customer_name||'').toLowerCase().includes(orderSearch.trim().toLowerCase()));
+
   const OrdersModal=()=>(
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.5)',zIndex:2000,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={()=>setShowOrders(false)}>
       <div style={{background:'#fff',borderRadius:16,width:580,maxHeight:'80vh',overflow:'hidden',display:'flex',flexDirection:'column'}} onClick={e=>e.stopPropagation()}>
         <div style={{padding:'16px 20px',borderBottom:'1px solid #f0f0f0',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <span style={{fontWeight:700,fontSize:16}}>Recent Orders</span>
+          <div><span style={{fontWeight:700,fontSize:16}}>Recent Orders</span><div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>Reprint any completed sale as a duplicate copy</div></div>
           <button onClick={()=>setShowOrders(false)} style={{background:'none',border:'none',fontSize:22,cursor:'pointer',color:'#999'}}>×</button>
         </div>
+        <div style={{padding:'10px 14px',borderBottom:'1px solid #f1f5f9'}}><div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',border:'1px solid #d1d5db',borderRadius:9,background:'#f8fafc'}}><i className="ti ti-search" style={{color:'#94a3b8'}}/><input value={orderSearch} onChange={e=>setOrderSearch(e.target.value)} placeholder="Search invoice number or customer…" style={{flex:1,border:0,outline:0,background:'transparent',fontSize:12}}/></div></div>
         <div style={{overflowY:'auto',flex:1}}>
-          {(recentOrders as any[]).map((o:any)=>(
+          {filteredRecentOrders.map((o:any)=>(
             <div key={o.id} style={{padding:'12px 20px',borderBottom:'1px solid #f5f5f5',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <div><div style={{fontWeight:700,fontSize:13}}>#{o.order_number}</div><div style={{fontSize:11,color:'#999'}}>{new Date(o.created_at).toLocaleString('en-SA')}</div></div>
-              <div style={{textAlign:'right'}}><div style={{fontWeight:700,color:'#0f766e'}}>{sar(parseFloat(o.total||0))}</div><div style={{fontSize:11,color:'#999'}}>{o.status}</div></div>
+              <div><div style={{fontWeight:700,fontSize:13}}>#{o.order_number}</div><div style={{fontSize:11,color:'#999'}}>{new Date(o.created_at).toLocaleString('en-SA')} · {o.customer_name||'Walk-in'}</div></div>
+              <div style={{display:'flex',alignItems:'center',gap:10}}><div style={{textAlign:'right'}}><div style={{fontWeight:700,color:'#0f766e'}}>{sar(parseFloat(o.total||0))}</div><div style={{fontSize:10,color:'#999'}}>{o.status}</div></div><button disabled={printingOrder===o.id} onClick={()=>printDuplicate(o.id)} style={{padding:'7px 10px',border:'1px solid #99f6e4',borderRadius:8,background:'#f0fdfa',color:'#0f766e',fontSize:11,fontWeight:700,cursor:'pointer'}}><i className="ti ti-printer"/> {printingOrder===o.id?'Loading…':'Duplicate'}</button></div>
             </div>
           ))}
-          {!(recentOrders as any[]).length&&<div style={{padding:40,textAlign:'center',color:'#999'}}>No orders yet</div>}
+          {!filteredRecentOrders.length&&<div style={{padding:40,textAlign:'center',color:'#999'}}>No matching orders</div>}
         </div>
       </div>
     </div>
