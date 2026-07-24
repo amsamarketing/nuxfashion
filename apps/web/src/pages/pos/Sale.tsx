@@ -88,11 +88,16 @@ export default function POSSale(){
   const {toast}=useToast();
   const qc=useQueryClient();
   const searchRef=useRef<HTMLInputElement>(null);
+  const customerPhoneRef=useRef<HTMLInputElement>(null);
   const [search,setSearch]=useState('');
   const [cart,setCart]=useState<CartItem[]>([]);
   const [method,setMethod]=useState('Cash');
   const [custId,setCustId]=useState('');
   const [discPct,setDiscPct]=useState('');
+  const [discMode,setDiscMode]=useState<'percent'|'fixed'>('percent');
+  const [splitPayment,setSplitPayment]=useState(false);
+  const [splitCash,setSplitCash]=useState('');
+  const [splitMethod,setSplitMethod]=useState('Card');
   const [receipt,setReceipt]=useState<any>(null);
   const [showPayModal,setShowPayModal]=useState(false);
   const [showCustModal,setShowCustModal]=useState(false);
@@ -164,7 +169,7 @@ export default function POSSale(){
   });
 
   const sub=cart.reduce((s,i)=>s+i.price*i.qty-(i.discount||0),0);
-  const manualDisc=sub*(parseFloat(discPct||'0')/100);
+  const manualDisc=discMode==='percent'?sub*(Math.min(100,parseFloat(discPct||'0'))/100):Math.min(sub,parseFloat(discPct||'0'));
   const couponDisc=appliedCoupon?(appliedCoupon.type==='percentage'?sub*appliedCoupon.value/100:Math.min(appliedCoupon.value,sub)):0;
   const totalDisc=Math.min(manualDisc+couponDisc,sub);
   const taxable=Math.max(sub-totalDisc,0);
@@ -175,7 +180,10 @@ export default function POSSale(){
   const ptsVal=redeemPts&&custPoints>=10?Math.min(custPoints*0.1,gross-walletUsed-gcUsed):0;
   const ptsUsed=Math.ceil(ptsVal/0.1);
   const cashDue=Math.max(gross-walletUsed-gcUsed-ptsVal,0);
-  const change=parseFloat(cashGiven||'0')-cashDue;
+  const splitCashAmount=splitPayment?Math.min(cashDue,Math.max(0,parseFloat(splitCash||'0'))):0;
+  const splitOtherAmount=splitPayment?Math.max(0,cashDue-splitCashAmount):0;
+  const splitComplete=!splitPayment||(splitCashAmount>0&&splitOtherAmount>0);
+  const change=!splitPayment&&method==='Cash'?parseFloat(cashGiven||'0')-cashDue:0;
   const ptsEarned=customer?Math.floor(cashDue*(TIER_RATE[tier]||0.2)):0;
 
   const addToCart=(v:any)=>{
@@ -224,7 +232,7 @@ export default function POSSale(){
     setAppliedGC(f);setGcInput('');toast('Gift card applied!','success');
   };
 
-  const resetSale=()=>{setCart([]);setDiscPct('');setCustId('');setAppliedCoupon(null);setAppliedGC(null);setUseWallet(false);setRedeemPts(false);setCashGiven('');setOrderNote('');setShowPayModal(false);setTimeout(()=>searchRef.current?.focus(),100);};
+  const resetSale=()=>{setCart([]);setDiscPct('');setDiscMode('percent');setSplitPayment(false);setSplitCash('');setCustId('');setAppliedCoupon(null);setAppliedGC(null);setUseWallet(false);setRedeemPts(false);setCashGiven('');setOrderNote('');setShowPayModal(false);setTimeout(()=>searchRef.current?.focus(),100);};
 
   const holdSale=()=>{
     if(!cart.length){toast('Cart is empty','error');return;}
@@ -255,21 +263,27 @@ export default function POSSale(){
     mutationFn:async()=>{
       if(!currentSession?.id)throw new Error('Start a POS shift before taking payment');
       if(!customer?.name||!customer?.phone)throw new Error('Customer name and phone are required before payment');
-      const body:any={customer_id:custId,pos_session_id:currentSession.id,lines:cart.map(i=>({variant_id:i.id,quantity:i.qty,unit_price:i.price,discount_amount:i.discount||0})),subtotal:sub,tax_amount:tax,discount_amount:totalDisc,total:gross,notes:orderNote||undefined};
+      const discounts:any[]=[];
+      if(parseFloat(discPct||'0')>0)discounts.push({name:'POS Manual Discount',type:discMode==='percent'?'percentage':'fixed_amount',value:parseFloat(discPct)});
+      if(appliedCoupon)discounts.push({name:appliedCoupon.name||`Coupon ${appliedCoupon.code}`,type:'coupon',value:appliedCoupon.value,coupon_code:appliedCoupon.code});
+      const body:any={customer_id:custId,pos_session_id:currentSession.id,lines:cart.map(i=>({variant_id:i.id,quantity:i.qty,unit_price:i.price,discount_amount:i.discount||0})),discounts,subtotal:sub,tax_amount:tax,discount_amount:totalDisc,total:gross,notes:orderNote||undefined};
       if(defaultWarehouseId)body.warehouse_id=defaultWarehouseId;
       const order=await api.post('/sales/orders',body);
       const payments:any[]=[];
       if(gcUsed>0)payments.push({method:'gift_card',amount:gcUsed,reference:appliedGC?.code});
       if(walletUsed>0)payments.push({method:'wallet',amount:walletUsed});
       if(ptsVal>0)payments.push({method:'loyalty_points',amount:ptsVal,reference:ptsUsed+' pts'});
-      if(cashDue>0)payments.push({method:method.toLowerCase().replace(/ /g,'_'),amount:cashDue});
+      if(splitPayment){
+        payments.push({method:'cash',amount:splitCashAmount});
+        payments.push({method:splitMethod.toLowerCase().replace(/ /g,'_'),amount:splitOtherAmount});
+      }else if(cashDue>0)payments.push({method:method.toLowerCase().replace(/ /g,'_'),amount:cashDue});
       if(payments.length)await api.post('/sales/payments',{order_id:order.data.id,payments});
       return order.data;
     },
     onSuccess:(d:any)=>{
       qc.invalidateQueries({queryKey:['dashboard']});qc.invalidateQueries({queryKey:['pos-orders']});
       toast(`Order #${d.order_number} complete`,'success');
-      setReceipt({...d,_cashDue:cashDue,_change:change>0?change:0,_method:method,_gcUsed:gcUsed,_walletUsed:walletUsed,_ptsUsed:ptsUsed,_ptsEarned:ptsEarned,_totalDisc:totalDisc,_items:[...cart]});
+      setReceipt({...d,_cashDue:cashDue,_change:change>0?change:0,_method:splitPayment?`Cash ${sar(splitCashAmount)} + ${splitMethod} ${sar(splitOtherAmount)}`:method,_gcUsed:gcUsed,_walletUsed:walletUsed,_ptsUsed:ptsUsed,_ptsEarned:ptsEarned,_totalDisc:totalDisc,_items:[...cart]});
       resetSale();
     },
     onError:(e:any)=>toast(getErr(e),'error'),
@@ -376,7 +390,7 @@ export default function POSSale(){
             <div style={{padding:13,border:'1px solid #c7d2fe',background:'#f8faff',borderRadius:10}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}><div><div style={{fontSize:10,fontWeight:800,color:'#4338ca'}}>CUSTOMER · STEP 1</div><div style={{fontSize:12,color:'#64748b',marginTop:2}}>Enter phone to find loyalty profile</div></div><button style={{border:0,background:'none',color:'#6366f1',fontSize:11,fontWeight:700,cursor:'pointer'}} onClick={()=>setShowCustModal(true)}>Search by name</button></div>
               <div style={{display:'flex',gap:7}}>
-                <div style={{position:'relative',flex:1}}><i className="ti ti-phone" style={{position:'absolute',left:10,top:11,color:'#9ca3af'}}/><input autoFocus value={newCustPhone} onChange={e=>{setNewCustPhone(e.target.value);setNewCustName('')}} placeholder="05X XXX XXXX" inputMode="tel" style={{width:'100%',boxSizing:'border-box',padding:'10px 11px 10px 32px',border:'1px solid #a5b4fc',borderRadius:8,fontSize:14,fontWeight:600}}/></div>
+                <div style={{position:'relative',flex:1}}><i className="ti ti-phone" style={{position:'absolute',left:10,top:11,color:'#9ca3af'}}/><input ref={customerPhoneRef} autoFocus value={newCustPhone} onChange={e=>{setNewCustPhone(e.target.value);setNewCustName('');requestAnimationFrame(()=>customerPhoneRef.current?.focus())}} onKeyDown={e=>e.stopPropagation()} placeholder="05X XXX XXXX" inputMode="tel" autoComplete="tel" style={{width:'100%',boxSizing:'border-box',padding:'10px 11px 10px 32px',border:'1px solid #a5b4fc',borderRadius:8,fontSize:14,fontWeight:600}}/></div>
               </div>
               {phoneMatch?(
                 <button style={{width:'100%',marginTop:8,padding:'9px 11px',border:'1px solid #bbf7d0',borderRadius:8,background:'#f0fdf4',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between'}} onClick={()=>{setCustId(phoneMatch.id);setNewCustName('');setNewCustPhone('')}}><span style={{textAlign:'left'}}><b style={{fontSize:13}}>{phoneMatch.name}</b><span style={{display:'block',fontSize:11,color:'#64748b'}}>{phoneMatch.phone} · Existing customer</span></span><span style={{fontSize:11,fontWeight:800,color:'#15803d'}}>SELECT <i className="ti ti-chevron-right"/></span></button>
@@ -388,11 +402,29 @@ export default function POSSale(){
               ):<div style={{fontSize:10,color:'#94a3b8',marginTop:6}}>Enter at least 7 digits to continue</div>}
             </div>
           )}
+          <div style={{padding:12,border:'2px solid #fde68a',background:'#fffbeb',borderRadius:10}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}><div><div style={{fontSize:11,fontWeight:800,color:'#92400e'}}>ORDER DISCOUNT</div><div style={{fontSize:10,color:'#a16207'}}>Applied to the complete bill</div></div>{manualDisc>0&&<span style={{fontWeight:800,color:'#dc2626'}}>− {sar(manualDisc)}</span>}</div>
+            <div style={{display:'grid',gridTemplateColumns:'110px 1fr',gap:7}}>
+              <select value={discMode} onChange={e=>setDiscMode(e.target.value as 'percent'|'fixed')} style={{padding:'9px 8px',border:'1px solid #fbbf24',borderRadius:8,background:'#fff',fontSize:12,fontWeight:700}}><option value="percent">Percentage %</option><option value="fixed">Fixed SAR</option></select>
+              <input type="number" min="0" max={discMode==='percent'?100:sub} value={discPct} onChange={e=>setDiscPct(e.target.value)} placeholder={discMode==='percent'?'Enter discount %':'Enter discount SAR'} style={{padding:'9px 10px',border:'1px solid #fbbf24',borderRadius:8,fontSize:13,fontWeight:700}}/>
+            </div>
+          </div>
           <div>
             <div style={{fontSize:11,fontWeight:700,color:'#999',marginBottom:8}}>PAYMENT METHOD</div>
+            <label style={{display:'flex',alignItems:'center',gap:8,padding:'9px 11px',marginBottom:8,border:'1px solid #c7d2fe',background:splitPayment?'#eef2ff':'#fff',borderRadius:9,cursor:'pointer',fontSize:12,fontWeight:700,color:'#4338ca'}}><input type="checkbox" checked={splitPayment} onChange={e=>{setSplitPayment(e.target.checked);setSplitCash('')}}/> Split Payment (Cash + Card/Other)</label>
+            {splitPayment?(
+              <div style={{padding:12,border:'1px solid #c7d2fe',background:'#f8faff',borderRadius:10}}>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                  <div><div style={{fontSize:10,fontWeight:700,color:'#64748b',marginBottom:4}}>CASH AMOUNT</div><input autoFocus type="number" min="0" max={cashDue} value={splitCash} onChange={e=>setSplitCash(e.target.value)} placeholder="500.00" style={{width:'100%',boxSizing:'border-box',padding:'10px 11px',border:'1px solid #a5b4fc',borderRadius:8,fontSize:16,fontWeight:800}}/></div>
+                  <div><div style={{fontSize:10,fontWeight:700,color:'#64748b',marginBottom:4}}>REMAINING METHOD</div><select value={splitMethod} onChange={e=>setSplitMethod(e.target.value)} style={{width:'100%',padding:'10px 8px',border:'1px solid #a5b4fc',borderRadius:8,fontSize:13,fontWeight:700}}>{METHODS.filter(m=>m!=='Cash').map(m=><option key={m}>{m}</option>)}</select></div>
+                </div>
+                <div style={{display:'flex',justifyContent:'space-between',marginTop:9,paddingTop:9,borderTop:'1px dashed #c7d2fe',fontSize:12}}><span>Cash: <b>{sar(splitCashAmount)}</b></span><span>{splitMethod}: <b>{sar(splitOtherAmount)}</b></span><span>Total: <b>{sar(splitCashAmount+splitOtherAmount)}</b></span></div>
+              </div>
+            ):(
             <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6}}>
               {METHODS.map(m=><button key={m} onClick={()=>setMethod(m)} style={{padding:'9px 4px',borderRadius:10,border:`2px solid ${method===m?'#6366f1':'#e5e7eb'}`,background:method===m?'#ede9fe':'#fff',color:method===m?'#6366f1':'#555',fontWeight:method===m?700:400,cursor:'pointer',fontSize:11}}>{m}</button>)}
             </div>
+            )}
           </div>
           <div>
             <div style={{fontSize:11,fontWeight:700,color:'#999',marginBottom:6}}>COUPON / GIFT CARD</div>
@@ -419,7 +451,7 @@ export default function POSSale(){
               </label>}
             </div>
           )}
-          {method==='Cash'&&cashDue>0&&(
+          {!splitPayment&&method==='Cash'&&cashDue>0&&(
             <div style={{padding:12,background:'#f8f9fa',borderRadius:10}}>
               <div style={{fontSize:11,fontWeight:700,color:'#999',marginBottom:8}}>CASH RECEIVED</div>
               <input type="number" value={cashGiven} onChange={e=>setCashGiven(e.target.value)} placeholder={cashDue.toFixed(2)} style={{width:'100%',padding:'10px 12px',border:'1px solid #e5e7eb',borderRadius:8,fontSize:18,fontWeight:700,boxSizing:'border-box',marginBottom:8}}/>
@@ -432,7 +464,7 @@ export default function POSSale(){
             </div>
           )}
           <input value={orderNote} onChange={e=>setOrderNote(e.target.value)} placeholder="Order note (optional)…" style={{padding:'8px 12px',border:'1px solid #e5e7eb',borderRadius:8,fontSize:13}}/>
-          <button disabled={cart.length===0||!currentSession?.id||!customer?.name||!customer?.phone||chargeMut.isPending} onClick={()=>chargeMut.mutate()} style={{padding:'16px 0',borderRadius:12,background:cart.length===0||!currentSession?.id||!customer?.name||!customer?.phone?'#e5e7eb':'#6366f1',color:'#fff',border:'none',cursor:cart.length===0||!currentSession?.id||!customer?.name||!customer?.phone?'not-allowed':'pointer',fontSize:15,fontWeight:800}}>
+          <button disabled={cart.length===0||!currentSession?.id||!customer?.name||!customer?.phone||!splitComplete||chargeMut.isPending} onClick={()=>chargeMut.mutate()} style={{padding:'16px 0',borderRadius:12,background:cart.length===0||!currentSession?.id||!customer?.name||!customer?.phone||!splitComplete?'#e5e7eb':'#6366f1',color:'#fff',border:'none',cursor:cart.length===0||!currentSession?.id||!customer?.name||!customer?.phone||!splitComplete?'not-allowed':'pointer',fontSize:15,fontWeight:800}}>
             {chargeMut.isPending?'Processing…':`✓ Charge ${sar(cashDue)}`}
           </button>
         </div>
@@ -453,7 +485,7 @@ export default function POSSale(){
         <div style={{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',background:'#6366f1',color:'#fff',borderRadius:8,fontSize:12,fontWeight:700,flexShrink:0}}><i className="ti ti-clock" style={{fontSize:13}}/><Clock/></div>
         <div style={{flex:1,display:'flex',alignItems:'center',gap:8,padding:'7px 12px',background:'#f9fafb',border:'1px solid #e5e7eb',borderRadius:10}}>
           <i className="ti ti-barcode" style={{fontSize:15,color:'#9ca3af'}}/>
-          <input ref={searchRef} value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>e.key==='Enter'&&scanOrAddProduct()} placeholder="Search product or scan barcode…" autoFocus style={{border:'none',background:'transparent',outline:'none',flex:1,fontSize:13}}/>
+          <input ref={searchRef} value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>e.key==='Enter'&&scanOrAddProduct()} placeholder="Search product or scan barcode…" autoFocus={!showPayModal} style={{border:'none',background:'transparent',outline:'none',flex:1,fontSize:13}}/>
           {search&&<button onClick={()=>setSearch('')} style={{background:'none',border:'none',cursor:'pointer',color:'#9ca3af',fontSize:18}}>×</button>}
         </div>
         <button onClick={()=>setShowCustModal(true)} style={{display:'flex',alignItems:'center',gap:6,padding:'7px 12px',border:`2px solid ${custId?'#6366f1':'#e5e7eb'}`,borderRadius:10,background:custId?'#ede9fe':'#fff',cursor:'pointer',fontSize:12,color:custId?'#6366f1':'#666',fontWeight:custId?700:400,flexShrink:0}}>
@@ -466,11 +498,6 @@ export default function POSSale(){
           <span style={{color:'#92400e',fontWeight:600}}>{custPoints} pts</span>·
           <span style={{color:'#059669',fontWeight:600}}>{sar(walletBal)}</span>
         </div>}
-        <div style={{display:'flex',alignItems:'center',gap:6,padding:'5px 10px',border:'1px solid #e5e7eb',borderRadius:8,fontSize:13,flexShrink:0}}>
-          <span style={{color:'#666'}}>Disc</span>
-          <input type="number" value={discPct} onChange={e=>setDiscPct(e.target.value)} placeholder="0" min="0" max="100" style={{width:36,border:'none',outline:'none',fontSize:13,fontWeight:700,textAlign:'center'}}/>
-          <span style={{color:'#6366f1',fontWeight:700}}>%</span>
-        </div>
       </div>
 
       <div style={{display:'flex',flex:1,overflow:'hidden'}}>
