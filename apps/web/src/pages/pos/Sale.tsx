@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
+import QRCode from 'qrcode';
 import { useToast } from '../../components/Toast';
 import { getErr } from '../../lib/err';
 
@@ -15,6 +16,13 @@ const sar=(n:number)=>'SAR '+n.toFixed(2);
 const getStoredCoupons=()=>{try{return JSON.parse(sessionStorage.getItem('coupons')||'[]');}catch{return[];}};
 const getStoredGiftCards=()=>{try{return JSON.parse(sessionStorage.getItem('giftcards')||'[]');}catch{return[];}};
 const getWalletBalance=(c:any)=>{if(!c)return 0;try{const ws=JSON.parse(sessionStorage.getItem('wallets')||'[]');const w=ws.find((x:any)=>x.customer===c.name);return w?w.balance:parseFloat(c?.wallet_balance||0);}catch{return 0;}};
+const zatcaTlv=(seller:string,vatNumber:string,timestamp:string,total:number,vat:number)=>{
+  const bytes:number[]=[];
+  [seller,vatNumber,timestamp,total.toFixed(2),vat.toFixed(2)].forEach((value,index)=>{
+    const encoded=new TextEncoder().encode(value);bytes.push(index+1,encoded.length,...encoded);
+  });
+  return btoa(String.fromCharCode(...bytes));
+};
 
 function Clock(){
   const [t,setT]=useState(new Date());
@@ -277,12 +285,15 @@ export default function POSSale(){
         splitLines.forEach(line=>payments.push({method:line.method.toLowerCase().replace(/ /g,'_'),amount:line.amount}));
       }else if(cashDue>0)payments.push({method:method.toLowerCase().replace(/ /g,'_'),amount:cashDue});
       if(payments.length)await api.post('/sales/payments',{order_id:order.data.id,payments});
-      return order.data;
+      return {...order.data,_paymentLines:payments};
     },
-    onSuccess:(d:any)=>{
+    onSuccess:async(d:any)=>{
       qc.invalidateQueries({queryKey:['dashboard']});qc.invalidateQueries({queryKey:['pos-orders']});
       toast(`Order #${d.order_number} complete`,'success');
-      setReceipt({...d,_cashDue:cashDue,_change:change>0?change:0,_method:splitPayment?splitLines.map(line=>`${line.method} ${sar(line.amount)}`).join(' + '):method,_gcUsed:gcUsed,_walletUsed:walletUsed,_ptsUsed:ptsUsed,_ptsEarned:ptsEarned,_totalDisc:totalDisc,_items:[...cart]});
+      const invoiceTime=d.created_at||new Date().toISOString();
+      const vatNumber=import.meta.env.VITE_STORE_VAT_NUMBER||'VAT NUMBER NOT SET';
+      const qr=await QRCode.toDataURL(zatcaTlv('NuxFashion',vatNumber,invoiceTime,gross,tax),{errorCorrectionLevel:'M',margin:1,width:180});
+      setReceipt({...d,_qr:qr,_invoiceTime:invoiceTime,_vatNumber:vatNumber,_customer:{name:customer.name,phone:customer.phone},_subtotal:sub,_tax:tax,_gross:gross,_cashDue:cashDue,_change:change>0?change:0,_method:splitPayment?splitLines.map(line=>`${line.method} ${sar(line.amount)}`).join(' + '):method,_gcUsed:gcUsed,_walletUsed:walletUsed,_ptsUsed:ptsUsed,_ptsEarned:ptsEarned,_totalDisc:totalDisc,_items:[...cart]});
       resetSale();
     },
     onError:(e:any)=>toast(getErr(e),'error'),
@@ -293,11 +304,14 @@ export default function POSSale(){
       <div style={{background:'#fff',borderRadius:20,padding:40,maxWidth:440,width:'100%',boxShadow:'0 8px 40px rgba(0,0,0,.12)',textAlign:'center'}}>
         <div style={{fontSize:56,marginBottom:8}}>✅</div>
         <div style={{fontSize:22,fontWeight:800,marginBottom:4}}>Payment Successful</div>
-        <div style={{fontSize:13,color:'#666',marginBottom:20}}>Order #{receipt.order_number} · {receipt._method}</div>
+        <div style={{fontSize:13,color:'#666',marginBottom:14}}>Tax Invoice #{receipt.order_number}</div>
+        <div style={{display:'flex',justifyContent:'space-between',padding:'9px 12px',background:'#f0fdfa',border:'1px solid #99f6e4',borderRadius:9,marginBottom:10,textAlign:'left',fontSize:11}}><div><b>{receipt._customer?.name}</b><div style={{color:'#64748b'}}>{receipt._customer?.phone}</div></div><div style={{textAlign:'right'}}><b>{new Date(receipt._invoiceTime).toLocaleDateString('en-SA')}</b><div style={{color:'#64748b'}}>{new Date(receipt._invoiceTime).toLocaleTimeString('en-SA')}</div></div></div>
         <div style={{background:'#f8f9fa',borderRadius:12,padding:16,marginBottom:16,textAlign:'left'}}>
           {(receipt._items||[]).map((it:any)=><div key={it.id} style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:3}}><span>{it.name} ×{it.qty}</span><span style={{fontWeight:600}}>{sar(it.price*it.qty)}</span></div>)}
           <div style={{borderTop:'1px dashed #ddd',marginTop:8,paddingTop:8}}>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span>Subtotal</span><span>{sar(receipt._subtotal||0)}</span></div>
             {receipt._totalDisc>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#e74c3c'}}><span>Discount</span><span>−{sar(receipt._totalDisc)}</span></div>}
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span>VAT 15%</span><span>{sar(receipt._tax||0)}</span></div>
             {receipt._gcUsed>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#27ae60'}}><span>Gift card</span><span>−{sar(receipt._gcUsed)}</span></div>}
             {receipt._walletUsed>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#27ae60'}}><span>Wallet</span><span>−{sar(receipt._walletUsed)}</span></div>}
             <div style={{display:'flex',justifyContent:'space-between',marginTop:8,alignItems:'center'}}>
@@ -305,13 +319,28 @@ export default function POSSale(){
               <span style={{fontWeight:900,fontSize:22,color:'#0f766e'}}>{sar(receipt._cashDue||0)}</span>
             </div>
             {receipt._change>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:13,color:'#27ae60',fontWeight:700,marginTop:4}}><span>Change</span><span>{sar(receipt._change)}</span></div>}
+            <div style={{borderTop:'1px dashed #ddd',marginTop:8,paddingTop:7}}>{(receipt._paymentLines||[]).map((line:any,index:number)=><div key={index} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#475569'}}><span>{String(line.method).replace(/_/g,' ').toUpperCase()}</span><b>{sar(Number(line.amount||0))}</b></div>)}</div>
           </div>
         </div>
+        {receipt._qr&&<div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:12,marginBottom:12,textAlign:'left'}}><img src={receipt._qr} alt="ZATCA QR" style={{width:92,height:92}}/><div><div style={{fontSize:12,fontWeight:800,color:'#0f766e'}}>ZATCA QR Code</div><div style={{fontSize:10,color:'#64748b',maxWidth:150,lineHeight:1.4}}>Scan to verify seller, VAT, date and invoice totals.</div></div></div>}
         {receipt._ptsEarned>0&&<div style={{padding:'8px 16px',background:'#fffbeb',border:'1px solid #fde68a',borderRadius:8,marginBottom:16,fontSize:13,color:'#92400e',fontWeight:600}}>⭐ +{receipt._ptsEarned} loyalty points earned!</div>}
         <div style={{display:'flex',gap:10}}>
           <button onClick={()=>{
             const w=window.open('','_blank','width=380,height=620');if(!w)return;
-            w.document.write(`<!DOCTYPE html><html><head><title>Receipt</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:monospace;font-size:12px;padding:20px}h2{text-align:center;font-size:16px;margin-bottom:2px}.c{text-align:center;color:#666;font-size:10px;margin-bottom:2px}.l{border-top:1px dashed #999;margin:8px 0}.r{display:flex;justify-content:space-between;margin-bottom:3px}.big{font-size:16px;font-weight:bold}</style></head><body><h2>NuxFashion</h2><p class="c">ERP · POS · E-Commerce</p><p class="c">ZATCA Compliant VAT Invoice</p><div class="l"></div><div class="r"><span>Order#</span><span>${receipt.order_number}</span></div><div class="r"><span>Date</span><span>${new Date().toLocaleDateString('en-SA')}</span></div><div class="r"><span>Method</span><span>${receipt._method}</span></div><div class="l"></div>${(receipt._items||[]).map((it:any)=>`<div class="r"><span>${it.name.substring(0,22)} x${it.qty}</span><span>SAR ${(it.price*it.qty).toFixed(2)}</span></div>`).join('')}<div class="l"></div>${receipt._totalDisc>0?`<div class="r" style="color:red"><span>Discount</span><span>-SAR ${receipt._totalDisc.toFixed(2)}</span></div>`:''}<div class="l"></div><div class="r big"><span>TOTAL</span><span>SAR ${(receipt._cashDue||0).toFixed(2)}</span></div>${receipt._change>0?`<div class="r" style="color:green"><span>Change</span><span>SAR ${receipt._change.toFixed(2)}</span></div>`:''}<div class="l"></div><div class="c">شكراً لتسوقك في نكس فاشن</div><div class="c">Thank you for shopping!</div></body></html>`);
+            w.document.write(`<!DOCTYPE html><html><head><title>Tax Invoice ${receipt.order_number}</title><style>@page{size:80mm auto;margin:4mm}*{box-sizing:border-box}body{width:72mm;margin:0 auto;font-family:Arial,sans-serif;color:#111;font-size:11px}.brand{text-align:center;border-bottom:2px solid #0f766e;padding-bottom:8px}.brand h1{font-size:21px;margin:0;color:#0f766e;letter-spacing:.5px}.ar{text-align:center;direction:rtl;font-size:11px;font-weight:bold;margin:2px}.muted{text-align:center;color:#64748b;font-size:9px;margin:2px}.title{text-align:center;font-weight:bold;font-size:13px;margin:9px 0}.line{border-top:1px dashed #94a3b8;margin:7px 0}.r{display:flex;justify-content:space-between;gap:8px;margin:3px 0}.r span:first-child{max-width:68%}.items .r{padding:3px 0;border-bottom:1px dotted #e2e8f0}.total{font-size:16px;font-weight:900;color:#0f766e;padding:5px 0}.disc{color:#dc2626}.pay{font-size:10px;color:#334155}.qr{text-align:center;margin:8px 0}.qr img{width:34mm;height:34mm}.footer{text-align:center;font-size:9px;color:#475569;line-height:1.5;margin-top:8px}</style></head><body>
+              <div class="brand"><h1>NuxFashion</h1><div class="ar">نكس فاشن</div><div class="muted">Fashion Retail · Saudi Arabia</div><div class="muted">VAT No: ${receipt._vatNumber}</div></div>
+              <div class="title">TAX INVOICE · فاتورة ضريبية</div>
+              <div class="r"><span>Invoice</span><b>${receipt.order_number}</b></div><div class="r"><span>Date / التاريخ</span><span>${new Date(receipt._invoiceTime).toLocaleString('en-SA')}</span></div>
+              <div class="r"><span>Customer</span><b>${receipt._customer?.name||''}</b></div><div class="r"><span>Phone</span><span>${receipt._customer?.phone||''}</span></div><div class="line"></div>
+              <div class="items">${(receipt._items||[]).map((it:any)=>`<div class="r"><span><b>${it.name}</b><br><small>${[it.size,it.color].filter(Boolean).join(' · ')} · ${it.qty} × SAR ${it.price.toFixed(2)}</small></span><b>SAR ${(it.price*it.qty).toFixed(2)}</b></div>`).join('')}</div>
+              <div class="line"></div><div class="r"><span>Subtotal</span><b>SAR ${(receipt._subtotal||0).toFixed(2)}</b></div>
+              ${receipt._totalDisc>0?`<div class="r disc"><span>Discount / الخصم</span><b>− SAR ${receipt._totalDisc.toFixed(2)}</b></div>`:''}
+              <div class="r"><span>VAT 15% / الضريبة</span><b>SAR ${(receipt._tax||0).toFixed(2)}</b></div><div class="r total"><span>TOTAL / الإجمالي</span><span>SAR ${(receipt._cashDue||0).toFixed(2)}</span></div>
+              ${receipt._change>0?`<div class="r"><span>Change</span><b>SAR ${receipt._change.toFixed(2)}</b></div>`:''}<div class="line"></div>
+              <b>PAYMENT / الدفع</b>${(receipt._paymentLines||[]).map((line:any)=>`<div class="r pay"><span>${String(line.method).replace(/_/g,' ').toUpperCase()}</span><b>SAR ${Number(line.amount||0).toFixed(2)}</b></div>`).join('')}
+              <div class="qr"><img src="${receipt._qr}" alt="ZATCA QR"><div class="muted">ZATCA QR · رمز هيئة الزكاة والضريبة والجمارك</div></div>
+              <div class="line"></div><div class="footer"><b>Thank you for shopping!</b><br><b>شكراً لتسوقكم معنا</b><br>Returns accepted according to store policy with original invoice.</div>
+              </body></html>`);
             w.document.close();w.print();
           }} style={{flex:1,padding:'12px 0',border:'1px solid #ddd',borderRadius:10,background:'#fff',cursor:'pointer',fontSize:13,fontWeight:600}}>🖨 Print Receipt</button>
           <button onClick={()=>setReceipt(null)} style={{flex:1,padding:'12px 0',border:'none',borderRadius:10,background:'#0f766e',color:'#fff',cursor:'pointer',fontSize:13,fontWeight:700}}>+ New Sale</button>
