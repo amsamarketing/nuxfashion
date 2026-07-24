@@ -307,8 +307,8 @@ export default function POSSale(){
   });
 
   if(receipt)return(
-    <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',background:'#f3f4f6'}}>
-      <div style={{background:'#fff',borderRadius:20,padding:40,maxWidth:440,width:'100%',boxShadow:'0 8px 40px rgba(0,0,0,.12)',textAlign:'center'}}>
+    <div style={{display:'flex',alignItems:'flex-start',justifyContent:'center',height:'100%',overflowY:'auto',background:'#f3f4f6',padding:'24px 14px'}}>
+      <div style={{background:'#fff',borderRadius:20,padding:40,maxWidth:440,width:'100%',boxShadow:'0 8px 40px rgba(0,0,0,.12)',textAlign:'center',margin:'auto 0'}}>
         <div style={{fontSize:56,marginBottom:8}}>✅</div>
         <div style={{fontSize:22,fontWeight:800,marginBottom:4}}>Payment Successful</div>
         <div style={{fontSize:13,color:'#666',marginBottom:14}}>Tax Invoice #{receipt.order_number}</div>
@@ -317,6 +317,7 @@ export default function POSSale(){
           {(receipt._items||[]).map((it:any)=><div key={it.id} style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:3}}><span>{it.name} ×{it.qty}</span><span style={{fontWeight:600}}>{sar(it.price*it.qty)}</span></div>)}
           <div style={{borderTop:'1px dashed #ddd',marginTop:8,paddingTop:8}}>
             <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span>Subtotal</span><span>{sar(receipt._subtotal||0)}</span></div>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span>Total Quantity</span><b>{(receipt._items||[]).reduce((sum:number,item:any)=>sum+Number(item.qty||0),0)}</b></div>
             {receipt._totalDisc>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#e74c3c'}}><span>Discount</span><span>−{sar(receipt._totalDisc)}</span></div>}
             <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span>VAT 15%</span><span>{sar(receipt._tax||0)}</span></div>
             {receipt._gcUsed>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#27ae60'}}><span>Gift card</span><span>−{sar(receipt._gcUsed)}</span></div>}
@@ -341,7 +342,7 @@ export default function POSSale(){
               <div class="r"><span>Invoice</span><b>${receipt.order_number}</b></div><div class="r"><span>Date / التاريخ</span><span>${new Date(receipt._invoiceTime).toLocaleString('en-SA')}</span></div>
               <div class="r"><span>Customer</span><b>${receipt._customer?.name||''}</b></div><div class="r"><span>Phone</span><span>${receipt._customer?.phone||''}</span></div><div class="line"></div>
               <div class="items">${(receipt._items||[]).map((it:any)=>`<div class="r"><span><b>${it.name}</b><br><small>${[it.size,it.color].filter(Boolean).join(' · ')} · ${it.qty} × SAR ${it.price.toFixed(2)}</small></span><b>SAR ${(it.price*it.qty).toFixed(2)}</b></div>`).join('')}</div>
-              <div class="line"></div><div class="r"><span>Subtotal</span><b>SAR ${(receipt._subtotal||0).toFixed(2)}</b></div>
+              <div class="line"></div><div class="r"><span>Total Quantity / إجمالي الكمية</span><b>${(receipt._items||[]).reduce((sum:number,item:any)=>sum+Number(item.qty||0),0)}</b></div><div class="r"><span>Subtotal</span><b>SAR ${(receipt._subtotal||0).toFixed(2)}</b></div>
               ${receipt._totalDisc>0?`<div class="r disc"><span>Discount / الخصم</span><b>− SAR ${receipt._totalDisc.toFixed(2)}</b></div>`:''}
               <div class="r"><span>VAT 15% / الضريبة</span><b>SAR ${(receipt._tax||0).toFixed(2)}</b></div><div class="r total"><span>TOTAL / الإجمالي</span><span>SAR ${(receipt._cashDue||0).toFixed(2)}</span></div>
               ${receipt._change>0?`<div class="r"><span>Change</span><b>SAR ${receipt._change.toFixed(2)}</b></div>`:''}<div class="line"></div>
