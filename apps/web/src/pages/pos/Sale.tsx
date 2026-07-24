@@ -611,6 +611,28 @@ export default function POSSale(){
         </div>}
       </div>
 
+      {custId&&custDetail&&<div style={{padding:'7px 14px',background:'#f0fdf4',borderBottom:'1px solid #bbf7d0',display:'flex',alignItems:'center',gap:14,fontSize:12,flexShrink:0,flexWrap:'wrap'}}>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <i className="ti ti-user-circle" style={{color:'#15803d',fontSize:16}}/>
+          <b style={{color:'#15803d'}}>{custDetail.name}</b>
+          <span style={{color:'#64748b'}}>{custDetail.phone}</span>
+        </div>
+        <div style={{display:'flex',gap:12,paddingLeft:8,borderLeft:'1px solid #bbf7d0'}}>
+          <span><b style={{color:'#0f766e'}}>SAR {Number(custDetail.lifetime_value||0).toFixed(0)}</b><span style={{color:'#64748b',marginLeft:3}}>spent</span></span>
+          <span><b>{custDetail.order_count||0}</b><span style={{color:'#64748b',marginLeft:3}}>visits</span></span>
+          <span><b style={{color:'#f59e0b'}}>{custDetail.loyalty_points||0}</b><span style={{color:'#64748b',marginLeft:3}}>pts</span></span>
+        </div>
+        {(custOrders as any[]).length>0&&<div style={{display:'flex',gap:6,marginLeft:'auto',overflowX:'auto'}}>
+          <span style={{fontSize:10,color:'#64748b',alignSelf:'center',fontWeight:700}}>RECENT:</span>
+          {(custOrders as any[]).slice(0,4).map((o:any)=>(
+            <div key={o.id} style={{padding:'3px 9px',background:'#fff',border:'1px solid #bbf7d0',borderRadius:7,whiteSpace:'nowrap',fontSize:11}}>
+              <b style={{color:'#0f766e'}}>SAR {Number(o.total||0).toFixed(0)}</b>
+              <span style={{color:'#94a3b8',marginLeft:5}}>{new Date(o.created_at).toLocaleDateString('en-SA',{day:'2-digit',month:'short'})}</span>
+            </div>
+          ))}
+        </div>}
+      </div>}
+
       <div style={{display:'flex',flex:1,overflow:'hidden'}}>
         {/* Category sidebar */}
         <div style={{width:76,background:'#fff',borderRight:'1px solid #e5e7eb',display:'flex',flexDirection:'column',alignItems:'center',paddingTop:6,gap:2,overflowY:'auto',flexShrink:0}}>
