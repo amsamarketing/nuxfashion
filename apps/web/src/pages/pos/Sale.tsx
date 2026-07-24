@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
 import QRCode from 'qrcode';
+import JsBarcode from 'jsbarcode';
 import { useToast } from '../../components/Toast';
 import { getErr } from '../../lib/err';
 
@@ -22,6 +23,11 @@ const zatcaTlv=(seller:string,vatNumber:string,timestamp:string,total:number,vat
     const encoded=new TextEncoder().encode(value);bytes.push(index+1,encoded.length,...encoded);
   });
   return btoa(String.fromCharCode(...bytes));
+};
+const invoiceBarcode=(invoiceNumber:string)=>{
+  const canvas=document.createElement('canvas');
+  JsBarcode(canvas,invoiceNumber,{format:'CODE128',displayValue:true,fontSize:14,height:52,margin:4,background:'#ffffff',lineColor:'#111827'});
+  return canvas.toDataURL('image/png');
 };
 
 function Clock(){
@@ -293,7 +299,8 @@ export default function POSSale(){
       const invoiceTime=d.created_at||new Date().toISOString();
       const vatNumber=import.meta.env.VITE_STORE_VAT_NUMBER||'VAT NUMBER NOT SET';
       const qr=await QRCode.toDataURL(zatcaTlv('NuxFashion',vatNumber,invoiceTime,gross,tax),{errorCorrectionLevel:'M',margin:1,width:180});
-      setReceipt({...d,_qr:qr,_invoiceTime:invoiceTime,_vatNumber:vatNumber,_customer:{name:customer.name,phone:customer.phone},_subtotal:sub,_tax:tax,_gross:gross,_cashDue:cashDue,_change:change>0?change:0,_method:splitPayment?splitLines.map(line=>`${line.method} ${sar(line.amount)}`).join(' + '):method,_gcUsed:gcUsed,_walletUsed:walletUsed,_ptsUsed:ptsUsed,_ptsEarned:ptsEarned,_totalDisc:totalDisc,_items:[...cart]});
+      const barcode=invoiceBarcode(String(d.order_number));
+      setReceipt({...d,_qr:qr,_barcode:barcode,_invoiceTime:invoiceTime,_vatNumber:vatNumber,_customer:{name:customer.name,phone:customer.phone},_subtotal:sub,_tax:tax,_gross:gross,_cashDue:cashDue,_change:change>0?change:0,_method:splitPayment?splitLines.map(line=>`${line.method} ${sar(line.amount)}`).join(' + '):method,_gcUsed:gcUsed,_walletUsed:walletUsed,_ptsUsed:ptsUsed,_ptsEarned:ptsEarned,_totalDisc:totalDisc,_items:[...cart]});
       resetSale();
     },
     onError:(e:any)=>toast(getErr(e),'error'),
@@ -322,12 +329,13 @@ export default function POSSale(){
             <div style={{borderTop:'1px dashed #ddd',marginTop:8,paddingTop:7}}>{(receipt._paymentLines||[]).map((line:any,index:number)=><div key={index} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#475569'}}><span>{String(line.method).replace(/_/g,' ').toUpperCase()}</span><b>{sar(Number(line.amount||0))}</b></div>)}</div>
           </div>
         </div>
+        {receipt._barcode&&<div style={{margin:'0 auto 12px',padding:'7px 10px',border:'1px dashed #cbd5e1',borderRadius:8}}><img src={receipt._barcode} alt={`Invoice ${receipt.order_number} barcode`} style={{display:'block',width:'100%',height:62,objectFit:'contain'}}/><div style={{fontSize:9,color:'#64748b',marginTop:2}}>Scan this barcode on the Returns screen</div></div>}
         {receipt._qr&&<div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:12,marginBottom:12,textAlign:'left'}}><img src={receipt._qr} alt="ZATCA QR" style={{width:92,height:92}}/><div><div style={{fontSize:12,fontWeight:800,color:'#0f766e'}}>ZATCA QR Code</div><div style={{fontSize:10,color:'#64748b',maxWidth:150,lineHeight:1.4}}>Scan to verify seller, VAT, date and invoice totals.</div></div></div>}
         {receipt._ptsEarned>0&&<div style={{padding:'8px 16px',background:'#fffbeb',border:'1px solid #fde68a',borderRadius:8,marginBottom:16,fontSize:13,color:'#92400e',fontWeight:600}}>⭐ +{receipt._ptsEarned} loyalty points earned!</div>}
         <div style={{display:'flex',gap:10}}>
           <button onClick={()=>{
             const w=window.open('','_blank','width=380,height=620');if(!w)return;
-            w.document.write(`<!DOCTYPE html><html><head><title>Tax Invoice ${receipt.order_number}</title><style>@page{size:80mm auto;margin:4mm}*{box-sizing:border-box}body{width:72mm;margin:0 auto;font-family:Arial,sans-serif;color:#111;font-size:11px}.brand{text-align:center;border-bottom:2px solid #0f766e;padding-bottom:8px}.brand h1{font-size:21px;margin:0;color:#0f766e;letter-spacing:.5px}.ar{text-align:center;direction:rtl;font-size:11px;font-weight:bold;margin:2px}.muted{text-align:center;color:#64748b;font-size:9px;margin:2px}.title{text-align:center;font-weight:bold;font-size:13px;margin:9px 0}.line{border-top:1px dashed #94a3b8;margin:7px 0}.r{display:flex;justify-content:space-between;gap:8px;margin:3px 0}.r span:first-child{max-width:68%}.items .r{padding:3px 0;border-bottom:1px dotted #e2e8f0}.total{font-size:16px;font-weight:900;color:#0f766e;padding:5px 0}.disc{color:#dc2626}.pay{font-size:10px;color:#334155}.qr{text-align:center;margin:8px 0}.qr img{width:34mm;height:34mm}.footer{text-align:center;font-size:9px;color:#475569;line-height:1.5;margin-top:8px}</style></head><body>
+            w.document.write(`<!DOCTYPE html><html><head><title>Tax Invoice ${receipt.order_number}</title><style>@page{size:80mm auto;margin:4mm}*{box-sizing:border-box}body{width:72mm;margin:0 auto;font-family:Arial,sans-serif;color:#111;font-size:11px}.brand{text-align:center;border-bottom:2px solid #0f766e;padding-bottom:8px}.brand h1{font-size:21px;margin:0;color:#0f766e;letter-spacing:.5px}.ar{text-align:center;direction:rtl;font-size:11px;font-weight:bold;margin:2px}.muted{text-align:center;color:#64748b;font-size:9px;margin:2px}.title{text-align:center;font-weight:bold;font-size:13px;margin:9px 0}.line{border-top:1px dashed #94a3b8;margin:7px 0}.r{display:flex;justify-content:space-between;gap:8px;margin:3px 0}.r span:first-child{max-width:68%}.items .r{padding:3px 0;border-bottom:1px dotted #e2e8f0}.total{font-size:16px;font-weight:900;color:#0f766e;padding:5px 0}.disc{color:#dc2626}.pay{font-size:10px;color:#334155}.barcode{text-align:center;margin:8px 0}.barcode img{width:68mm;height:18mm;object-fit:contain}.qr{text-align:center;margin:8px 0}.qr img{width:34mm;height:34mm}.footer{text-align:center;font-size:9px;color:#475569;line-height:1.5;margin-top:8px}</style></head><body>
               <div class="brand"><h1>NuxFashion</h1><div class="ar">نكس فاشن</div><div class="muted">Fashion Retail · Saudi Arabia</div><div class="muted">VAT No: ${receipt._vatNumber}</div></div>
               <div class="title">TAX INVOICE · فاتورة ضريبية</div>
               <div class="r"><span>Invoice</span><b>${receipt.order_number}</b></div><div class="r"><span>Date / التاريخ</span><span>${new Date(receipt._invoiceTime).toLocaleString('en-SA')}</span></div>
@@ -338,6 +346,7 @@ export default function POSSale(){
               <div class="r"><span>VAT 15% / الضريبة</span><b>SAR ${(receipt._tax||0).toFixed(2)}</b></div><div class="r total"><span>TOTAL / الإجمالي</span><span>SAR ${(receipt._cashDue||0).toFixed(2)}</span></div>
               ${receipt._change>0?`<div class="r"><span>Change</span><b>SAR ${receipt._change.toFixed(2)}</b></div>`:''}<div class="line"></div>
               <b>PAYMENT / الدفع</b>${(receipt._paymentLines||[]).map((line:any)=>`<div class="r pay"><span>${String(line.method).replace(/_/g,' ').toUpperCase()}</span><b>SAR ${Number(line.amount||0).toFixed(2)}</b></div>`).join('')}
+              <div class="barcode"><img src="${receipt._barcode}" alt="Invoice barcode"><div class="muted">SCAN FOR RETURN · امسح الباركود للاسترجاع</div></div>
               <div class="qr"><img src="${receipt._qr}" alt="ZATCA QR"><div class="muted">ZATCA QR · رمز هيئة الزكاة والضريبة والجمارك</div></div>
               <div class="line"></div><div class="footer"><b>Thank you for shopping!</b><br><b>شكراً لتسوقكم معنا</b><br>Returns accepted according to store policy with original invoice.</div>
               </body></html>`);
