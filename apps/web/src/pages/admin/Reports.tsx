@@ -137,6 +137,7 @@ export default function Reports() {
 
   // ── queries ─────────────────────────────────────────────────────────────────
   const { data: dash }        = useQuery({ queryKey: ['rpt-dash'],                queryFn: async () => (await api.get('/reports/dashboard')).data,                              enabled: tab === 'dashboard'  });
+  const { data: business }    = useQuery({ queryKey: ['rpt-business',from,to],    queryFn: async () => (await api.get(`/reports/business-performance?${qs}`)).data,              enabled: tab === 'financial'  });
   const { data: salesPeriod } = useQuery({ queryKey: ['rpt-period', from, to, groupBy], queryFn: async () => (await api.get(`/reports/sales/by-period?${qs}&group_by=${groupBy}`)).data, enabled: tab === 'sales' });
   const { data: salesProduct }= useQuery({ queryKey: ['rpt-product', from, to],  queryFn: async () => (await api.get(`/reports/sales/by-product?${qs}&limit=20`)).data,       enabled: tab === 'sales'      });
   const { data: salesCat }    = useQuery({ queryKey: ['rpt-cat', from, to],      queryFn: async () => (await api.get(`/reports/sales/by-category?${qs}`)).data,               enabled: tab === 'sales'      });
@@ -162,12 +163,12 @@ export default function Reports() {
   const catRows     = arr(salesCat,     'data', 'categories');
   const staffRows   = arr(salesStaff,   'data', 'staff');
   const payRows     = arr(salesPay,     'data', 'methods');
-  const valRows     = arr(invVal,       'data', 'items');
+  const valRows     = arr(invVal,       'by_category', 'data', 'items');
   const lowRows     = arr(invLow,       'data', 'items');
   const movRows     = arr(invMov,       'data', 'movements');
-  const custRows    = arr(custRpt,      'customers', 'data');
-  const purchRows   = arr(purchRpt,     'orders', 'data');
-  const hrRows      = arr(hrRpt,        'employees', 'data');
+  const custRows    = arr(custRpt,      'top_customers', 'customers', 'data');
+  const purchRows   = arr(purchRpt,     'by_supplier', 'orders', 'data');
+  const hrRows      = arr(hrRpt,        'headcount_by_dept', 'employees', 'data');
 
   const totalRevenue = useMemo(() => periodRows.reduce((s, r) => s + (Number(g(r, 'total', 'revenue', 'amount')) || 0), 0), [periodRows]);
   const totalOrders  = useMemo(() => periodRows.reduce((s, r) => s + (Number(g(r, 'count', 'orders', 'order_count')) || 0), 0), [periodRows]);
@@ -177,6 +178,11 @@ export default function Reports() {
   const periodYKey = periodRows[0] ? (Object.keys(periodRows[0]).find(k => ['total', 'revenue', 'amount'].includes(k)) ?? 'total') : 'total';
 
   const ds = (dash ?? {}) as Record<string, unknown>;
+  const bp = (business ?? {}) as Record<string, unknown>;
+  const bs = (bp.summary ?? {}) as Record<string, unknown>;
+  const branchRows = arr(bp,'branches');
+  const channelRows = arr(bp,'channels');
+  const businessPayRows = arr(bp,'payments');
 
   const STATUS_COLOR: Record<string, string> = { draft: 'grey', pending: 'amber', approved: 'indigo', received: 'green', cancelled: 'red', partial: 'teal', present: 'green', absent: 'red', late: 'amber' };
   const METHOD_ICON:  Record<string, string> = { cash: '💵', card: '💳', tabby: '🟢', tamara: '🟣', apple_pay: '🍎', mada: '🔵', bank_transfer: '🏦' };
@@ -205,7 +211,7 @@ export default function Reports() {
 
       {/* tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 14, borderBottom: '1px solid var(--bd)' }}>
-        {[['dashboard','📊 Dashboard'], ['sales','💰 Sales'], ['inventory','📦 Inventory'], ['customers','👥 Customers'], ['purchasing','🚚 Purchasing'], ['hr','👨‍💼 HR']].map(([id, l]) => (
+        {[['dashboard','📊 Dashboard'], ['financial','📈 Business Performance'], ['sales','💰 Sales'], ['inventory','📦 Inventory'], ['customers','👥 Customers'], ['purchasing','🚚 Purchasing'], ['hr','👨‍💼 HR']].map(([id, l]) => (
           <button key={id} onClick={() => setTab(id)} style={{ padding: '8px 16px', border: 'none', background: 'none', borderBottom: tab === id ? '2px solid var(--ac)' : '2px solid transparent', color: tab === id ? 'var(--ac)' : 'var(--mu)', fontWeight: tab === id ? 600 : 400, cursor: 'pointer', fontSize: 13 }}>{l}</button>
         ))}
       </div>
@@ -240,6 +246,66 @@ export default function Reports() {
                 <ProgressList data={arr(ds, 'sales_by_category')} getLabel={r => String(g(r, 'category', 'name') || '—')} getValue={r => Number(g(r, 'total', 'revenue')) || 0} color="#6366f1" formatVal={fmtK} />
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── BUSINESS PERFORMANCE ── */}
+      {tab === 'financial' && (
+        <div style={{display:'grid',gap:16}}>
+          <div className="nx-stats cols-4">
+            <StatCard label="Net Sales" value={fmtK(Number(g(bs,'net_sales'))||0)} sub={`${Number(g(bs,'orders'))||0} paid orders`} icon="ti-chart-line" color="green"/>
+            <StatCard label="Gross Profit" value={fmtK(Number(g(bs,'gross_profit'))||0)} sub={`${Number(g(bs,'gross_margin')||0).toFixed(1)}% margin`} icon="ti-businessplan" color="teal"/>
+            <StatCard label="Operating Expenses" value={fmtK(Number(g(bs,'operating_expenses'))||0)} sub={`Fees ${fmtK(Number(g(bs,'payment_commissions'))||0)}`} icon="ti-receipt-tax" color="amber"/>
+            <StatCard label="Net Profit" value={fmtK(Number(g(bs,'net_profit'))||0)} sub={`${Number(g(bs,'net_margin')||0).toFixed(1)}% net margin`} icon="ti-report-money" color={Number(g(bs,'net_profit'))>=0?'indigo':'red'}/>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:16}}>
+            <div className="nx-card">
+              <div style={{fontWeight:700,fontSize:15,marginBottom:12}}>Profit & Loss Summary</div>
+              {[
+                ['Gross sales',g(bs,'gross_sales'),'#0f766e'],['Returns',-Number(g(bs,'returns')||0),'#dc2626'],
+                ['Discounts',-Number(g(bs,'discounts')||0),'#dc2626'],['Net sales',g(bs,'net_sales'),'#0f766e'],
+                ['Cost of goods sold',-Number(g(bs,'cogs')||0),'#d97706'],['Gross profit',g(bs,'gross_profit'),'#0f766e'],
+                ['Business expenses',-Number(g(bs,'expenses')||0),'#dc2626'],['Payment commissions',-Number(g(bs,'payment_commissions')||0),'#dc2626'],
+                ['Net profit',g(bs,'net_profit'),Number(g(bs,'net_profit'))>=0?'#059669':'#dc2626'],
+              ].map(([label,value,color],i)=><div key={String(label)} style={{display:'flex',justifyContent:'space-between',padding:'9px 0',borderTop:i===3||i===5||i===8?'2px solid var(--bd)':'1px solid var(--bd)',fontWeight:i===3||i===5||i===8?800:500}}>
+                <span>{String(label)}</span><span style={{color:String(color)}}>{fmt(Number(value)||0)}</span>
+              </div>)}
+            </div>
+            <div className="nx-card">
+              <div style={{fontWeight:700,fontSize:15,marginBottom:12}}>VAT Position</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
+                <div style={{padding:14,background:'var(--bg)',borderRadius:10}}><small style={{color:'var(--mu)'}}>OUTPUT VAT</small><div style={{fontSize:20,fontWeight:800,marginTop:4}}>{fmt(Number(g(bs,'output_vat'))||0)}</div></div>
+                <div style={{padding:14,background:'var(--bg)',borderRadius:10}}><small style={{color:'var(--mu)'}}>INPUT VAT</small><div style={{fontSize:20,fontWeight:800,marginTop:4}}>{fmt(Number(g(bs,'input_vat'))||0)}</div></div>
+              </div>
+              <div style={{padding:16,borderRadius:12,background:Number(g(bs,'vat_payable'))>=0?'#fff7ed':'#ecfdf5',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <div><b>{Number(g(bs,'vat_payable'))>=0?'VAT Payable':'VAT Credit'}</b><div style={{fontSize:11,color:'var(--mu)'}}>For selected reporting period</div></div>
+                <strong style={{fontSize:22,color:Number(g(bs,'vat_payable'))>=0?'#c2410c':'#047857'}}>{fmt(Math.abs(Number(g(bs,'vat_payable'))||0))}</strong>
+              </div>
+              <div style={{fontWeight:700,fontSize:14,margin:'18px 0 10px'}}>Sales Channels</div>
+              <Table cols={[
+                {label:'Channel',get:r=>g(r,'channel')},{label:'Orders',get:r=>g(r,'orders')},
+                {label:'Sales',get:r=>g(r,'sales'),fmt:v=>fmt(Number(v))},{label:'Avg Order',get:r=>g(r,'avg_order'),fmt:v=>fmt(Number(v))}
+              ]} rows={channelRows}/>
+            </div>
+          </div>
+          <div className="nx-card">
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+              <div><div style={{fontWeight:700,fontSize:15}}>Branch Performance</div><div style={{fontSize:11,color:'var(--mu)'}}>All stores under the same CR/VAT</div></div>
+              <button className="btn-nx ghost sm" onClick={()=>exportCSV(branchRows,`branch-performance-${from}-${to}`)}><i className="ti ti-download"/> Export</button>
+            </div>
+            <Table cols={[
+              {label:'Branch',get:r=>g(r,'name')},{label:'Code',get:r=>g(r,'branch_code')},{label:'Orders',get:r=>g(r,'orders')},
+              {label:'Gross Sales',get:r=>g(r,'sales'),fmt:v=>fmt(Number(v))},{label:'Discounts',get:r=>g(r,'discounts'),fmt:v=>fmt(Number(v))},
+              {label:'Output VAT',get:r=>g(r,'vat'),fmt:v=>fmt(Number(v))},
+            ]} rows={branchRows}/>
+          </div>
+          <div className="nx-card">
+            <div style={{fontWeight:700,fontSize:15,marginBottom:12}}>Payment Collection Mix</div>
+            <Table onExport={()=>exportCSV(businessPayRows,`payment-mix-${from}-${to}`)} filename="payments.csv" cols={[
+              {label:'Method',get:r=>g(r,'method')},{label:'Transactions',get:r=>g(r,'transactions')},
+              {label:'Collected',get:r=>g(r,'amount'),fmt:v=><b>{fmt(Number(v))}</b>},
+            ]} rows={businessPayRows}/>
           </div>
         </div>
       )}
@@ -331,8 +397,8 @@ export default function Reports() {
       {tab === 'inventory' && (
         <div style={{ display: 'grid', gap: 16 }}>
           <div className="nx-stats cols-4">
-            <StatCard label="Total SKUs"      value={valRows.length}                                                                                          icon="ti-box"           color="indigo" />
-            <StatCard label="Total Value"     value={fmtK(valRows.reduce((s, r) => s + (Number(g(r, 'value', 'total_value')) || 0), 0))}                      icon="ti-cash"           color="green"  />
+            <StatCard label="Categories"      value={valRows.length}                                                                                          icon="ti-box"           color="indigo" />
+            <StatCard label="Stock Cost Value" value={fmtK(Number(g((invVal as any)?.totals||{},'total_cost'))||0)}                                           icon="ti-cash"           color="green"  />
             <StatCard label="LowStock Items" value={lowRows.length}                                                                                           icon="ti-alert-circle"   color="amber"  />
             <StatCard label="Stock Movements" value={movRows.length}                                                                                           icon="ti-arrows-exchange" color="teal"  />
           </div>
@@ -353,12 +419,12 @@ export default function Reports() {
           <div className="nx-card">
             <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>Inventory Valuation</div>
             <Table onExport={() => exportCSV(valRows, 'inventory-valuation')} filename="valuation.csv" cols={[
-              { label: 'Product',    get: r => g(r, 'product_name', 'name') },
-              { label: 'SKU',        get: r => g(r, 'sku') },
-              { label: 'Qty',        get: r => Number(g(r, 'quantity', 'stock_quantity')) || 0, fmt: v => Number(v).toLocaleString() },
-              { label: 'Unit Cost',  get: r => Number(g(r, 'cost_price', 'unit_cost')) || 0,   fmt: v => fmt(Number(v)) },
-              { label: 'Total Value',get: r => Number(g(r, 'value', 'total_value')) || 0,       fmt: v => <span style={{ fontWeight: 700, color: 'var(--ac)' }}>{fmt(Number(v))}</span> },
-              { label: 'Warehouse',  get: r => g(r, 'warehouse', 'warehouse_name') },
+              { label: 'Category',    get: r => g(r, 'category')||'Uncategorised' },
+              { label: 'Products',    get: r => Number(g(r, 'products'))||0 },
+              { label: 'Variants',    get: r => Number(g(r, 'variants'))||0 },
+              { label: 'Total Units', get: r => Number(g(r, 'total_units')) || 0, fmt: v => Number(v).toLocaleString() },
+              { label: 'Cost Value',  get: r => Number(g(r, 'cost_value')) || 0, fmt: v => <span style={{ fontWeight: 700 }}>{fmt(Number(v))}</span> },
+              { label: 'Retail Value',get: r => Number(g(r, 'retail_value')) || 0,fmt: v => <span style={{ fontWeight: 700, color: 'var(--ac)' }}>{fmt(Number(v))}</span> },
             ]} rows={valRows} />
           </div>
 
@@ -410,12 +476,10 @@ export default function Reports() {
           </div>
           <div className="nx-card">
             <Table onExport={() => exportCSV(purchRows, `purchasing-${from}-${to}`)} filename="purchasing.csv" cols={[
-              { label: 'PO #',      get: r => g(r, 'po_number', 'number', 'reference') },
               { label: 'Supplier',  get: r => g(r, 'supplier', 'supplier_name') },
-              { label: 'Status',    get: r => g(r, 'status'), fmt: v => <span className={`nx-badge ${STATUS_COLOR[String(v)] ?? 'grey'}`}>{String(v ?? '—')}</span> },
-              { label: 'Total',     get: r => Number(g(r, 'total', 'amount', 'total_amount')) || 0, fmt: v => <span style={{ fontWeight: 700 }}>{fmt(Number(v))}</span> },
-              { label: 'Warehouse', get: r => g(r, 'warehouse', 'warehouse_name') },
-              { label: 'Date',      get: r => g(r, 'expected_date', 'created_at', 'date'), fmt: v => v ? new Date(String(v)).toLocaleDateString() : '—' },
+              { label: 'Purchase Orders', get: r => Number(g(r, 'orders')) || 0 },
+              { label: 'Net Spend', get: r => Number(g(r, 'spend')) || 0, fmt: v => <span style={{ fontWeight: 700 }}>{fmt(Number(v))}</span> },
+              { label: 'Input VAT', get: r => Number(g(r, 'vat_paid')) || 0, fmt: v => fmt(Number(v)) },
             ]} rows={purchRows} />
           </div>
         </div>
@@ -432,13 +496,9 @@ export default function Reports() {
           </div>
           <div className="nx-card">
             <Table onExport={() => exportCSV(hrRows, `hr-${from}-${to}`)} filename="hr.csv" cols={[
-              { label: 'Emp #',        get: r => g(r, 'employee_number', 'emp_number') },
-              { label: 'Name',         get: r => g(r, 'full_name', 'name') },
               { label: 'Department',   get: r => g(r, 'department', 'department_name') },
-              { label: 'Present Days', get: r => Number(g(r, 'present_days', 'attendance')) || 0 },
-              { label: 'Absent',       get: r => Number(g(r, 'absent_days', 'absent')) || 0, fmt: v => <span style={{ color: Number(v) > 3 ? '#ef4444' : 'inherit' }}>{String(v)}</span> },
-              { label: 'Leave Days',   get: r => Number(g(r, 'leave_days', 'leave')) || 0 },
-              { label: 'Net Salary',   get: r => Number(g(r, 'net_salary', 'salary')) || 0, fmt: v => Number(v) ? fmt(Number(v)) : '—' },
+              { label: 'Headcount', get: r => Number(g(r, 'headcount')) || 0 },
+              { label: 'Salary Budget', get: r => Number(g(r, 'salary_budget')) || 0, fmt: v => fmt(Number(v)) },
             ]} rows={hrRows} />
           </div>
         </div>

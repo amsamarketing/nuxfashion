@@ -12,6 +12,10 @@ export class ReportsController {
   getDashboard(@Req() req: Request) {
     return this.service.getDashboard((req.user as any).companyId);
   }
+  @Get('business-performance')
+  getBusinessPerformance(@Req() req: Request,@Query('from') from:string,@Query('to') to:string) {
+    return this.service.getBusinessPerformance((req.user as any).companyId,from,to);
+  }
 
   // Sales
   @Get('sales/by-period')

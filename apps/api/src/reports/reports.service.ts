@@ -43,7 +43,25 @@ export class ReportsService {
          WHERE company_id=$1 AND status IN ('draft','sent','partially_received')`, [companyId]),
     ]);
 
+    const [allSales,trend,topProducts,categories]=await Promise.all([
+      this.db.query(`SELECT COUNT(*)::int total_orders,COALESCE(SUM(total),0) total_revenue,
+        COALESCE(AVG(total),0) avg_order_value FROM sales_orders WHERE company_id=$1 AND status='paid'`,[companyId]),
+      this.db.query(`SELECT created_at::date date,COALESCE(SUM(total),0) total FROM sales_orders
+        WHERE company_id=$1 AND status='paid' AND created_at>=CURRENT_DATE-INTERVAL '29 days'
+        GROUP BY created_at::date ORDER BY date`,[companyId]),
+      this.db.query(`SELECT p.name,COALESCE(SUM(l.line_total),0) revenue,COALESCE(SUM(l.quantity),0)::int qty
+        FROM sales_order_lines l JOIN sales_orders o ON o.id=l.order_id JOIN product_variants v ON v.id=l.variant_id
+        JOIN products p ON p.id=v.product_id WHERE o.company_id=$1 AND o.status='paid'
+        GROUP BY p.id,p.name ORDER BY revenue DESC LIMIT 8`,[companyId]),
+      this.db.query(`SELECT COALESCE(c.name,'Uncategorised') category,COALESCE(SUM(l.line_total),0) total
+        FROM sales_order_lines l JOIN sales_orders o ON o.id=l.order_id JOIN product_variants v ON v.id=l.variant_id
+        JOIN products p ON p.id=v.product_id LEFT JOIN categories c ON c.id=p.category_id
+        WHERE o.company_id=$1 AND o.status='paid' GROUP BY c.name ORDER BY total DESC LIMIT 8`,[companyId]),
+    ]);
     return {
+      ...allSales.rows[0],
+      total_customers:Number(customers.rows[0].total),
+      recent_sales:trend.rows,top_products:topProducts.rows,sales_by_category:categories.rows,
       today: todaySales.rows[0],
       this_month: monthSales.rows[0],
       inventory: inventory.rows[0],
@@ -53,6 +71,53 @@ export class ReportsService {
         open_purchase_orders: parseInt(openOrders.rows[0].count),
       },
     };
+  }
+
+  async getBusinessPerformance(companyId:string,from:string,to:string){
+    const [sales,returns,cogs,expenses,fees,purchaseVat,branches,channels,payments]=await Promise.all([
+      this.db.query(`SELECT COUNT(*)::int orders,COALESCE(SUM(subtotal),0) subtotal,
+        COALESCE(SUM(discount_amount),0) discounts,COALESCE(SUM(tax_amount),0) output_vat,
+        COALESCE(SUM(total),0) gross_sales FROM sales_orders WHERE company_id=$1 AND status='paid'
+        AND created_at::date BETWEEN $2 AND $3`,[companyId,from,to]),
+      this.db.query(`SELECT COUNT(*)::int returns,COALESCE(SUM(r.refund_amount),0) amount
+        FROM returns r JOIN sales_orders o ON o.id=r.original_order_id
+        WHERE o.company_id=$1 AND r.created_at::date BETWEEN $2 AND $3`,[companyId,from,to]),
+      this.db.query(`SELECT COALESCE(SUM(l.quantity*COALESCE(v.cost_price,0)),0) amount
+        FROM sales_order_lines l JOIN sales_orders o ON o.id=l.order_id JOIN product_variants v ON v.id=l.variant_id
+        WHERE o.company_id=$1 AND o.status='paid' AND o.created_at::date BETWEEN $2 AND $3`,[companyId,from,to]),
+      this.db.query(`SELECT COALESCE(SUM(amount),0) amount,COALESCE(SUM(tax_amount),0) input_vat,COUNT(*)::int count
+        FROM expenses WHERE company_id=$1 AND status<>'cancelled' AND date BETWEEN $2 AND $3`,[companyId,from,to]),
+      this.db.query(`SELECT COALESCE(SUM(CASE WHEN reference_type='payment_commission' THEN amount ELSE 0 END),0) commissions,
+        COALESCE(SUM(CASE WHEN reference_type='payment_fee_vat' THEN amount ELSE 0 END),0) fee_vat
+        FROM branch_account_transactions t JOIN branches b ON b.id=t.branch_id
+        WHERE b.company_id=$1 AND t.created_at::date BETWEEN $2 AND $3`,[companyId,from,to]),
+      this.db.query(`SELECT COALESCE(SUM(tax_amount),0) vat FROM purchase_orders
+        WHERE company_id=$1 AND status NOT IN ('draft','cancelled') AND created_at::date BETWEEN $2 AND $3`,[companyId,from,to]),
+      this.db.query(`SELECT b.id,b.name,b.branch_code,COUNT(DISTINCT o.id)::int orders,
+        COALESCE(SUM(o.total),0) sales,COALESCE(SUM(o.tax_amount),0) vat,
+        COALESCE(SUM(o.discount_amount),0) discounts
+        FROM branches b LEFT JOIN sales_orders o ON o.warehouse_id=b.warehouse_id AND o.status='paid'
+        AND o.created_at::date BETWEEN $2 AND $3 WHERE b.company_id=$1
+        GROUP BY b.id,b.name,b.branch_code ORDER BY sales DESC`,[companyId,from,to]),
+      this.db.query(`SELECT CASE WHEN order_number LIKE 'WEB-%' THEN 'E-commerce' ELSE 'POS' END channel,
+        COUNT(*)::int orders,COALESCE(SUM(total),0) sales,COALESCE(AVG(total),0) avg_order
+        FROM sales_orders WHERE company_id=$1 AND status='paid' AND created_at::date BETWEEN $2 AND $3
+        GROUP BY 1 ORDER BY sales DESC`,[companyId,from,to]),
+      this.db.query(`SELECT p.method,COUNT(*)::int transactions,COALESCE(SUM(p.amount),0) amount
+        FROM payments p JOIN sales_orders o ON o.id=p.order_id WHERE o.company_id=$1 AND p.status='completed'
+        AND p.paid_at::date BETWEEN $2 AND $3 GROUP BY p.method ORDER BY amount DESC`,[companyId,from,to]),
+    ]);
+    const s=sales.rows[0],r=returns.rows[0],e=expenses.rows[0],f=fees.rows[0];
+    const grossSales=Number(s.gross_sales),returnAmount=Number(r.amount),netSales=grossSales-returnAmount;
+    const cost=Number(cogs.rows[0].amount),grossProfit=netSales-cost;
+    const operatingExpenses=Number(e.amount)+Number(f.commissions),netProfit=grossProfit-operatingExpenses;
+    const inputVat=Number(e.input_vat)+Number(f.fee_vat)+Number(purchaseVat.rows[0].vat);
+    return {summary:{orders:s.orders,gross_sales:grossSales,returns:returnAmount,net_sales:netSales,
+      discounts:Number(s.discounts),output_vat:Number(s.output_vat),input_vat:inputVat,vat_payable:Number(s.output_vat)-inputVat,
+      cogs:cost,gross_profit:grossProfit,gross_margin:netSales?grossProfit/netSales*100:0,
+      expenses:Number(e.amount),payment_commissions:Number(f.commissions),operating_expenses:operatingExpenses,
+      net_profit:netProfit,net_margin:netSales?netProfit/netSales*100:0},
+      branches:branches.rows,channels:channels.rows,payments:payments.rows};
   }
 
   // ── Sales Reports ──────────────────────────────────────────────────────────
@@ -180,12 +245,14 @@ export class ReportsService {
     const params: any[] = [companyId, from, to];
     if (variantId) { conditions.push('sm.variant_id=$4'); params.push(variantId); }
     const result = await this.db.query(
-      `SELECT sm.movement_type, sm.quantity, sm.notes,
+      `SELECT sm.movement_type, sm.quantity, sm.reason as notes,
               sm.created_at, p.name as product, pv.sku,
-              w_from.name as from_warehouse, w_to.name as to_warehouse
+              COALESCE(w_from.name,w.name) as from_warehouse, w_to.name as to_warehouse,
+              w.name as warehouse
        FROM stock_movements sm
        JOIN product_variants pv ON pv.id=sm.variant_id
        JOIN products p ON p.id=pv.product_id
+       LEFT JOIN warehouses w ON w.id=sm.warehouse_id
        LEFT JOIN warehouses w_from ON w_from.id=sm.from_warehouse_id
        LEFT JOIN warehouses w_to ON w_to.id=sm.to_warehouse_id
        WHERE ${conditions.join(' AND ')}
