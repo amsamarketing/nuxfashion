@@ -8,7 +8,7 @@ interface CartItem { id:string; sku:string; name:string; price:number; qty:numbe
 
 const METHODS=['Cash','Card','Tabby','Tamara','Apple Pay','Mada','Bank Transfer'];
 const TIER_RATE:Record<string,number>={bronze:.2,silver:.25,gold:.33,platinum:.5};
-const TIER_C:Record<string,string>={bronze:'#cd7f32',silver:'#aaa',gold:'#f59e0b',platinum:'#6366f1'};
+const TIER_C:Record<string,string>={bronze:'#cd7f32',silver:'#aaa',gold:'#f59e0b',platinum:'#0f766e'};
 const CAT_ICONS:Record<string,string>={'Abayas':'ti-shirt','Dresses':'ti-shirt','Tops':'ti-shirt','Bottoms':'ti-layout-bottombar','Bags':'ti-briefcase','Shoes':'ti-shoe','Accessories':'ti-diamond','Perfumes':'ti-bottle','Kids':'ti-baby-carriage','Sale':'ti-tag','Men':'ti-man','Women':'ti-woman','default':'ti-hanger'};
 const BG=['#fde8ef','#e8f0fe','#e8fde8','#fef3e8','#f0e8fe','#e8fef3','#fefde8','#e8f8fe'];
 const sar=(n:number)=>'SAR '+n.toFixed(2);
@@ -37,14 +37,14 @@ function VariantPicker({product,onAdd,onClose}:{product:any;onAdd:(v:any)=>void;
           <button onClick={onClose} style={{background:'none',border:'none',fontSize:22,cursor:'pointer',color:'#999'}}>×</button>
         </div>
         <div style={{padding:20,display:'grid',gap:14}}>
-          {sizes.length>0&&<div><div style={{fontSize:11,fontWeight:700,color:'#999',marginBottom:8}}>SIZE</div><div style={{display:'flex',gap:6,flexWrap:'wrap'}}>{sizes.map(s=><button key={s} onClick={()=>setSz(s)} style={{padding:'6px 14px',borderRadius:8,border:`2px solid ${sz===s?'#6366f1':'#e5e7eb'}`,background:sz===s?'#ede9fe':'#fff',color:sz===s?'#6366f1':'#333',fontWeight:sz===s?700:400,cursor:'pointer',fontSize:13}}>{s}</button>)}</div></div>}
-          {colors.length>0&&<div><div style={{fontSize:11,fontWeight:700,color:'#999',marginBottom:8}}>COLOR</div><div style={{display:'flex',gap:6,flexWrap:'wrap'}}>{colors.map(c=><button key={c} onClick={()=>setCl(c)} style={{padding:'6px 14px',borderRadius:8,border:`2px solid ${cl===c?'#6366f1':'#e5e7eb'}`,background:cl===c?'#ede9fe':'#fff',color:cl===c?'#6366f1':'#333',fontWeight:cl===c?700:400,cursor:'pointer',fontSize:13}}>{c}</button>)}</div></div>}
+          {sizes.length>0&&<div><div style={{fontSize:11,fontWeight:700,color:'#999',marginBottom:8}}>SIZE</div><div style={{display:'flex',gap:6,flexWrap:'wrap'}}>{sizes.map(s=><button key={s} onClick={()=>setSz(s)} style={{padding:'6px 14px',borderRadius:8,border:`2px solid ${sz===s?'#0f766e':'#e5e7eb'}`,background:sz===s?'#ccfbf1':'#fff',color:sz===s?'#0f766e':'#333',fontWeight:sz===s?700:400,cursor:'pointer',fontSize:13}}>{s}</button>)}</div></div>}
+          {colors.length>0&&<div><div style={{fontSize:11,fontWeight:700,color:'#999',marginBottom:8}}>COLOR</div><div style={{display:'flex',gap:6,flexWrap:'wrap'}}>{colors.map(c=><button key={c} onClick={()=>setCl(c)} style={{padding:'6px 14px',borderRadius:8,border:`2px solid ${cl===c?'#0f766e':'#e5e7eb'}`,background:cl===c?'#ccfbf1':'#fff',color:cl===c?'#0f766e':'#333',fontWeight:cl===c?700:400,cursor:'pointer',fontSize:13}}>{c}</button>)}</div></div>}
           {match&&<div style={{padding:'12px 14px',background:'#f8f9fa',borderRadius:10,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-            <div><div style={{fontSize:11,color:'#666'}}>Price</div><div style={{fontWeight:800,fontSize:20,color:'#6366f1'}}>{sar(parseFloat(match.selling_price||0))}</div></div>
+            <div><div style={{fontSize:11,color:'#666'}}>Price</div><div style={{fontWeight:800,fontSize:20,color:'#0f766e'}}>{sar(parseFloat(match.selling_price||0))}</div></div>
             {match.stock_quantity!==undefined&&<div style={{fontSize:12,color:match.stock_quantity>0?'#10b981':'#ef4444',fontWeight:600}}>{match.stock_quantity>0?`${match.stock_quantity} in stock`:'Out of stock'}</div>}
           </div>}
           <button onClick={()=>{if(match){onAdd({...match,productName:product.name,categoryName:product.categoryName||''});onClose();}}} disabled={!match}
-            style={{padding:'12px 0',borderRadius:10,background:match?'#6366f1':'#e5e7eb',color:'#fff',border:'none',cursor:match?'pointer':'not-allowed',fontSize:14,fontWeight:700}}>
+            style={{padding:'12px 0',borderRadius:10,background:match?'#0f766e':'#e5e7eb',color:'#fff',border:'none',cursor:match?'pointer':'not-allowed',fontSize:14,fontWeight:700}}>
             + Add to Cart
           </button>
         </div>
@@ -69,11 +69,11 @@ function HeldOrders({onRetrieve,onClose}:{onRetrieve:(o:any)=>void;onClose:()=>v
             <div key={h.id} style={{padding:'12px 20px',borderBottom:'1px solid #f5f5f5'}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
                 <div><div style={{fontWeight:700,fontSize:13}}>{h.id}</div><div style={{fontSize:11,color:'#999'}}>{h.time} · {h.cart?.length} items{h.note?' · '+h.note:''}</div></div>
-                <div style={{fontWeight:700,fontSize:14,color:'#6366f1'}}>{sar(h.cart?.reduce((s:number,i:any)=>s+i.price*i.qty,0)||0)}</div>
+                <div style={{fontWeight:700,fontSize:14,color:'#0f766e'}}>{sar(h.cart?.reduce((s:number,i:any)=>s+i.price*i.qty,0)||0)}</div>
               </div>
               <div style={{fontSize:11,color:'#666',marginBottom:8,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{h.cart?.map((i:any)=>i.name).join(', ')}</div>
               <div style={{display:'flex',gap:6}}>
-                <button onClick={()=>{onRetrieve(h);del(h.id);onClose();}} style={{flex:1,padding:'6px 0',borderRadius:8,background:'#6366f1',color:'#fff',border:'none',cursor:'pointer',fontSize:12,fontWeight:600}}>Retrieve</button>
+                <button onClick={()=>{onRetrieve(h);del(h.id);onClose();}} style={{flex:1,padding:'6px 0',borderRadius:8,background:'#0f766e',color:'#fff',border:'none',cursor:'pointer',fontSize:12,fontWeight:600}}>Retrieve</button>
                 <button onClick={()=>del(h.id)} style={{padding:'6px 14px',borderRadius:8,background:'#fef2f2',color:'#ef4444',border:'none',cursor:'pointer',fontSize:12,fontWeight:600}}>Delete</button>
               </div>
             </div>
@@ -302,7 +302,7 @@ export default function POSSale(){
             {receipt._walletUsed>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#27ae60'}}><span>Wallet</span><span>−{sar(receipt._walletUsed)}</span></div>}
             <div style={{display:'flex',justifyContent:'space-between',marginTop:8,alignItems:'center'}}>
               <span style={{fontWeight:700}}>Total Charged</span>
-              <span style={{fontWeight:900,fontSize:22,color:'#6366f1'}}>{sar(receipt._cashDue||0)}</span>
+              <span style={{fontWeight:900,fontSize:22,color:'#0f766e'}}>{sar(receipt._cashDue||0)}</span>
             </div>
             {receipt._change>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:13,color:'#27ae60',fontWeight:700,marginTop:4}}><span>Change</span><span>{sar(receipt._change)}</span></div>}
           </div>
@@ -314,7 +314,7 @@ export default function POSSale(){
             w.document.write(`<!DOCTYPE html><html><head><title>Receipt</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:monospace;font-size:12px;padding:20px}h2{text-align:center;font-size:16px;margin-bottom:2px}.c{text-align:center;color:#666;font-size:10px;margin-bottom:2px}.l{border-top:1px dashed #999;margin:8px 0}.r{display:flex;justify-content:space-between;margin-bottom:3px}.big{font-size:16px;font-weight:bold}</style></head><body><h2>NuxFashion</h2><p class="c">ERP · POS · E-Commerce</p><p class="c">ZATCA Compliant VAT Invoice</p><div class="l"></div><div class="r"><span>Order#</span><span>${receipt.order_number}</span></div><div class="r"><span>Date</span><span>${new Date().toLocaleDateString('en-SA')}</span></div><div class="r"><span>Method</span><span>${receipt._method}</span></div><div class="l"></div>${(receipt._items||[]).map((it:any)=>`<div class="r"><span>${it.name.substring(0,22)} x${it.qty}</span><span>SAR ${(it.price*it.qty).toFixed(2)}</span></div>`).join('')}<div class="l"></div>${receipt._totalDisc>0?`<div class="r" style="color:red"><span>Discount</span><span>-SAR ${receipt._totalDisc.toFixed(2)}</span></div>`:''}<div class="l"></div><div class="r big"><span>TOTAL</span><span>SAR ${(receipt._cashDue||0).toFixed(2)}</span></div>${receipt._change>0?`<div class="r" style="color:green"><span>Change</span><span>SAR ${receipt._change.toFixed(2)}</span></div>`:''}<div class="l"></div><div class="c">شكراً لتسوقك في نكس فاشن</div><div class="c">Thank you for shopping!</div></body></html>`);
             w.document.close();w.print();
           }} style={{flex:1,padding:'12px 0',border:'1px solid #ddd',borderRadius:10,background:'#fff',cursor:'pointer',fontSize:13,fontWeight:600}}>🖨 Print Receipt</button>
-          <button onClick={()=>setReceipt(null)} style={{flex:1,padding:'12px 0',border:'none',borderRadius:10,background:'#6366f1',color:'#fff',cursor:'pointer',fontSize:13,fontWeight:700}}>+ New Sale</button>
+          <button onClick={()=>setReceipt(null)} style={{flex:1,padding:'12px 0',border:'none',borderRadius:10,background:'#0f766e',color:'#fff',cursor:'pointer',fontSize:13,fontWeight:700}}>+ New Sale</button>
         </div>
       </div>
     </div>
@@ -330,7 +330,7 @@ export default function POSSale(){
         </div>
         <div style={{overflowY:'auto',flex:1}}>
           <div style={{padding:14,borderBottom:'1px solid #e5e7eb',background:'#f8fafc'}}>
-            <div style={{fontSize:11,fontWeight:800,color:'#6366f1',marginBottom:8}}>QUICK ADD CUSTOMER — REQUIRED FOR PAYMENT</div>
+            <div style={{fontSize:11,fontWeight:800,color:'#0f766e',marginBottom:8}}>QUICK ADD CUSTOMER — REQUIRED FOR PAYMENT</div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7}}>
               <input value={newCustName} onChange={e=>setNewCustName(e.target.value)} placeholder="Customer name *" style={{padding:'9px 10px',border:'1px solid #d1d5db',borderRadius:8,fontSize:12}}/>
               <input value={newCustPhone} onChange={e=>setNewCustPhone(e.target.value)} placeholder="Phone *" inputMode="tel" style={{padding:'9px 10px',border:'1px solid #d1d5db',borderRadius:8,fontSize:12}}/>
@@ -339,7 +339,7 @@ export default function POSSale(){
           </div>
           {customers.filter((c:any)=>!custSearch||c.name?.toLowerCase().includes(custSearch.toLowerCase())||c.phone?.includes(custSearch)).map((c:any)=>(
             <div key={c.id} onClick={()=>{setCustId(c.id);setShowCustModal(false);setCustSearch('');setUseWallet(false);setRedeemPts(false);}} style={{padding:'12px 16px',cursor:'pointer',borderBottom:'1px solid #f5f5f5',display:'flex',alignItems:'center',gap:12}} onMouseEnter={e=>(e.currentTarget.style.background='#f5f5f5')} onMouseLeave={e=>(e.currentTarget.style.background='')}>
-              <div style={{width:36,height:36,borderRadius:'50%',background:'#ede9fe',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,color:'#6366f1'}}>{c.name?.slice(0,2).toUpperCase()}</div>
+              <div style={{width:36,height:36,borderRadius:'50%',background:'#ccfbf1',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:800,color:'#0f766e'}}>{c.name?.slice(0,2).toUpperCase()}</div>
               <div style={{flex:1}}>
                 <div style={{fontWeight:600,fontSize:13}}>{c.name}</div>
                 <div style={{fontSize:11,color:'#999'}}>{c.phone||c.email||'—'} · {c.loyalty_points||0} pts · {sar(parseFloat(c.wallet_balance||0))}</div>
@@ -363,7 +363,7 @@ export default function POSSale(){
           {(recentOrders as any[]).map((o:any)=>(
             <div key={o.id} style={{padding:'12px 20px',borderBottom:'1px solid #f5f5f5',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <div><div style={{fontWeight:700,fontSize:13}}>#{o.order_number}</div><div style={{fontSize:11,color:'#999'}}>{new Date(o.created_at).toLocaleString('en-SA')}</div></div>
-              <div style={{textAlign:'right'}}><div style={{fontWeight:700,color:'#6366f1'}}>{sar(parseFloat(o.total||0))}</div><div style={{fontSize:11,color:'#999'}}>{o.status}</div></div>
+              <div style={{textAlign:'right'}}><div style={{fontWeight:700,color:'#0f766e'}}>{sar(parseFloat(o.total||0))}</div><div style={{fontSize:11,color:'#999'}}>{o.status}</div></div>
             </div>
           ))}
           {!(recentOrders as any[]).length&&<div style={{padding:40,textAlign:'center',color:'#999'}}>No orders yet</div>}
@@ -375,7 +375,7 @@ export default function POSSale(){
   const PaymentModal=()=>(
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.6)',zIndex:2000,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={()=>setShowPayModal(false)}>
       <div style={{background:'#fff',borderRadius:20,width:520,overflow:'hidden',display:'flex',flexDirection:'column',maxHeight:'90vh'}} onClick={e=>e.stopPropagation()}>
-        <div style={{padding:'18px 24px',background:'#6366f1',color:'#fff',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <div style={{padding:'18px 24px',background:'#0f766e',color:'#fff',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <span style={{fontWeight:800,fontSize:18}}>Payment — {sar(cashDue)}</span>
           <button onClick={()=>setShowPayModal(false)} style={{background:'none',border:'none',fontSize:24,cursor:'pointer',color:'rgba(255,255,255,.7)'}}>×</button>
         </div>
@@ -386,17 +386,17 @@ export default function POSSale(){
               <button className="btn-nx ghost sm" onClick={()=>{setNewCustPhone(customer.phone||'');setNewCustName('');setCustId('');}}>Change</button>
             </div>
           ):(
-            <div style={{padding:13,border:'1px solid #c7d2fe',background:'#f8faff',borderRadius:10}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}><div><div style={{fontSize:10,fontWeight:800,color:'#4338ca'}}>CUSTOMER · STEP 1</div><div style={{fontSize:12,color:'#64748b',marginTop:2}}>Enter phone to find loyalty profile</div></div><button style={{border:0,background:'none',color:'#6366f1',fontSize:11,fontWeight:700,cursor:'pointer'}} onClick={()=>setShowCustModal(true)}>Search by name</button></div>
+            <div style={{padding:13,border:'1px solid #99f6e4',background:'#f8fafc',borderRadius:10}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}><div><div style={{fontSize:10,fontWeight:800,color:'#115e59'}}>CUSTOMER · STEP 1</div><div style={{fontSize:12,color:'#64748b',marginTop:2}}>Enter phone to find loyalty profile</div></div><button style={{border:0,background:'none',color:'#0f766e',fontSize:11,fontWeight:700,cursor:'pointer'}} onClick={()=>setShowCustModal(true)}>Search by name</button></div>
               <div style={{display:'flex',gap:7}}>
-                <div style={{position:'relative',flex:1}}><i className="ti ti-phone" style={{position:'absolute',left:10,top:11,color:'#9ca3af'}}/><input ref={customerPhoneRef} autoFocus value={newCustPhone} onChange={e=>{setNewCustPhone(e.target.value);setNewCustName('');requestAnimationFrame(()=>customerPhoneRef.current?.focus())}} onKeyDown={e=>e.stopPropagation()} placeholder="05X XXX XXXX" inputMode="tel" autoComplete="tel" style={{width:'100%',boxSizing:'border-box',padding:'10px 11px 10px 32px',border:'1px solid #a5b4fc',borderRadius:8,fontSize:14,fontWeight:600}}/></div>
+                <div style={{position:'relative',flex:1}}><i className="ti ti-phone" style={{position:'absolute',left:10,top:11,color:'#9ca3af'}}/><input ref={customerPhoneRef} autoFocus value={newCustPhone} onChange={e=>{setNewCustPhone(e.target.value);setNewCustName('');requestAnimationFrame(()=>customerPhoneRef.current?.focus())}} onKeyDown={e=>e.stopPropagation()} placeholder="05X XXX XXXX" inputMode="tel" autoComplete="tel" style={{width:'100%',boxSizing:'border-box',padding:'10px 11px 10px 32px',border:'1px solid #5eead4',borderRadius:8,fontSize:14,fontWeight:600}}/></div>
               </div>
               {phoneMatch?(
                 <button style={{width:'100%',marginTop:8,padding:'9px 11px',border:'1px solid #bbf7d0',borderRadius:8,background:'#f0fdf4',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between'}} onClick={()=>{setCustId(phoneMatch.id);setNewCustName('');setNewCustPhone('')}}><span style={{textAlign:'left'}}><b style={{fontSize:13}}>{phoneMatch.name}</b><span style={{display:'block',fontSize:11,color:'#64748b'}}>{phoneMatch.phone} · Existing customer</span></span><span style={{fontSize:11,fontWeight:800,color:'#15803d'}}>SELECT <i className="ti ti-chevron-right"/></span></button>
               ):phoneDigits(newCustPhone).length>=7?(
-                <div style={{marginTop:10,paddingTop:10,borderTop:'1px dashed #c7d2fe'}}>
-                  <div style={{fontSize:10,fontWeight:800,color:'#4338ca',marginBottom:6}}>NEW CUSTOMER · STEP 2</div>
-                  <div style={{display:'flex',gap:7}}><input value={newCustName} onChange={e=>setNewCustName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&newCustName.trim()&&quickCustomer.mutate()} placeholder="Customer name *" style={{flex:1,padding:'9px 10px',border:'1px solid #a5b4fc',borderRadius:8,fontSize:13}}/><button className="btn-nx primary sm" disabled={!newCustName.trim()||quickCustomer.isPending} onClick={()=>quickCustomer.mutate()}>{quickCustomer.isPending?'Creating...':'Create & Continue'}</button></div>
+                <div style={{marginTop:10,paddingTop:10,borderTop:'1px dashed #99f6e4'}}>
+                  <div style={{fontSize:10,fontWeight:800,color:'#115e59',marginBottom:6}}>NEW CUSTOMER · STEP 2</div>
+                  <div style={{display:'flex',gap:7}}><input value={newCustName} onChange={e=>setNewCustName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&newCustName.trim()&&quickCustomer.mutate()} placeholder="Customer name *" style={{flex:1,padding:'9px 10px',border:'1px solid #5eead4',borderRadius:8,fontSize:13}}/><button className="btn-nx primary sm" disabled={!newCustName.trim()||quickCustomer.isPending} onClick={()=>quickCustomer.mutate()}>{quickCustomer.isPending?'Creating...':'Create & Continue'}</button></div>
                 </div>
               ):<div style={{fontSize:10,color:'#94a3b8',marginTop:6}}>Enter at least 7 digits to continue</div>}
             </div>
@@ -410,26 +410,26 @@ export default function POSSale(){
           </div>
           <div>
             <div style={{fontSize:11,fontWeight:700,color:'#999',marginBottom:8}}>PAYMENT METHOD</div>
-            <label style={{display:'flex',alignItems:'center',gap:8,padding:'9px 11px',marginBottom:8,border:'1px solid #c7d2fe',background:splitPayment?'#eef2ff':'#fff',borderRadius:9,cursor:'pointer',fontSize:12,fontWeight:700,color:'#4338ca'}}><input type="checkbox" checked={splitPayment} onChange={e=>{setSplitPayment(e.target.checked);setSplitAmounts({})}}/> Split Payment (Any 2 or More Methods)</label>
+            <label style={{display:'flex',alignItems:'center',gap:8,padding:'9px 11px',marginBottom:8,border:'1px solid #99f6e4',background:splitPayment?'#f0fdfa':'#fff',borderRadius:9,cursor:'pointer',fontSize:12,fontWeight:700,color:'#115e59'}}><input type="checkbox" checked={splitPayment} onChange={e=>{setSplitPayment(e.target.checked);setSplitAmounts({})}}/> Split Payment (Any 2 or More Methods)</label>
             {splitPayment?(
-              <div style={{padding:12,border:'1px solid #c7d2fe',background:'#f8faff',borderRadius:10}}>
+              <div style={{padding:12,border:'1px solid #99f6e4',background:'#f8fafc',borderRadius:10}}>
                 <div style={{fontSize:10,fontWeight:700,color:'#64748b',marginBottom:7}}>ENTER AMOUNT AGAINST EACH PAYMENT METHOD</div>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:7}}>
-                  {METHODS.map((paymentMethod,index)=><label key={paymentMethod} style={{display:'flex',alignItems:'center',gap:7,padding:'7px 9px',background:Number(splitAmounts[paymentMethod]||0)>0?'#eef2ff':'#fff',border:'1px solid #c7d2fe',borderRadius:8}}>
-                    <span style={{width:76,fontSize:11,fontWeight:700,color:'#4338ca'}}>{paymentMethod}</span>
+                  {METHODS.map((paymentMethod,index)=><label key={paymentMethod} style={{display:'flex',alignItems:'center',gap:7,padding:'7px 9px',background:Number(splitAmounts[paymentMethod]||0)>0?'#f0fdfa':'#fff',border:'1px solid #99f6e4',borderRadius:8}}>
+                    <span style={{width:76,fontSize:11,fontWeight:700,color:'#115e59'}}>{paymentMethod}</span>
                     <input autoFocus={index===0} type="number" min="0" max={cashDue} value={splitAmounts[paymentMethod]||''} onChange={e=>setSplitAmounts(values=>({...values,[paymentMethod]:e.target.value}))} placeholder="0.00" style={{width:'100%',minWidth:0,boxSizing:'border-box',padding:'7px 8px',border:'1px solid #d1d5db',borderRadius:6,fontSize:13,fontWeight:700,textAlign:'right'}}/>
                   </label>)}
                 </div>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:7,marginTop:10,paddingTop:10,borderTop:'1px dashed #c7d2fe',textAlign:'center'}}>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:7,marginTop:10,paddingTop:10,borderTop:'1px dashed #99f6e4',textAlign:'center'}}>
                   <div><div style={{fontSize:9,color:'#64748b'}}>BILL TOTAL</div><b style={{fontSize:12}}>{sar(cashDue)}</b></div>
-                  <div><div style={{fontSize:9,color:'#64748b'}}>ALLOCATED</div><b style={{fontSize:12,color:splitPaid>cashDue?'#dc2626':'#4338ca'}}>{sar(splitPaid)}</b></div>
+                  <div><div style={{fontSize:9,color:'#64748b'}}>ALLOCATED</div><b style={{fontSize:12,color:splitPaid>cashDue?'#dc2626':'#115e59'}}>{sar(splitPaid)}</b></div>
                   <div><div style={{fontSize:9,color:'#64748b'}}>REMAINING</div><b style={{fontSize:12,color:splitRemaining<.01?'#16a34a':'#dc2626'}}>{splitPaid>cashDue?`Over ${sar(splitPaid-cashDue)}`:sar(splitRemaining)}</b></div>
                 </div>
                 {splitLines.length<2&&<div style={{fontSize:10,color:'#b45309',marginTop:7,fontWeight:600}}>Enter amounts in at least two payment methods.</div>}
               </div>
             ):(
             <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6}}>
-              {METHODS.map(m=><button key={m} onClick={()=>setMethod(m)} style={{padding:'9px 4px',borderRadius:10,border:`2px solid ${method===m?'#6366f1':'#e5e7eb'}`,background:method===m?'#ede9fe':'#fff',color:method===m?'#6366f1':'#555',fontWeight:method===m?700:400,cursor:'pointer',fontSize:11}}>{m}</button>)}
+              {METHODS.map(m=><button key={m} onClick={()=>setMethod(m)} style={{padding:'9px 4px',borderRadius:10,border:`2px solid ${method===m?'#0f766e':'#e5e7eb'}`,background:method===m?'#ccfbf1':'#fff',color:method===m?'#0f766e':'#555',fontWeight:method===m?700:400,cursor:'pointer',fontSize:11}}>{m}</button>)}
             </div>
             )}
           </div>
@@ -437,12 +437,12 @@ export default function POSSale(){
             <div style={{fontSize:11,fontWeight:700,color:'#999',marginBottom:6}}>COUPON / GIFT CARD</div>
             <div style={{display:'flex',gap:8,marginBottom:8}}>
               {appliedCoupon?<div style={{flex:1,display:'flex',justifyContent:'space-between',padding:'8px 12px',background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,fontSize:12}}><span style={{color:'#15803d',fontWeight:700}}>{appliedCoupon.code} — {appliedCoupon.type==='percentage'?appliedCoupon.value+'%':'SAR '+appliedCoupon.value} off</span><button onClick={()=>setAppliedCoupon(null)} style={{background:'none',border:'none',cursor:'pointer',color:'#e74c3c',fontSize:16}}>×</button></div>:(
-                <><input value={couponInput} onChange={e=>setCouponInput(e.target.value.toUpperCase())} placeholder="COUPON CODE" onKeyDown={e=>e.key==='Enter'&&applyCoupon()} style={{flex:1,padding:'8px 12px',border:'1px solid #e5e7eb',borderRadius:8,fontSize:12,fontFamily:'monospace',letterSpacing:1}}/><button onClick={applyCoupon} style={{padding:'8px 14px',borderRadius:8,background:'#6366f1',color:'#fff',border:'none',cursor:'pointer',fontWeight:600,fontSize:12}}>Apply</button></>
+                <><input value={couponInput} onChange={e=>setCouponInput(e.target.value.toUpperCase())} placeholder="COUPON CODE" onKeyDown={e=>e.key==='Enter'&&applyCoupon()} style={{flex:1,padding:'8px 12px',border:'1px solid #e5e7eb',borderRadius:8,fontSize:12,fontFamily:'monospace',letterSpacing:1}}/><button onClick={applyCoupon} style={{padding:'8px 14px',borderRadius:8,background:'#0f766e',color:'#fff',border:'none',cursor:'pointer',fontWeight:600,fontSize:12}}>Apply</button></>
               )}
             </div>
             <div style={{display:'flex',gap:8}}>
               {appliedGC?<div style={{flex:1,display:'flex',justifyContent:'space-between',padding:'8px 12px',background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,fontSize:12}}><span style={{color:'#15803d',fontWeight:700}}>{appliedGC.code} · using {sar(gcUsed)}</span><button onClick={()=>setAppliedGC(null)} style={{background:'none',border:'none',cursor:'pointer',color:'#e74c3c',fontSize:16}}>×</button></div>:(
-                <><input value={gcInput} onChange={e=>setGcInput(e.target.value.toUpperCase())} placeholder="GC-XXXX-XXXX" onKeyDown={e=>e.key==='Enter'&&applyGC()} style={{flex:1,padding:'8px 12px',border:'1px solid #e5e7eb',borderRadius:8,fontSize:12,fontFamily:'monospace',letterSpacing:1}}/><button onClick={applyGC} style={{padding:'8px 14px',borderRadius:8,background:'#6366f1',color:'#fff',border:'none',cursor:'pointer',fontWeight:600,fontSize:12}}>Apply</button></>
+                <><input value={gcInput} onChange={e=>setGcInput(e.target.value.toUpperCase())} placeholder="GC-XXXX-XXXX" onKeyDown={e=>e.key==='Enter'&&applyGC()} style={{flex:1,padding:'8px 12px',border:'1px solid #e5e7eb',borderRadius:8,fontSize:12,fontFamily:'monospace',letterSpacing:1}}/><button onClick={applyGC} style={{padding:'8px 14px',borderRadius:8,background:'#0f766e',color:'#fff',border:'none',cursor:'pointer',fontWeight:600,fontSize:12}}>Apply</button></>
               )}
             </div>
           </div>
@@ -464,14 +464,14 @@ export default function POSSale(){
               <input type="number" value={cashGiven} onChange={e=>setCashGiven(e.target.value)} placeholder={cashDue.toFixed(2)} style={{width:'100%',padding:'10px 12px',border:'1px solid #e5e7eb',borderRadius:8,fontSize:18,fontWeight:700,boxSizing:'border-box',marginBottom:8}}/>
               <div style={{display:'flex',gap:6,marginBottom:6}}>
                 {[50,100,200,500].map(a=><button key={a} onClick={()=>setCashGiven(String(a))} style={{flex:1,padding:'6px 0',borderRadius:6,border:'1px solid #e5e7eb',background:'#fff',cursor:'pointer',fontSize:13}}>{a}</button>)}
-                <button onClick={()=>setCashGiven(String(Math.ceil(cashDue/10)*10))} style={{flex:1,padding:'6px 0',borderRadius:6,border:'1px solid #6366f1',background:'#ede9fe',color:'#6366f1',cursor:'pointer',fontSize:11,fontWeight:700}}>Round↑</button>
+                <button onClick={()=>setCashGiven(String(Math.ceil(cashDue/10)*10))} style={{flex:1,padding:'6px 0',borderRadius:6,border:'1px solid #0f766e',background:'#ccfbf1',color:'#0f766e',cursor:'pointer',fontSize:11,fontWeight:700}}>Round↑</button>
               </div>
               {change>0&&<div style={{padding:'6px 12px',background:'#f0fdf4',borderRadius:8,display:'flex',justifyContent:'space-between',fontSize:13,color:'#15803d',fontWeight:700}}><span>Change</span><span>{sar(change)}</span></div>}
               {cashGiven&&parseFloat(cashGiven)<cashDue&&<div style={{marginTop:4,fontSize:12,color:'#ef4444',fontWeight:600}}>⚠ Short {sar(cashDue-parseFloat(cashGiven))}</div>}
             </div>
           )}
           <input value={orderNote} onChange={e=>setOrderNote(e.target.value)} placeholder="Order note (optional)…" style={{padding:'8px 12px',border:'1px solid #e5e7eb',borderRadius:8,fontSize:13}}/>
-          <button disabled={cart.length===0||!currentSession?.id||!customer?.name||!customer?.phone||!splitComplete||chargeMut.isPending} onClick={()=>chargeMut.mutate()} style={{padding:'16px 0',borderRadius:12,background:cart.length===0||!currentSession?.id||!customer?.name||!customer?.phone||!splitComplete?'#e5e7eb':'#6366f1',color:'#fff',border:'none',cursor:cart.length===0||!currentSession?.id||!customer?.name||!customer?.phone||!splitComplete?'not-allowed':'pointer',fontSize:15,fontWeight:800}}>
+          <button disabled={cart.length===0||!currentSession?.id||!customer?.name||!customer?.phone||!splitComplete||chargeMut.isPending} onClick={()=>chargeMut.mutate()} style={{padding:'16px 0',borderRadius:12,background:cart.length===0||!currentSession?.id||!customer?.name||!customer?.phone||!splitComplete?'#e5e7eb':'#0f766e',color:'#fff',border:'none',cursor:cart.length===0||!currentSession?.id||!customer?.name||!customer?.phone||!splitComplete?'not-allowed':'pointer',fontSize:15,fontWeight:800}}>
             {chargeMut.isPending?'Processing…':`✓ Charge ${sar(cashDue)}`}
           </button>
         </div>
@@ -491,13 +491,13 @@ export default function POSSale(){
         {/* Product workspace */}
         <div style={{display:'flex',flexDirection:'column',flex:1,minWidth:0,overflow:'hidden'}}>
       <div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',background:'#fff',borderBottom:'1px solid #e5e7eb',flexShrink:0}}>
-        <div style={{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',background:'#6366f1',color:'#fff',borderRadius:8,fontSize:12,fontWeight:700,flexShrink:0}}><i className="ti ti-clock" style={{fontSize:13}}/><Clock/></div>
+        <div style={{display:'flex',alignItems:'center',gap:6,padding:'5px 12px',background:'#0f766e',color:'#fff',borderRadius:8,fontSize:12,fontWeight:700,flexShrink:0}}><i className="ti ti-clock" style={{fontSize:13}}/><Clock/></div>
         <div style={{flex:1,display:'flex',alignItems:'center',gap:8,padding:'7px 12px',background:'#f9fafb',border:'1px solid #e5e7eb',borderRadius:10}}>
           <i className="ti ti-barcode" style={{fontSize:15,color:'#9ca3af'}}/>
           <input ref={searchRef} value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>e.key==='Enter'&&scanOrAddProduct()} placeholder="Search product or scan barcode…" autoFocus={!showPayModal} style={{border:'none',background:'transparent',outline:'none',flex:1,fontSize:13}}/>
           {search&&<button onClick={()=>setSearch('')} style={{background:'none',border:'none',cursor:'pointer',color:'#9ca3af',fontSize:18}}>×</button>}
         </div>
-        <button onClick={()=>setShowCustModal(true)} style={{display:'flex',alignItems:'center',gap:6,padding:'7px 12px',border:`2px solid ${custId?'#6366f1':'#e5e7eb'}`,borderRadius:10,background:custId?'#ede9fe':'#fff',cursor:'pointer',fontSize:12,color:custId?'#6366f1':'#666',fontWeight:custId?700:400,flexShrink:0}}>
+        <button onClick={()=>setShowCustModal(true)} style={{display:'flex',alignItems:'center',gap:6,padding:'7px 12px',border:`2px solid ${custId?'#0f766e':'#e5e7eb'}`,borderRadius:10,background:custId?'#ccfbf1':'#fff',cursor:'pointer',fontSize:12,color:custId?'#0f766e':'#666',fontWeight:custId?700:400,flexShrink:0}}>
           <i className={'ti '+(custId?'ti-user-check':'ti-user-search')} style={{fontSize:14}}/>
           <span style={{maxWidth:120,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{customer?customer.name:'Customer'}</span>
           {custId&&<span onClick={e=>{e.stopPropagation();setCustId('');setUseWallet(false);setRedeemPts(false);}} style={{fontSize:16,color:'#9ca3af',cursor:'pointer'}}>×</span>}
@@ -512,15 +512,15 @@ export default function POSSale(){
       <div style={{display:'flex',flex:1,overflow:'hidden'}}>
         {/* Category sidebar */}
         <div style={{width:76,background:'#fff',borderRight:'1px solid #e5e7eb',display:'flex',flexDirection:'column',alignItems:'center',paddingTop:6,gap:2,overflowY:'auto',flexShrink:0}}>
-          <button onClick={()=>setCatFilter('')} style={{width:64,padding:'8px 4px',borderRadius:10,border:'none',background:catFilter===''?'#ede9fe':'transparent',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:3,marginBottom:4}}>
-            <div style={{width:38,height:38,borderRadius:10,background:catFilter===''?'#6366f1':'#f3f4f6',display:'flex',alignItems:'center',justifyContent:'center'}}><i className="ti ti-layout-grid" style={{fontSize:17,color:catFilter===''?'#fff':'#666'}}/></div>
-            <span style={{fontSize:9,fontWeight:600,color:catFilter===''?'#6366f1':'#666'}}>All</span>
+          <button onClick={()=>setCatFilter('')} style={{width:64,padding:'8px 4px',borderRadius:10,border:'none',background:catFilter===''?'#ccfbf1':'transparent',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:3,marginBottom:4}}>
+            <div style={{width:38,height:38,borderRadius:10,background:catFilter===''?'#0f766e':'#f3f4f6',display:'flex',alignItems:'center',justifyContent:'center'}}><i className="ti ti-layout-grid" style={{fontSize:17,color:catFilter===''?'#fff':'#666'}}/></div>
+            <span style={{fontSize:9,fontWeight:600,color:catFilter===''?'#0f766e':'#666'}}>All</span>
           </button>
           {categories.map((cat:any,i:number)=>{
             const icon=CAT_ICONS[cat.name]||CAT_ICONS['default'];const active=catFilter===cat.id;
-            return(<button key={cat.id} onClick={()=>setCatFilter(active?'':cat.id)} style={{width:64,padding:'7px 4px',borderRadius:10,border:'none',background:active?'#ede9fe':'transparent',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
-              <div style={{width:38,height:38,borderRadius:10,background:active?'#6366f1':BG[i%BG.length],display:'flex',alignItems:'center',justifyContent:'center'}}><i className={'ti '+icon} style={{fontSize:17,color:active?'#fff':'#555'}}/></div>
-              <span style={{fontSize:9,fontWeight:600,color:active?'#6366f1':'#666',textAlign:'center',maxWidth:60,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{cat.name}</span>
+            return(<button key={cat.id} onClick={()=>setCatFilter(active?'':cat.id)} style={{width:64,padding:'7px 4px',borderRadius:10,border:'none',background:active?'#ccfbf1':'transparent',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
+              <div style={{width:38,height:38,borderRadius:10,background:active?'#0f766e':BG[i%BG.length],display:'flex',alignItems:'center',justifyContent:'center'}}><i className={'ti '+icon} style={{fontSize:17,color:active?'#fff':'#555'}}/></div>
+              <span style={{fontSize:9,fontWeight:600,color:active?'#0f766e':'#666',textAlign:'center',maxWidth:60,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{cat.name}</span>
             </button>);
           })}
         </div>
@@ -537,8 +537,8 @@ export default function POSSale(){
                 const hasVars=(p.variants||[]).length>1;
                 const catName=categories.find((c:any)=>c.id===p.category_id)?.name||'';
                 return(<div key={p.id} onClick={()=>hasVars?setPickerProd({...p,categoryName:catName}):firstV&&addToCart({...firstV,productName:p.name,categoryName:catName})}
-                  style={{background:'#fff',borderRadius:12,overflow:'hidden',cursor:'pointer',border:`2px solid ${inCart?'#6366f1':'transparent'}`,boxShadow:inCart?'0 0 0 3px #ede9fe':'0 1px 3px rgba(0,0,0,.06)',transition:'all .15s',position:'relative'}}>
-                  {inCart&&<div style={{position:'absolute',top:7,right:7,width:20,height:20,background:'#6366f1',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:800,color:'#fff',zIndex:1}}>{qty}</div>}
+                  style={{background:'#fff',borderRadius:12,overflow:'hidden',cursor:'pointer',border:`2px solid ${inCart?'#0f766e':'transparent'}`,boxShadow:inCart?'0 0 0 3px #ccfbf1':'0 1px 3px rgba(0,0,0,.06)',transition:'all .15s',position:'relative'}}>
+                  {inCart&&<div style={{position:'absolute',top:7,right:7,width:20,height:20,background:'#0f766e',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:800,color:'#fff',zIndex:1}}>{qty}</div>}
                   <div style={{height:100,background:BG[i%BG.length],display:'flex',alignItems:'center',justifyContent:'center'}}>
                     {p.images?.[0]?<img src={p.images[0]} style={{width:'100%',height:'100%',objectFit:'cover'}} alt={p.name}/>:<i className={'ti '+(CAT_ICONS[catName]||'ti-hanger')} style={{fontSize:38,color:'rgba(0,0,0,.18)'}}/>}
                   </div>
@@ -547,7 +547,7 @@ export default function POSSale(){
                     <div style={{fontWeight:700,fontSize:11,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginBottom:4}}>{p.name}</div>
                     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                       <span style={{fontWeight:800,fontSize:12}}>{sar(price)}</span>
-                      <span style={{fontSize:10,padding:'2px 6px',borderRadius:6,background:hasVars?'#fef3e8':'#ede9fe',color:hasVars?'#d97706':'#6366f1',fontWeight:600}}>{hasVars?`${p.variants.length} vars`:'+ Add'}</span>
+                      <span style={{fontSize:10,padding:'2px 6px',borderRadius:6,background:hasVars?'#fef3e8':'#ccfbf1',color:hasVars?'#d97706':'#0f766e',fontWeight:600}}>{hasVars?`${p.variants.length} vars`:'+ Add'}</span>
                     </div>
                   </div>
                 </div>);
@@ -560,10 +560,10 @@ export default function POSSale(){
 
         {/* Cart */}
         <div style={{width:350,background:'#fff',borderLeft:'1px solid #e5e7eb',display:'flex',flexDirection:'column',flexShrink:0,boxShadow:'-4px 0 18px rgba(15,23,42,.05)'}}>
-          <div style={{padding:'13px 15px',borderBottom:'1px solid #e5e7eb',display:'flex',justifyContent:'space-between',alignItems:'center',background:'linear-gradient(135deg,#fff,#f8faff)'}}>
-            <div><span style={{fontWeight:900,fontSize:15,display:'flex',alignItems:'center',gap:6}}><i className="ti ti-receipt" style={{color:'#6366f1'}}/>Current Order</span><div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>Items added to this sale</div></div>
+          <div style={{padding:'13px 15px',borderBottom:'1px solid #e5e7eb',display:'flex',justifyContent:'space-between',alignItems:'center',background:'linear-gradient(135deg,#fff,#f8fafc)'}}>
+            <div><span style={{fontWeight:900,fontSize:15,display:'flex',alignItems:'center',gap:6}}><i className="ti ti-receipt" style={{color:'#0f766e'}}/>Current Order</span><div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>Items added to this sale</div></div>
             <div style={{display:'flex',gap:6,alignItems:'center'}}>
-              <span style={{fontSize:11,padding:'3px 9px',borderRadius:10,background:'#ede9fe',color:'#6366f1',fontWeight:800}}>{cart.reduce((sum,item)=>sum+item.qty,0)} pcs</span>
+              <span style={{fontSize:11,padding:'3px 9px',borderRadius:10,background:'#ccfbf1',color:'#0f766e',fontWeight:800}}>{cart.reduce((sum,item)=>sum+item.qty,0)} pcs</span>
               {cart.length>0&&<button onClick={()=>setCart([])} style={{fontSize:11,padding:'2px 8px',borderRadius:6,background:'#fef2f2',color:'#ef4444',fontWeight:600,border:'none',cursor:'pointer'}}>Clear</button>}
             </div>
           </div>
@@ -581,7 +581,7 @@ export default function POSSale(){
                   <div style={{display:'flex',alignItems:'center',gap:4}}>
                     <button onClick={()=>setQty(item.id,item.qty-1)} style={{width:20,height:20,borderRadius:'50%',border:'1px solid #e5e7eb',background:'#f9fafb',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12}}>−</button>
                     <span style={{fontWeight:700,fontSize:13,minWidth:16,textAlign:'center'}}>{item.qty}</span>
-                    <button onClick={()=>setQty(item.id,item.qty+1)} style={{width:20,height:20,borderRadius:'50%',border:'none',background:'#6366f1',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12}}>+</button>
+                    <button onClick={()=>setQty(item.id,item.qty+1)} style={{width:20,height:20,borderRadius:'50%',border:'none',background:'#0f766e',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12}}>+</button>
                   </div>
                   <div style={{textAlign:'right'}}>
                     <div style={{fontWeight:700,fontSize:12}}>{sar(item.price*item.qty-(item.discount||0))}</div>
@@ -601,7 +601,7 @@ export default function POSSale(){
             ))}
             <div style={{borderTop:'2px dashed #e5e7eb',paddingTop:8,marginTop:6,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <span style={{fontWeight:800,fontSize:13}}>Total Due</span>
-              <span style={{fontWeight:900,fontSize:20,color:'#6366f1'}}>{sar(cashDue)}</span>
+              <span style={{fontWeight:900,fontSize:20,color:'#0f766e'}}>{sar(cashDue)}</span>
             </div>
             {ptsEarned>0&&cart.length>0&&<div style={{fontSize:10,color:'#f59e0b',textAlign:'right',fontWeight:600}}>+{ptsEarned} pts will be earned</div>}
           </div>
@@ -609,13 +609,13 @@ export default function POSSale(){
       </div>
 
       {/* Bottom toolbar */}
-      <div style={{display:'flex',padding:'0 10px',height:52,background:'#1e1b4b',alignItems:'center',gap:6,flexShrink:0}}>
+      <div style={{display:'flex',padding:'0 10px',height:52,background:'#0f172a',alignItems:'center',gap:6,flexShrink:0}}>
         {[
           {label:'Hold',icon:'ti-player-pause',color:'#fbbf24',bg:'rgba(251,191,36,.15)',action:holdSale},
           {label:'Retrieve',icon:'ti-player-play',color:'#6ee7b7',bg:'rgba(110,231,183,.15)',action:()=>setShowHeld(true)},
           {label:'Orders',icon:'ti-list',color:'#93c5fd',bg:'rgba(147,197,253,.15)',action:()=>setShowOrders(true)},
           {label:'Void',icon:'ti-ban',color:'#f87171',bg:'rgba(248,113,113,.15)',action:()=>{if(cart.length&&confirm('Void current sale?'))resetSale();}},
-          {label:'Payment',icon:'ti-credit-card',color:'#fff',bg:'#6366f1',action:()=>{if(!cart.length){toast('Add items first','error');return;}if(!currentSession?.id){toast('Start shift from Z-Report before payment','error');return;}setShowPayModal(true);}},
+          {label:'Payment',icon:'ti-credit-card',color:'#fff',bg:'#0f766e',action:()=>{if(!cart.length){toast('Add items first','error');return;}if(!currentSession?.id){toast('Start shift from Z-Report before payment','error');return;}setShowPayModal(true);}},
         ].map(btn=>(
           <button key={btn.label} onClick={btn.action} style={{flex:btn.label==='Payment'?2:1,height:40,display:'flex',alignItems:'center',justifyContent:'center',gap:5,background:btn.bg,color:btn.color,border:'none',borderRadius:8,cursor:'pointer',fontSize:11,fontWeight:700}} onMouseEnter={e=>(e.currentTarget.style.opacity='.75')} onMouseLeave={e=>(e.currentTarget.style.opacity='1')}>
             <i className={'ti '+btn.icon} style={{fontSize:14}}/>{btn.label}
