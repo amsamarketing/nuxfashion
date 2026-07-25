@@ -112,7 +112,7 @@ export class ProductsService implements OnModuleInit {
   }
 
   async generateLifestyle(productId:string,companyId:string,body:any){
-    const product=await this.findOne(productId,companyId);
+    const product:any=await this.findOne(productId,companyId);
     const source=String(body?.source_image||product.image_url||'');
     if(!source)throw new BadRequestException('Upload a clear product image first');
     const key=process.env.OPENAI_API_KEY;if(!key)throw new ServiceUnavailableException('AI image generation is not configured. Add OPENAI_API_KEY in Railway.');
