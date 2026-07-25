@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://your-nuxfashion-api.railway.app';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api-production-a2d2.up.railway.app/api/v1';
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -49,6 +49,17 @@ export interface CheckoutDto {
   /** 'cash_on_delivery' | 'bank_transfer' */
   payment_method: 'cash_on_delivery' | 'bank_transfer';
   lines: { variant_id: string; quantity: number }[];
+}
+
+export interface CheckoutResult {
+  order_number: string;
+  status: string;
+  payment_method: string;
+  subtotal: number;
+  shipping: number;
+  vat: number;
+  total: number;
+  estimated_delivery?: string;
 }
 
 // ── Wishlist + Cart ───────────────────────────────────────────────────────────

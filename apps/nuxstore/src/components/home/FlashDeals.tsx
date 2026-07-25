@@ -90,7 +90,7 @@ export default function FlashDeals({ locale, products }: { locale: string; produ
                 </div>
               </div>
               <button
-                onClick={e => { e.preventDefault(); addItem({ id: p.id, productId: p.id, variantId: p.variantId || p.id, name: p.name, nameAr: p.nameAr, image: p.image, price: p.price, originalPrice: p.originalPrice, sku: p.sku || p.id, stock: p.stock || 99 }); toast.success(isRtl ? 'أُضيف ✓' : 'Added ✓', {duration:1500}); }}
+                onClick={e => { e.preventDefault(); addItem({...p, variantId: p.id, sku: p.id, stock: 10}); toast.success(isRtl ? 'أُضيف ✓' : 'Added ✓', {duration:1500}); }}
                 className="w-full bg-gold-500 hover:bg-gold-400 text-white text-xs font-bold py-2 rounded-lg transition-colors"
               >
                 {isRtl ? 'أضف للسلة' : 'Add to Cart'}

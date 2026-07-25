@@ -1,9 +1,9 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
-  "/[locale]/brand/[slug]/page": "app/[locale]/brand/[slug]/page.js",
   "/[locale]/account/page": "app/[locale]/account/page.js",
-  "/[locale]/category/[slug]/page": "app/[locale]/category/[slug]/page.js",
+  "/[locale]/brand/[slug]/page": "app/[locale]/brand/[slug]/page.js",
   "/[locale]/cart/page": "app/[locale]/cart/page.js",
+  "/[locale]/category/[slug]/page": "app/[locale]/category/[slug]/page.js",
   "/[locale]/checkout/page": "app/[locale]/checkout/page.js",
   "/[locale]/page": "app/[locale]/page.js",
   "/[locale]/product/[slug]/page": "app/[locale]/product/[slug]/page.js",

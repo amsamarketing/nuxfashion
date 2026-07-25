@@ -72,7 +72,7 @@ export default function AccountPage() {
               <button key={item.k} onClick={() => setActive(item.k)}
                 className={`w-full flex items-center justify-between px-4 py-3.5 text-sm transition-all ${i < items.length - 1 ? 'border-b border-gray-50' : ''} ${active === item.k ? 'bg-luxury-900 text-white' : 'text-gray-700 hover:bg-gray-50'}`}>
                 <div className="flex items-center gap-3">
-                  {(() => { const Icon = item.icon as any; return <Icon size={16}/> })()}
+                  <item.icon size={16}/>
                   <span className="font-medium">{item.label}</span>
                 </div>
                 <div className="flex items-center gap-2">

@@ -4,34 +4,51 @@ import { useLocale } from 'next-intl';
 import { useCartStore } from '@/store/cart';
 import { CheckCircle, MapPin, CreditCard, ChevronRight, Truck, Store } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { storefrontApi, type CheckoutResult } from '@/lib/api';
 
 const PAYMENT_METHODS = [
-  { id: 'cash',  iconEn: '💵', labelEn: 'Cash on Delivery',    labelAr: 'الدفع عند الاستلام',   subEn: 'Pay when delivered',        subAr: 'ادفع عند الاستلام' },
-  { id: 'card',  iconEn: '💳', labelEn: 'Credit / Debit Card', labelAr: 'بطاقة ائتمان / مدى',   subEn: 'Visa, Mastercard, Mada',    subAr: 'فيزا، ماستر، مدى' },
-  { id: 'mada',  iconEn: '🏦', labelEn: 'Mada',               labelAr: 'مدى',                   subEn: 'Saudi debit card',           subAr: 'بطاقة مدى السعودية' },
-  { id: 'apple', iconEn: '🍎', labelEn: 'Apple Pay',           labelAr: 'Apple Pay',             subEn: 'Touch or Face ID',           subAr: 'بصمة أو وجه' },
-  { id: 'tabby', iconEn: '🟣', labelEn: 'Tabby',              labelAr: 'تابي',                  subEn: 'Pay in 4 — 0% interest',    subAr: 'ادفع على 4 دفعات — بدون فوائد' },
-  { id: 'tamara',iconEn: '🟤', labelEn: 'Tamara',             labelAr: 'تمارا',                 subEn: 'Pay in 3 — 0% interest',    subAr: 'ادفع على 3 دفعات — بدون فوائد' },
-  { id: 'stc',   iconEn: '📱', labelEn: 'STC Pay',            labelAr: 'STC Pay',               subEn: 'Mobile wallet',              subAr: 'محفظة إلكترونية' },
-  { id: 'wallet',iconEn: '💰', labelEn: 'Wallet Balance',     labelAr: 'رصيد المحفظة',          subEn: 'Available: SAR 120',        subAr: 'المتاح: 120 ريال' },
+  { id: 'cash_on_delivery', iconEn: '💵', labelEn: 'Cash on Delivery', labelAr: 'الدفع عند الاستلام', subEn: 'Pay when delivered', subAr: 'ادفع عند الاستلام' },
+  { id: 'bank_transfer', iconEn: '🏦', labelEn: 'Bank Transfer', labelAr: 'تحويل بنكي', subEn: 'Transfer after placing order', subAr: 'حوّل بعد تأكيد الطلب' },
 ];
 
 export default function CheckoutPage() {
   const locale = useLocale();
   const isRtl = locale === 'ar';
-  const { items, subtotal, vat, total } = useCartStore();
+  const { items, subtotal, vat, total, coupon, clearCart } = useCartStore();
   const [step, setStep] = useState(1);
   const [delivery, setDelivery] = useState('standard');
-  const [payment, setPayment] = useState('card');
+  const [payment, setPayment] = useState<'cash_on_delivery' | 'bank_transfer'>('cash_on_delivery');
   const [form, setForm] = useState({ name: '', phone: '', address: '', city: '', district: '' });
   const [placed, setPlaced] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState<CheckoutResult | null>(null);
 
   const update = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
 
-  const handleOrder = () => {
-    if (!form.name || !form.phone || !form.address) { toast.error(isRtl ? 'يرجى ملء الحقول المطلوبة' : 'Please fill required fields'); return; }
-    setPlaced(true);
+  const handleOrder = async () => {
+    if (!form.name || !form.phone || !form.address || !form.city) { toast.error(isRtl ? 'يرجى ملء الحقول المطلوبة' : 'Please fill required fields'); return; }
+    if (!items.length) { toast.error(isRtl ? 'سلة التسوق فارغة' : 'Your cart is empty'); return; }
+    try {
+      setSubmitting(true);
+      const order = await storefrontApi.checkout({
+        customer_name: form.name.trim(),
+        phone: form.phone.trim(),
+        city: form.city,
+        address: form.address.trim(),
+        district: form.district.trim() || undefined,
+        coupon_code: coupon || undefined,
+        payment_method: payment,
+        lines: items.map(item => ({ variant_id: item.variantId, quantity: item.qty })),
+      });
+      setResult(order);
+      clearCart();
+      setPlaced(true);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || (isRtl ? 'تعذر تأكيد الطلب، حاول مرة أخرى' : 'Could not place order. Please try again.'));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (placed) return (
@@ -40,7 +57,8 @@ export default function CheckoutPage() {
         <CheckCircle size={40} className="text-green-600"/>
       </div>
       <h1 className="text-2xl font-black text-luxury-900 mb-2">{isRtl ? 'تم تأكيد طلبك! 🎉' : 'Order Placed! 🎉'}</h1>
-      <p className="text-gray-500 text-sm mb-2">{isRtl ? 'رقم الطلب: #NUX-202600001' : 'Order #NUX-202600001'}</p>
+      <p className="text-gray-500 text-sm mb-2">{isRtl ? `رقم الطلب: #${result?.order_number}` : `Order #${result?.order_number}`}</p>
+      {result && <p className="text-luxury-900 font-black mb-2">SAR {Number(result.total).toFixed(2)}</p>}
       <p className="text-gray-400 text-sm mb-8">{isRtl ? 'سيصلك تأكيد على جوالك وإيميلك' : "You'll receive a confirmation via SMS and email"}</p>
       <a href={`/${locale}`} className="btn-primary">{isRtl ? 'مواصلة التسوق' : 'Continue Shopping'}</a>
     </div>
@@ -143,7 +161,7 @@ export default function CheckoutPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {PAYMENT_METHODS.map(pm => (
                   <label key={pm.id} className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${payment===pm.id ? 'border-luxury-900 bg-luxury-900/5' : 'border-gray-100 hover:border-gray-300'}`}>
-                    <input type="radio" name="payment" value={pm.id} checked={payment===pm.id} onChange={() => setPayment(pm.id)} className="accent-luxury-900"/>
+                    <input type="radio" name="payment" value={pm.id} checked={payment===pm.id} onChange={() => setPayment(pm.id as 'cash_on_delivery' | 'bank_transfer')} className="accent-luxury-900"/>
                     <span className="text-2xl">{pm.iconEn}</span>
                     <div>
                       <div className="text-sm font-bold">{isRtl ? pm.labelAr : pm.labelEn}</div>
@@ -152,16 +170,6 @@ export default function CheckoutPage() {
                   </label>
                 ))}
               </div>
-              {payment === 'card' && (
-                <div className="mt-5 p-4 bg-gray-50 rounded-xl space-y-3">
-                  <input placeholder={isRtl ? 'رقم البطاقة' : 'Card Number'} className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none"/>
-                  <div className="grid grid-cols-2 gap-3">
-                    <input placeholder={isRtl ? 'MM / YY' : 'MM / YY'} className="border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none"/>
-                    <input placeholder="CVV" className="border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none"/>
-                  </div>
-                  <input placeholder={isRtl ? 'اسم صاحب البطاقة' : 'Cardholder Name'} className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none"/>
-                </div>
-              )}
               <button onClick={() => setStep(3)} className="btn-primary w-full justify-center mt-5">
                 {isRtl ? 'التالي: مراجعة الطلب' : 'Next: Review Order'} →
               </button>
@@ -186,8 +194,8 @@ export default function CheckoutPage() {
                   </div>
                 ))}
               </div>
-              <button onClick={handleOrder} className="btn-gold w-full justify-center text-lg py-4">
-                ✓ {isRtl ? 'تأكيد الطلب' : 'Place Order'}
+              <button onClick={handleOrder} disabled={submitting} className="btn-gold w-full justify-center text-lg py-4 disabled:opacity-60 disabled:cursor-not-allowed">
+                {submitting ? (isRtl ? 'جارٍ تأكيد الطلب...' : 'Placing Order...') : `✓ ${isRtl ? 'تأكيد الطلب' : 'Place Order'}`}
               </button>
               <p className="text-xs text-center text-gray-400 mt-3">
                 {isRtl ? 'بالضغط أعلاه أنت توافق على الشروط والأحكام' : 'By placing your order you agree to our Terms & Conditions'}
