@@ -6,7 +6,7 @@ import { json } from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: false });
-  app.use(json({ limit: '2mb' }));
+  app.use(json({ limit: '20mb' }));
   app.setGlobalPrefix('api/v1');
   app.enableCors({
     origin: ['http://localhost:5173', 'https://nuxfashion-api.vercel.app', 'https://nuxfashion-erp.vercel.app', process.env.FRONTEND_URL].filter(Boolean),

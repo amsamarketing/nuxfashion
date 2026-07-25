@@ -131,6 +131,7 @@ export class StorefrontService implements OnModuleInit {
     const products=await this.db.query(
       `SELECT p.id,p.name,p.name_ar,p.description,p.description_ar,p.image_url,p.tags,b.id brand_id,b.name brand_name,b.name_ar brand_name_ar,b.logo_url brand_logo_url,
        c.id category_id,c.name category_name,c.name_ar category_name_ar,c.slug category_slug,
+       COALESCE((SELECT json_agg(pi.image_url ORDER BY pi.sort_order) FROM product_images pi WHERE pi.product_id=p.id),'[]') images,
        COALESCE(json_agg(json_build_object(
         'id',v.id,'name',v.name,'name_ar',v.name_ar,'sku',v.sku,'barcode',v.barcode,
         'color',v.color,'size',v.size,'selling_price',v.selling_price,'compare_price',v.compare_price,

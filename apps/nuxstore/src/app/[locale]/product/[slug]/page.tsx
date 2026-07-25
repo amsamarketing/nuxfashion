@@ -95,7 +95,7 @@ export default function ProductPage() {
   const origPrice = Number(activeVariant?.compare_price || 0);
   const discount  = origPrice > price ? Math.round((1-price/origPrice)*100) : 0;
   const inStock   = Number(activeVariant?.stock || 0) > 0;
-  const images    = [product.image_url, ...(product.images || [])].filter(Boolean) as string[];
+  const images    = [...new Set([...(product.images || []), product.image_url].filter(Boolean))] as string[];
 
   const name = isRtl ? (product.name_ar || product.name) : product.name;
   const desc = isRtl ? (product.description_ar || product.description) : product.description;

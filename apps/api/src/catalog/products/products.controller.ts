@@ -34,6 +34,12 @@ export class ProductsController {
     return this.service.remove(id, (req.user as any).companyId);
   }
 
+  @Patch(':id/images')
+  syncImages(@Param('id') id:string,@Body() body:any,@Req() req:Request){return this.service.syncImages(id,(req.user as any).companyId,body);}
+
+  @Post(':id/images/generate-lifestyle')
+  generateLifestyle(@Param('id') id:string,@Body() body:any,@Req() req:Request){return this.service.generateLifestyle(id,(req.user as any).companyId,body);}
+
   @Post(':id/variants')
   addVariant(@Param('id') id: string, @Body() dto: CreateVariantDto, @Req() req: Request) {
     return this.service.addVariant(id, dto, (req.user as any).companyId);

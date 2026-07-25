@@ -244,17 +244,24 @@ function ProductModal({prod,categories,brands,onClose}:{prod:any;categories:any[
   const qc=useQueryClient();
   const existingTags:string[]=prod?.tags||[];
   const [form,setForm]=useState({name:prod?.name||'',name_ar:prod?.name_ar||'',description:prod?.description||'',description_ar:prod?.description_ar||'',category_id:prod?.category_id||'',brand_id:prod?.brand_id||'',sku_prefix:prod?.sku_prefix||'',image_url:prod?.image_url||'',tags:existingTags.filter(t=>!t.startsWith('channel:')).join(', '),is_active:prod?.is_active??true,pos_active:!existingTags.includes(NO_POS),ecommerce_active:!existingTags.includes(NO_ECOM)});
+  const initialImages=(prod?.images||[]).map((x:any)=>typeof x==='string'?{image_url:x,image_type:'product'}:x);
+  const [images,setImages]=useState<any[]>(initialImages.length?initialImages:(prod?.image_url?[{image_url:prod.image_url,image_type:'product'}]:[]));
+  const [ai,setAi]=useState({style:'studio',gender:'female',count:'1',prompt:''});
   const F=(k:string,v:any)=>setForm(f=>({...f,[k]:v}));
   const save=useMutation({
-    mutationFn:()=>{
+    mutationFn:async()=>{
       const tags=form.tags.split(',').map((t:string)=>t.trim()).filter(Boolean);
       if(!form.pos_active)tags.push(NO_POS);if(!form.ecommerce_active)tags.push(NO_ECOM);
       const {pos_active,ecommerce_active,...rest}=form;
-      const body={...rest,tags,category_id:form.category_id||undefined,brand_id:form.brand_id||undefined};
-      return prod?.id?api.patch(`/catalog/products/${prod.id}`,body):api.post('/catalog/products',body);
+      const body={...rest,image_url:images[0]?.image_url||'',tags,category_id:form.category_id||undefined,brand_id:form.brand_id||undefined};
+      const saved=prod?.id?await api.patch(`/catalog/products/${prod.id}`,body):await api.post('/catalog/products',body);
+      await api.patch(`/catalog/products/${saved.data.id}/images`,{images});return saved;
     },
     onSuccess:()=>{qc.invalidateQueries({queryKey:['products']});onClose();},
   });
+  const generate=useMutation({mutationFn:async()=>{if(!prod?.id)throw new Error('Save the product before generating AI images');const r=await api.post(`/catalog/products/${prod.id}/images/generate-lifestyle`,{...ai,count:Number(ai.count),source_image:images[0]?.image_url});return r.data;},onSuccess:data=>setImages(x=>[...x,...(data.images||[])]),onError:(e:any)=>alert(e?.response?.data?.message||e.message)});
+  const upload=(files:FileList|null)=>{Array.from(files||[]).slice(0,12-images.length).forEach(file=>{if(file.size>2*1024*1024){alert(`${file.name}: maximum size is 2 MB`);return;}const reader=new FileReader();reader.onload=()=>setImages(x=>[...x,{image_url:String(reader.result),image_type:'product'}]);reader.readAsDataURL(file);});};
+  const move=(from:number,to:number)=>setImages(x=>{const y=[...x];const [item]=y.splice(from,1);y.splice(to,0,item);return y;});
   const roots=categories.filter(c=>!c.parent_id);
   const subs=categories.filter(c=>c.parent_id);
   return(
@@ -285,21 +292,12 @@ function ProductModal({prod,categories,brands,onClose}:{prod:any;categories:any[
             {inp('Brand',<select className="nx-select" style={{width:'100%'}} value={form.brand_id} onChange={e=>F('brand_id',e.target.value)}><option value="">— None —</option>{brands.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select>)}
           </div>
           {inp('Tags (comma-separated)',<input className="nx-input" style={{width:'100%'}} value={form.tags} onChange={e=>F('tags',e.target.value)} placeholder="summer, casual, cotton"/>)}
-          <div style={{fontWeight:600,fontSize:12,color:'var(--mu)',textTransform:'uppercase',letterSpacing:.5,marginTop:4}}>Product Image</div>
-          <div style={{display:'grid',gridTemplateColumns:'110px 1fr',gap:12,alignItems:'center'}}>
-            <div style={{height:100,border:'1px dashed var(--bd)',borderRadius:10,overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--bg)'}}>
-              {form.image_url?<img src={form.image_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<i className="ti ti-photo" style={{fontSize:28,color:'var(--mu)'}}/>}
-            </div>
-            <div>
-              <input className="nx-input" style={{width:'100%',marginBottom:7}} value={form.image_url} onChange={e=>F('image_url',e.target.value)} placeholder="Image URL or upload below"/>
-              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>{
-                const file=e.target.files?.[0];if(!file)return;
-                if(file.size>1024*1024){alert('Image must be 1 MB or smaller');return;}
-                const reader=new FileReader();reader.onload=()=>F('image_url',String(reader.result));reader.readAsDataURL(file);
-              }}/>
-              {form.image_url&&<button className="btn-nx ghost sm" style={{marginTop:7,color:'#ef4444'}} onClick={()=>F('image_url','')}>Remove image</button>}
-            </div>
+          <div style={{fontWeight:600,fontSize:12,color:'var(--mu)',textTransform:'uppercase',letterSpacing:.5,marginTop:4}}>Product Gallery · {images.length}/12 images</div>
+          <div style={{padding:12,border:'1px solid var(--bd)',borderRadius:10}}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(105px,1fr))',gap:9,marginBottom:10}}>{images.map((img:any,i:number)=><div key={`${img.image_url.slice(-20)}-${i}`} style={{border:i===0?'2px solid var(--ac)':'1px solid var(--bd)',borderRadius:9,overflow:'hidden',background:'var(--bg)'}}><div style={{height:105,position:'relative'}}><img src={img.image_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>{i===0&&<span style={{position:'absolute',top:5,left:5,background:'var(--ac)',color:'white',fontSize:9,padding:'2px 5px',borderRadius:4}}>PRIMARY</span>}{img.image_type==='lifestyle'&&<span style={{position:'absolute',bottom:5,left:5,background:'#7c3aed',color:'white',fontSize:9,padding:'2px 5px',borderRadius:4}}>AI</span>}</div><div style={{display:'flex',justifyContent:'center',gap:2,padding:4}}><button className="btn-nx ghost sm" disabled={i===0} title="Make primary" onClick={()=>move(i,0)}><i className="ti ti-star"/></button><button className="btn-nx ghost sm" disabled={i===0} onClick={()=>move(i,i-1)}><i className="ti ti-arrow-left"/></button><button className="btn-nx ghost sm" style={{color:'#ef4444'}} onClick={()=>setImages(x=>x.filter((_:any,n:number)=>n!==i))}><i className="ti ti-trash"/></button></div></div>)}</div>
+            <input type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={e=>{upload(e.target.files);e.currentTarget.value='';}}/><div style={{fontSize:10,color:'var(--mu)',marginTop:5}}>Upload 3–4 or more images together · JPG/PNG/WebP · maximum 2 MB each · first image is primary.</div>
           </div>
+          <div style={{padding:12,border:'1px solid #c4b5fd',background:'rgba(124,58,237,.05)',borderRadius:10,display:'grid',gap:9}}><div><b style={{fontSize:13}}><i className="ti ti-sparkles"/> AI Lifestyle Studio</b><div style={{fontSize:10,color:'var(--mu)'}}>Uses the primary image and preserves product color, design and logo.</div></div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr 80px',gap:7}}><select className="nx-select" value={ai.style} onChange={e=>setAi(x=>({...x,style:e.target.value}))}><option value="studio">Luxury Studio</option><option value="mall">Saudi Mall</option><option value="riyadh">Riyadh Street</option><option value="ramadan">Ramadan Evening</option><option value="resort">Desert Resort</option></select><select className="nx-select" value={ai.gender} onChange={e=>setAi(x=>({...x,gender:e.target.value}))}><option value="female">Female Model</option><option value="male">Male Model</option><option value="none">No Model</option></select><select className="nx-select" value={ai.count} onChange={e=>setAi(x=>({...x,count:e.target.value}))}><option value="1">1 image</option><option value="2">2 images</option><option value="3">3 images</option></select></div><input className="nx-input" value={ai.prompt} onChange={e=>setAi(x=>({...x,prompt:e.target.value}))} placeholder="Optional direction: modest abaya styling, warm evening light..."/><button className="btn-nx primary" disabled={!prod?.id||!images.length||generate.isPending} onClick={()=>generate.mutate()}>{generate.isPending?'Creating lifestyle image...':'Generate AI Lifestyle Image'}</button>{!prod?.id&&<small style={{color:'var(--mu)'}}>Save this new product first, then edit it to use AI Lifestyle Studio.</small>}</div>
           <div style={{fontWeight:600,fontSize:12,color:'var(--mu)',textTransform:'uppercase',letterSpacing:.5,marginTop:4}}>Description</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
             {inp('Description (EN)',<textarea className="nx-input" style={{width:'100%',height:72,resize:'none'}} value={form.description} onChange={e=>F('description',e.target.value)}/>)}
