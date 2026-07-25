@@ -13,6 +13,14 @@ export class ProductsService implements OnModuleInit {
       image_url TEXT NOT NULL, alt_text TEXT, sort_order INTEGER NOT NULL DEFAULT 0,
       is_primary BOOLEAN NOT NULL DEFAULT FALSE, image_type VARCHAR(30) NOT NULL DEFAULT 'product',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+    await this.db.query(`DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_images' AND column_name='url')
+       AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_images' AND column_name='image_url')
+      THEN ALTER TABLE product_images RENAME COLUMN url TO image_url; END IF;
+    END $$;`);
+    await this.db.query(`ALTER TABLE product_images ADD COLUMN IF NOT EXISTS image_url TEXT`);
+    await this.db.query(`ALTER TABLE product_images ADD COLUMN IF NOT EXISTS alt_text TEXT`);
+    await this.db.query(`ALTER TABLE product_images ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0`);
     await this.db.query(`ALTER TABLE product_images ADD COLUMN IF NOT EXISTS is_primary BOOLEAN NOT NULL DEFAULT FALSE`);
     await this.db.query(`ALTER TABLE product_images ADD COLUMN IF NOT EXISTS image_type VARCHAR(30) NOT NULL DEFAULT 'product'`);
   }
@@ -112,7 +120,7 @@ export class ProductsService implements OnModuleInit {
   }
 
   async generateLifestyle(productId:string,companyId:string,body:any){
-    const product:any=await this.findOne(productId,companyId);
+    const product=await this.findOne(productId,companyId);
     const source=String(body?.source_image||product.image_url||'');
     if(!source)throw new BadRequestException('Upload a clear product image first');
     const key=process.env.OPENAI_API_KEY;if(!key)throw new ServiceUnavailableException('AI image generation is not configured. Add OPENAI_API_KEY in Railway.');
