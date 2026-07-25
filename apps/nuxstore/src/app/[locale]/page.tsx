@@ -79,14 +79,14 @@ export default async function HomePage() {
       <PromoStrip locale={locale} announcement={config.announcement} announcementAr={config.announcement_ar}/>
 
       {/* 3. Category Slider — real categories from DB */}
-      <section className="py-10 bg-gray-50">
+      {config.category_enabled !== false && <section className="py-10 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4">
           <CategorySlider locale={locale} categories={categories}/>
         </div>
-      </section>
+      </section>}
 
       {/* 4. Flash Deals */}
-      {fill(flashDeals, 4).length > 0 && (
+      {config.flash_enabled !== false && fill(flashDeals, 4).length > 0 && (
         <section className="py-10 bg-luxury-900">
           <div className="max-w-7xl mx-auto px-4">
             <FlashDeals locale={locale} products={fill(flashDeals, 4)}/>
@@ -95,7 +95,7 @@ export default async function HomePage() {
       )}
 
       {/* 5. New Arrivals */}
-      {products.length > 0 && (
+      {config.new_arrivals_enabled !== false && products.length > 0 && (
         <section className="py-12">
           <div className="max-w-7xl mx-auto px-4">
             <ProductSection
@@ -110,20 +110,20 @@ export default async function HomePage() {
       )}
 
       {/* 6. Promo banners */}
-      <section className="py-8 bg-gray-50">
+      {config.promo_banners_enabled !== false && <section className="py-8 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4">
           <BannerRow locale={locale}/>
         </div>
-      </section>
+      </section>}
 
       {/* 7. Best Sellers */}
-      {products.length > 0 && (
+      {config.best_sellers_enabled !== false && products.length > 0 && (
         <section className="py-12">
           <div className="max-w-7xl mx-auto px-4">
             <ProductSection
               locale={locale}
-              titleEn="Best Sellers"
-              titleAr="الأكثر مبيعاً"
+              titleEn={config.best_sellers_title || 'Best Sellers'}
+              titleAr={config.best_sellers_title_ar || 'الأكثر مبيعاً'}
               products={fill(bestSellers, 8)}
               viewAllHref="/category/all"
             />
@@ -132,23 +132,23 @@ export default async function HomePage() {
       )}
 
       {/* 8. Seasonal Campaign */}
-      <SeasonalCampaign locale={locale}/>
+      {config.seasonal_enabled !== false && <SeasonalCampaign locale={locale}/>}
 
       {/* 9. Brand Slider (static — no public brands API) */}
-      <section className="py-10 bg-gray-50">
+      {config.brands_enabled !== false && <section className="py-10 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4">
           <BrandSlider locale={locale}/>
         </div>
-      </section>
+      </section>}
 
       {/* 10. Trending */}
-      {products.length > 0 && (
+      {config.trending_enabled !== false && products.length > 0 && (
         <section className="py-12">
           <div className="max-w-7xl mx-auto px-4">
             <ProductSection
               locale={locale}
-              titleEn="Trending Now"
-              titleAr="الأكثر رواجاً"
+              titleEn={config.trending_title || 'Trending Now'}
+              titleAr={config.trending_title_ar || 'الأكثر رواجاً'}
               products={fill(trending, 8)}
               viewAllHref="/category/all"
               badge="🔥"
@@ -158,17 +158,17 @@ export default async function HomePage() {
       )}
 
       {/* 11. Instagram Feed */}
-      <section className="py-10 bg-gray-50">
+      {config.instagram_enabled !== false && <section className="py-10 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4">
           <InstagramFeed locale={locale} instagramUrl={config.instagram_url}/>
         </div>
-      </section>
+      </section>}
 
       {/* 12. App Download */}
-      <AppDownload locale={locale}/>
+      {config.app_download_enabled === true && <AppDownload locale={locale}/>}
 
       {/* 13. Trust Section */}
-      <TrustSection locale={locale}/>
+      {config.trust_enabled !== false && <TrustSection locale={locale}/>}
     </div>
   );
 }

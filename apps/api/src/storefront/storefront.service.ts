@@ -49,6 +49,12 @@ export class StorefrontService implements OnModuleInit {
       newsletter_subtitle:'Join our list for collection updates and exclusive promotions.',
       footer_about:'Modern fashion retail from Saudi Arabia.',support_email:'',
       seo_title:'NuxFashion · Saudi Fashion Store',seo_description:'Shop clothing, shoes, bags and accessories online.',
+      flash_enabled:true,flash_title:'Flash Deals',flash_title_ar:'عروض سريعة',
+      new_arrivals_enabled:true,best_sellers_enabled:true,
+      best_sellers_title:'Best Sellers',best_sellers_title_ar:'الأكثر مبيعاً',
+      promo_banners_enabled:true,seasonal_enabled:true,brands_enabled:true,
+      trending_enabled:true,trending_title:'Trending Now',trending_title_ar:'الأكثر رواجاً',
+      instagram_enabled:true,app_download_enabled:false,trust_enabled:true,
     };
   }
 
@@ -83,7 +89,7 @@ export class StorefrontService implements OnModuleInit {
     return {settings:await this.settings(companyId),banners:banners.rows};
   }
   async updateSettings(companyId:string,body:any){
-    const allowed=['announcement','announcement_ar','shipping_fee','free_shipping_from','delivery_estimate','returns_days','featured_title','featured_title_ar','promo_title','promo_subtitle','promo_image_url','support_phone','instagram_url','whatsapp_url','store_tagline','logo_url','primary_color','category_enabled','category_title','category_title_ar','promo_enabled','promo_button_label','promo_button_link','newsletter_enabled','newsletter_title','newsletter_subtitle','footer_about','support_email','seo_title','seo_description'];
+    const allowed=['announcement','announcement_ar','shipping_fee','free_shipping_from','delivery_estimate','returns_days','featured_title','featured_title_ar','promo_title','promo_subtitle','promo_image_url','support_phone','instagram_url','whatsapp_url','store_tagline','logo_url','primary_color','category_enabled','category_title','category_title_ar','promo_enabled','promo_button_label','promo_button_link','newsletter_enabled','newsletter_title','newsletter_subtitle','footer_about','support_email','seo_title','seo_description','flash_enabled','flash_title','flash_title_ar','new_arrivals_enabled','best_sellers_enabled','best_sellers_title','best_sellers_title_ar','promo_banners_enabled','seasonal_enabled','brands_enabled','trending_enabled','trending_title','trending_title_ar','instagram_enabled','app_download_enabled','trust_enabled'];
     const clean:Object=Object.fromEntries(allowed.filter(k=>body[k]!==undefined).map(k=>[k,body[k]]));
     await this.db.query(`INSERT INTO storefront_settings(company_id,config) VALUES($1,$2::jsonb)
       ON CONFLICT(company_id) DO UPDATE SET config=storefront_settings.config||EXCLUDED.config,updated_at=NOW()`,[companyId,JSON.stringify(clean)]);
