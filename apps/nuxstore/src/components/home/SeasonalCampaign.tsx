@@ -1,10 +1,10 @@
 'use client';
 import Link from 'next/link';
 
-export default function SeasonalCampaign({ locale }: { locale: string }) {
+export default function SeasonalCampaign({ locale, config = {} }: { locale: string; config?: any }) {
   const isRtl = locale === 'ar';
   return (
-    <section className="relative overflow-hidden bg-gradient-to-r from-luxury-900 via-purple-950 to-luxury-900 py-20 my-8" dir={isRtl ? 'rtl' : 'ltr'}>
+    <section className="relative overflow-hidden bg-gradient-to-r from-luxury-900 via-purple-950 to-luxury-900 py-20 my-8 bg-cover bg-center" style={config.seasonal_image?{backgroundImage:`linear-gradient(90deg,rgba(15,23,42,.9),rgba(59,7,100,.75)),url(${config.seasonal_image})`}:undefined} dir={isRtl ? 'rtl' : 'ltr'}>
       {/* Decorative elements */}
       <div className="absolute top-0 left-1/4 w-64 h-64 bg-gold-500/10 rounded-full blur-3xl"/>
       <div className="absolute bottom-0 right-1/4 w-48 h-48 bg-purple-500/10 rounded-full blur-2xl"/>
@@ -13,17 +13,15 @@ export default function SeasonalCampaign({ locale }: { locale: string }) {
           🌙 {isRtl ? 'مجموعة رمضان 2026' : 'Ramadan Collection 2026'}
         </div>
         <h2 className="text-4xl md:text-6xl font-black text-white mb-4">
-          {isRtl ? 'استعدي لرمضان' : 'Dress for Ramadan'}
+          {isRtl ? (config.seasonal_title_ar||'تألق في الموسم') : (config.seasonal_title||'Dress for the Season')}
         </h2>
         <p className="text-white/60 text-sm md:text-base max-w-xl mx-auto mb-8">
-          {isRtl
-            ? 'مجموعة رمضان الحصرية — عبايات فاخرة، أقمشة مميزة، وإطلالات لا تُنسى'
-            : 'Exclusive Ramadan edit — luxurious abayas, premium fabrics, and unforgettable looks'}
+          {isRtl ? (config.seasonal_subtitle_ar||'اكتشف أحدث تشكيلاتنا الموسمية.') : (config.seasonal_subtitle||'Discover our latest seasonal edit.')}
         </p>
         <div className="flex flex-wrap justify-center gap-4">
-          <Link href={`/${locale}/collections/ramadan`}
+          <Link href={`/${locale}${config.seasonal_button_link||'/category/all'}`}
             className="bg-gold-500 hover:bg-gold-400 text-white font-bold px-8 py-3.5 rounded-full transition-all hover:scale-105">
-            {isRtl ? 'تسوقي الآن' : 'Shop the Collection'}
+            {isRtl ? (config.seasonal_button_label_ar||'تسوق المجموعة') : (config.seasonal_button_label||'Shop Collection')}
           </Link>
           <Link href={`/${locale}/collections`}
             className="border border-white/30 text-white hover:bg-white/10 font-bold px-8 py-3.5 rounded-full transition-all">

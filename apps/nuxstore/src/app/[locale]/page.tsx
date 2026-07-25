@@ -112,7 +112,7 @@ export default async function HomePage() {
       {/* 6. Promo banners */}
       {config.promo_banners_enabled !== false && <section className="py-8 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4">
-          <BannerRow locale={locale}/>
+          <BannerRow locale={locale} config={config}/>
         </div>
       </section>}
 
@@ -132,7 +132,7 @@ export default async function HomePage() {
       )}
 
       {/* 8. Seasonal Campaign */}
-      {config.seasonal_enabled !== false && <SeasonalCampaign locale={locale}/>}
+      {config.seasonal_enabled !== false && <SeasonalCampaign locale={locale} config={config}/>}
 
       {/* 9. Brand Slider (static — no public brands API) */}
       {config.brands_enabled !== false && <section className="py-10 bg-gray-50">

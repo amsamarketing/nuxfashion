@@ -23,11 +23,15 @@ const BANNERS = [
   },
 ];
 
-export default function BannerRow({ locale }: { locale: string }) {
+export default function BannerRow({ locale, config = {} }: { locale: string; config?: any }) {
   const isRtl = locale === 'ar';
+  const banners = [
+    {...BANNERS[0],titleEn:config.promo_card_1_title||BANNERS[0].titleEn,titleAr:config.promo_card_1_title_ar||BANNERS[0].titleAr,subEn:config.promo_card_1_subtitle||BANNERS[0].subEn,image:config.promo_card_1_image||BANNERS[0].image,href:config.promo_card_1_link||BANNERS[0].href},
+    {...BANNERS[1],titleEn:config.promo_card_2_title||BANNERS[1].titleEn,titleAr:config.promo_card_2_title_ar||BANNERS[1].titleAr,subEn:config.promo_card_2_subtitle||BANNERS[1].subEn,image:config.promo_card_2_image||BANNERS[1].image,href:config.promo_card_2_link||BANNERS[1].href},
+  ];
   return (
     <div className="grid md:grid-cols-2 gap-4" dir={isRtl ? 'rtl' : 'ltr'}>
-      {BANNERS.map(b => (
+      {banners.map(b => (
         <Link
           key={b.href}
           href={`/${locale}${b.href}`}
