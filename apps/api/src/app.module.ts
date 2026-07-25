@@ -13,6 +13,7 @@ import { ReportsModule } from './reports/reports.module';
 import { StorefrontModule } from './storefront/storefront.module';
 import { BranchesModule } from './branches/branches.module';
 import { B2bModule } from './b2b/b2b.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { B2bModule } from './b2b/b2b.module';
     StorefrontModule,
     BranchesModule,
     B2bModule,
+    SettingsModule,
   ],
 })
 export class AppModule {}
