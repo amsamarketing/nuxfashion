@@ -147,7 +147,7 @@ function Action({title,text,icon,button,go}:{title:string;text:string;icon:strin
 </div>}
 const labelStyle:any={display:'flex',flexDirection:'column',gap:6,fontSize:12.5,fontWeight:650,color:'var(--muted)'};
 
-function UsersRoles(){const qc=useQueryClient();const {toast}=useToast();const [show,setShow]=useState(false);const [editRole,setEditRole]=useState<any>(null);const [passwordFor,setPasswordFor]=useState<any>(null);const [form,setForm]=useState<any>({name:'',email:'',password:'',role_ids:[],is_active:true});const {data:roles=[]}=useQuery({queryKey:['access-roles'],queryFn:()=>api.get('/settings/roles').then(r=>r.data)});const {data:users=[]}=useQuery({queryKey:['access-users'],queryFn:()=>api.get('/settings/users').then(r=>r.data)});const create=useMutation({mutationFn:()=>api.post('/settings/users',form),onSuccess:()=>{qc.invalidateQueries({queryKey:['access-users']});setShow(false);setForm({name:'',email:'',password:'',role_ids:[],is_active:true});toast('Admin user created','success')},onError:(e:any)=>toast(getErr(e),'error')});const update=useMutation({mutationFn:(x:any)=>api.patch(`/settings/users/${x.id}`,x.body),onSuccess:()=>qc.invalidateQueries({queryKey:['access-users']}),onError:(e:any)=>toast(getErr(e),'error')});const saveRole=useMutation({mutationFn:()=>api.patch(`/settings/roles/${editRole.id}`,{permissions:editRole.permissions}),onSuccess:()=>{qc.invalidateQueries({queryKey:['access-roles']});setEditRole(null);toast('Role permissions saved','success')}});const reset=useMutation({mutationFn:(x:any)=>api.post(`/settings/users/${x.id}/password`,{password:x.password}),onSuccess:()=>{setPasswordFor(null);toast('Password changed','success')},onError:(e:any)=>toast(getErr(e),'error')});const toggleRole=(id:string)=>setForm((x:any)=>({...x,role_ids:x.role_ids.includes(id)?x.role_ids.filter((v:string)=>v!==id):[...x.role_ids,id]}));return <div style={{display:'grid',gap:18}}>
+function UsersRoles(){const qc=useQueryClient();const {toast}=useToast();const [show,setShow]=useState(false);const [editRole,setEditRole]=useState<any>(null);const [rolesFor,setRolesFor]=useState<any>(null);const [passwordFor,setPasswordFor]=useState<any>(null);const [form,setForm]=useState<any>({name:'',email:'',password:'',role_ids:[],is_active:true});const {data:roles=[]}=useQuery({queryKey:['access-roles'],queryFn:()=>api.get('/settings/roles').then(r=>r.data)});const {data:users=[]}=useQuery({queryKey:['access-users'],queryFn:()=>api.get('/settings/users').then(r=>r.data)});const create=useMutation({mutationFn:()=>api.post('/settings/users',form),onSuccess:()=>{qc.invalidateQueries({queryKey:['access-users']});setShow(false);setForm({name:'',email:'',password:'',role_ids:[],is_active:true});toast('Admin user created','success')},onError:(e:any)=>toast(getErr(e),'error')});const update=useMutation({mutationFn:(x:any)=>api.patch(`/settings/users/${x.id}`,x.body),onSuccess:()=>qc.invalidateQueries({queryKey:['access-users']}),onError:(e:any)=>toast(getErr(e),'error')});const saveRole=useMutation({mutationFn:()=>api.patch(`/settings/roles/${editRole.id}`,{permissions:editRole.permissions}),onSuccess:()=>{qc.invalidateQueries({queryKey:['access-roles']});setEditRole(null);toast('Role permissions saved','success')}});const reset=useMutation({mutationFn:(x:any)=>api.post(`/settings/users/${x.id}/password`,{password:x.password}),onSuccess:()=>{setPasswordFor(null);toast('Password changed','success')},onError:(e:any)=>toast(getErr(e),'error')});const toggleRole=(id:string)=>setForm((x:any)=>({...x,role_ids:x.role_ids.includes(id)?x.role_ids.filter((v:string)=>v!==id):[...x.role_ids,id]}));return <div style={{display:'grid',gap:18}}>
 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,flexWrap:'wrap'}}>
 <div>
 <b>Admin users & multi-role access</b>
@@ -199,6 +199,7 @@ function UsersRoles(){const qc=useQueryClient();const {toast}=useToast();const [
 </td>
 <td>
 <div style={{display:'flex',gap:6}}>
+<button className="btn-nx ghost sm" onClick={()=>setRolesFor({id:u.id,name:u.name,role_ids:(u.roles||[]).map((r:any)=>r.id)})}>Roles</button>
 <button className="btn-nx ghost sm" onClick={()=>setPasswordFor({id:u.id,name:u.name,password:''})}>Password</button>
 <button className="btn-nx ghost sm" onClick={()=>update.mutate({id:u.id,body:{is_active:!u.is_active}})}>{u.is_active?'Disable':'Enable'}</button>
 </div>
@@ -229,6 +230,14 @@ function UsersRoles(){const qc=useQueryClient();const {toast}=useToast();const [
 <div style={{display:'flex',justifyContent:'flex-end',gap:8,marginTop:12}}>
 <button className="btn-nx ghost" onClick={()=>setEditRole(null)}>Cancel</button>
 <button className="btn-nx primary" onClick={()=>saveRole.mutate()}>Save Permissions</button>
+</div>
+</div>}{rolesFor&&<div className="settings-group">
+<h4>Assign roles · {rolesFor.name}</h4>
+<p style={{fontSize:12,color:'var(--muted)',margin:'4px 0 12px'}}>Select one or more roles. Access changes apply after this user signs in again.</p>
+<div style={{display:'flex',gap:7,flexWrap:'wrap'}}>{roles.map((r:any)=><button type="button" key={r.id} className={`btn-nx ${rolesFor.role_ids.includes(r.id)?'primary':'ghost'} sm`} onClick={()=>setRolesFor((x:any)=>({...x,role_ids:x.role_ids.includes(r.id)?x.role_ids.filter((id:string)=>id!==r.id):[...x.role_ids,r.id]}))}>{rolesFor.role_ids.includes(r.id)?'✓ ':''}{r.name}</button>)}</div>
+<div style={{display:'flex',justifyContent:'flex-end',gap:8,marginTop:12}}>
+<button className="btn-nx ghost" onClick={()=>setRolesFor(null)}>Cancel</button>
+<button className="btn-nx primary" disabled={!rolesFor.role_ids.length||update.isPending} onClick={()=>update.mutate({id:rolesFor.id,body:{role_ids:rolesFor.role_ids}},{onSuccess:()=>{setRolesFor(null);toast('User roles updated. Ask the user to sign in again.','success')}})}>Save Roles</button>
 </div>
 </div>}{passwordFor&&<div className="settings-group">
 <h4>Change password · {passwordFor.name}</h4>

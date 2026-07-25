@@ -29,24 +29,26 @@ import B2BSales from './pages/admin/B2BSales';
 const qc = new QueryClient({ defaultOptions:{ queries:{ retry:1, staleTime:30000 }}});
 
 const NAV = [
-  { id:'ad-dash',   label:'Dashboard',     icon:'ti-layout-dashboard',  sec:'Main' },
-  { id:'ad-orders', label:'Orders',        icon:'ti-shopping-cart',      sec:'Main' },
-  { id:'ad-b2b',    label:'B2B Sales',     icon:'ti-building-store',     sec:'Main' },
-  { id:'ad-prod',   label:'Products',      icon:'ti-tag',                sec:'Catalog' },
-  { id:'ad-labels', label:'Barcode Labels',icon:'ti-barcode',            sec:'Catalog' },
-  { id:'ad-inv',    label:'Inventory',     icon:'ti-package',            sec:'Catalog' },
-  { id:'ad-wh',     label:'Warehouses',    icon:'ti-building-warehouse', sec:'Catalog' },
-  { id:'ad-branches',label:'Branches',      icon:'ti-building-store',     sec:'Main' },
-  { id:'ad-purch',  label:'Purchasing',    icon:'ti-truck',              sec:'Catalog' },
-  { id:'ad-ecom',   label:'E-commerce',    icon:'ti-world',              sec:'Channels' },
-  { id:'ad-crm',    label:'Customers',     icon:'ti-users',              sec:'Channels' },
-  { id:'ad-loyal',  label:'Loyalty',       icon:'ti-star',               sec:'Channels' },
-  { id:'ad-hr',     label:'HR & Payroll',  icon:'ti-id',                 sec:'People' },
-  { id:'ad-acct',   label:'Accounting',    icon:'ti-report-money',       sec:'Finance' },
-  { id:'ad-zatca',  label:'ZATCA',         icon:'ti-file-check',         sec:'Finance' },
-  { id:'ad-rep',    label:'Reports',       icon:'ti-chart-bar',          sec:'Finance' },
-  { id:'ad-set',    label:'Settings',      icon:'ti-settings',           sec:'System' },
+  { id:'ad-dash',   label:'Dashboard',     icon:'ti-layout-dashboard',  sec:'Main',perms:['dashboard.view'] },
+  { id:'ad-orders', label:'Orders',        icon:'ti-shopping-cart',      sec:'Main',perms:['orders.view','sales.view'] },
+  { id:'ad-b2b',    label:'B2B Sales',     icon:'ti-building-store',     sec:'Main',perms:['sales.view'] },
+  { id:'ad-prod',   label:'Products',      icon:'ti-tag',                sec:'Catalog',perms:['products.view','inventory.view'] },
+  { id:'ad-labels', label:'Barcode Labels',icon:'ti-barcode',            sec:'Catalog',perms:['products.manage','inventory.view'] },
+  { id:'ad-inv',    label:'Inventory',     icon:'ti-package',            sec:'Catalog',perms:['inventory.view'] },
+  { id:'ad-wh',     label:'Warehouses',    icon:'ti-building-warehouse', sec:'Catalog',perms:['warehouses.view','inventory.view'] },
+  { id:'ad-branches',label:'Branches',      icon:'ti-building-store',     sec:'Main',perms:['branches.view','reports.branch'] },
+  { id:'ad-purch',  label:'Purchasing',    icon:'ti-truck',              sec:'Catalog',perms:['purchasing.view'] },
+  { id:'ad-ecom',   label:'E-commerce',    icon:'ti-world',              sec:'Channels',perms:['ecommerce.view','ecommerce.content'] },
+  { id:'ad-crm',    label:'Customers',     icon:'ti-users',              sec:'Channels',perms:['customers.view'] },
+  { id:'ad-loyal',  label:'Loyalty',       icon:'ti-star',               sec:'Channels',perms:['loyalty.view','marketing.view'] },
+  { id:'ad-hr',     label:'HR & Payroll',  icon:'ti-id',                 sec:'People',perms:['hr.view','payroll.view'] },
+  { id:'ad-acct',   label:'Accounting',    icon:'ti-report-money',       sec:'Finance',perms:['finance.view','invoices.view'] },
+  { id:'ad-zatca',  label:'ZATCA',         icon:'ti-file-check',         sec:'Finance',perms:['vat.view'] },
+  { id:'ad-rep',    label:'Reports',       icon:'ti-chart-bar',          sec:'Finance',perms:['reports.view','reports.finance','reports.branch','reports.marketing'] },
+  { id:'ad-set',    label:'Settings',      icon:'ti-settings',           sec:'System',perms:['settings.view','users.view'] },
 ];
+
+function hasPermission(user:any,required:string[]){const permissions:string[]=user?.permissions||[];if(!permissions.length)return String(user?.role||'').toLowerCase().includes('admin');if(permissions.includes('*'))return true;return required.some(need=>permissions.some(got=>got===need||(got.endsWith('.*')&&need.startsWith(got.slice(0,-1)))))}
 
 const POS_TABS = [
   { id:'pos-sale',    label:'New Sale',    icon:'ti-shopping-cart' },
@@ -73,25 +75,27 @@ function App() {
   const [mode, setMode] = useState<'pos'|'admin'>(()=>user?.portal==='pos'?'pos':'admin');
   const [screen, setScreen] = useState(()=>user?.portal==='pos'?'pos-sale':'ad-dash');
   const [sideOpen, setSideOpen] = useState(false);
+  const visibleNav=NAV.filter(n=>hasPermission(user,n.perms));
 
   useEffect(()=>{
-    const h=(e:any)=>{ setMode('admin'); setScreen(e.detail); };
+    const h=(e:any)=>{const target=NAV.find(n=>n.id===e.detail);if(target&&!hasPermission(user,target.perms))return;setMode('admin');setScreen(e.detail);};
     const h2=()=>{ setMode('pos'); setScreen('pos-sale'); };
     window.addEventListener('nav',h);
     window.addEventListener('resume-held',h2);
     return ()=>{ window.removeEventListener('nav',h); window.removeEventListener('resume-held',h2); };
-  },[]);
+  },[user]);
 
   const isStore=window.location.hash==='#store'||window.location.pathname.startsWith('/store');
   if(isStore) return <Storefront/>;
   const posLogin=window.location.pathname.startsWith('/pos-login')||window.location.hash==='#pos-login';
   if(!user) return <Login portal={posLogin?'pos':'admin'} onLogin={portal=>{setMode(portal);setScreen(portal==='pos'?'pos-sale':'ad-dash')}}/>;
 
-  const Screen = SCREENS[screen] || Dashboard;
+  const safeScreen=mode==='admin'&&!visibleNav.some(n=>n.id===screen)?(visibleNav[0]?.id||'ad-dash'):screen;
+  const Screen = SCREENS[safeScreen] || Dashboard;
   const initials=(user.name||user.email||'A').slice(0,2).toUpperCase();
   const firstName=user.name?.split(' ')[0]||'Admin';
   const today=new Date().toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
-  const curLabel=NAV.find(n=>n.id===screen)?.label||'Dashboard';
+  const curLabel=NAV.find(n=>n.id===safeScreen)?.label||'Dashboard';
 
   if(mode==='pos') return (
     <div className="p-pos-shell">
@@ -131,12 +135,12 @@ function App() {
         </div>
         <nav className="p-nav">
           {SECS.map(sec=>{
-            const items=NAV.filter(n=>n.sec===sec);
+            const items=visibleNav.filter(n=>n.sec===sec);if(!items.length)return null;
             return (
               <div key={sec} className="p-nav-group">
                 <div className="p-nav-label">{sec}</div>
                 {items.map(n=>(
-                  <button key={n.id} className={`p-nav-item${screen===n.id?' active':''}`}
+                  <button key={n.id} className={`p-nav-item${safeScreen===n.id?' active':''}`}
                     onClick={()=>{ setScreen(n.id); setSideOpen(false); }}>
                     <i className={`ti ${n.icon} p-nav-ic`}/>
                     <span>{n.label}</span>
