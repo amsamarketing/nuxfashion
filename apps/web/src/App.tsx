@@ -43,7 +43,7 @@ const NAV = [
   { id:'ad-crm',    label:'Customers',     icon:'ti-users',              sec:'Channels',perms:['customers.view'] },
   { id:'ad-loyal',  label:'Loyalty',       icon:'ti-star',               sec:'Channels',perms:['loyalty.view','marketing.view'] },
   { id:'ad-marketing',label:'Marketing',    icon:'ti-speakerphone',       sec:'Channels',perms:['marketing.view','marketing.*'] },
-  { id:'ad-hr',     label:'HR & Payroll',  icon:'ti-id',                 sec:'People',perms:['hr.view','payroll.view'] },
+  { id:'ad-hr',     label:'HR & Payroll',  icon:'ti-id',                 sec:'People',perms:['hr.view','hr.self.view','payroll.view','hr.payroll.view'] },
   { id:'ad-acct',   label:'Accounting',    icon:'ti-report-money',       sec:'Finance',perms:['finance.view','invoices.view'] },
   { id:'ad-zatca',  label:'ZATCA',         icon:'ti-file-check',         sec:'Finance',perms:['vat.view'] },
   { id:'ad-rep',    label:'Reports',       icon:'ti-chart-bar',          sec:'Finance',perms:['reports.view','reports.finance','reports.branch','reports.marketing'] },
