@@ -48,6 +48,7 @@ export class StorefrontService implements OnModuleInit {
       newsletter_enabled:true,newsletter_title:'New drops, offers & inspiration',
       newsletter_subtitle:'Join our list for collection updates and exclusive promotions.',
       footer_about:'Modern fashion retail from Saudi Arabia.',support_email:'',
+      footer_about_ar:'متجر أزياء عصري من المملكة العربية السعودية.',
       seo_title:'NuxFashion · Saudi Fashion Store',seo_description:'Shop clothing, shoes, bags and accessories online.',
       flash_enabled:true,flash_title:'Flash Deals',flash_title_ar:'عروض سريعة',
       new_arrivals_enabled:true,best_sellers_enabled:true,
@@ -58,6 +59,13 @@ export class StorefrontService implements OnModuleInit {
       promo_card_1_title:"Women's Edit",promo_card_1_title_ar:'تشكيلة المرأة',promo_card_1_subtitle:'New season, new you',promo_card_1_image:'',promo_card_1_link:'/category/women',
       promo_card_2_title:"Men's Collection",promo_card_2_title_ar:'مجموعة الرجال',promo_card_2_subtitle:'Style meets comfort',promo_card_2_image:'',promo_card_2_link:'/category/men',
       seasonal_title:'Dress for the Season',seasonal_title_ar:'تألق في الموسم',seasonal_subtitle:'Discover our latest seasonal edit.',seasonal_subtitle_ar:'اكتشف أحدث تشكيلاتنا الموسمية.',seasonal_image:'',seasonal_button_label:'Shop Collection',seasonal_button_label_ar:'تسوق المجموعة',seasonal_button_link:'/category/all',
+      category_ids:[],flash_product_ids:[],collection_product_ids:[],best_seller_product_ids:[],trending_product_ids:[],featured_brand_ids:[],
+      trust_title:'Why NuxStore?',trust_title_ar:'لماذا نوكس ستور؟',trust_items:[],
+      footer_customer_links:[],footer_company_links:[],footer_legal_links:[],footer_copyright:'© NuxStore. All rights reserved.',footer_copyright_ar:'© نوكس ستور. جميع الحقوق محفوظة.',
+      contact_phone:'',contact_email:'',contact_address:'Riyadh, Saudi Arabia',contact_address_ar:'الرياض، المملكة العربية السعودية',contact_hours:'Saturday–Thursday, 9 AM–6 PM',contact_map_url:'',
+      facebook_url:'',twitter_url:'',tiktok_url:'',snapchat_url:'',youtube_url:'',
+      page_about:'',page_about_ar:'',page_careers:'',page_careers_ar:'',page_press:'',page_press_ar:'',page_blog:'',page_blog_ar:'',page_stores:'',page_stores_ar:'',
+      page_returns:'',page_returns_ar:'',page_faq:'',page_faq_ar:'',page_privacy:'',page_privacy_ar:'',page_terms:'',page_terms_ar:'',page_shipping_policy:'',page_shipping_policy_ar:'',page_cookies:'',page_cookies_ar:'',page_accessibility:'',page_accessibility_ar:'',
     };
   }
 
@@ -92,7 +100,7 @@ export class StorefrontService implements OnModuleInit {
     return {settings:await this.settings(companyId),banners:banners.rows};
   }
   async updateSettings(companyId:string,body:any){
-    const allowed=['announcement','announcement_ar','shipping_fee','free_shipping_from','delivery_estimate','returns_days','featured_title','featured_title_ar','promo_title','promo_subtitle','promo_image_url','support_phone','instagram_url','whatsapp_url','store_tagline','logo_url','primary_color','category_enabled','category_title','category_title_ar','promo_enabled','promo_button_label','promo_button_link','newsletter_enabled','newsletter_title','newsletter_subtitle','footer_about','support_email','seo_title','seo_description','flash_enabled','flash_title','flash_title_ar','new_arrivals_enabled','best_sellers_enabled','best_sellers_title','best_sellers_title_ar','promo_banners_enabled','seasonal_enabled','brands_enabled','trending_enabled','trending_title','trending_title_ar','instagram_enabled','app_download_enabled','trust_enabled','promo_card_1_title','promo_card_1_title_ar','promo_card_1_subtitle','promo_card_1_image','promo_card_1_link','promo_card_2_title','promo_card_2_title_ar','promo_card_2_subtitle','promo_card_2_image','promo_card_2_link','seasonal_title','seasonal_title_ar','seasonal_subtitle','seasonal_subtitle_ar','seasonal_image','seasonal_button_label','seasonal_button_label_ar','seasonal_button_link'];
+    const allowed=[...Object.keys(this.defaults())];
     const clean:Object=Object.fromEntries(allowed.filter(k=>body[k]!==undefined).map(k=>[k,body[k]]));
     await this.db.query(`INSERT INTO storefront_settings(company_id,config) VALUES($1,$2::jsonb)
       ON CONFLICT(company_id) DO UPDATE SET config=storefront_settings.config||EXCLUDED.config,updated_at=NOW()`,[companyId,JSON.stringify(clean)]);
@@ -121,17 +129,17 @@ export class StorefrontService implements OnModuleInit {
     if(search){params.push(`%${search}%`);where.push(`(p.name ILIKE $${params.length} OR p.name_ar ILIKE $${params.length} OR p.description ILIKE $${params.length})`)}
     if(category){params.push(category);where.push(`(c.id::text=$${params.length} OR c.slug=$${params.length})`)}
     const products=await this.db.query(
-      `SELECT p.id,p.name,p.name_ar,p.description,p.description_ar,p.image_url,p.tags,
+      `SELECT p.id,p.name,p.name_ar,p.description,p.description_ar,p.image_url,p.tags,b.id brand_id,b.name brand_name,b.name_ar brand_name_ar,b.logo_url brand_logo_url,
        c.id category_id,c.name category_name,c.name_ar category_name_ar,c.slug category_slug,
        COALESCE(json_agg(json_build_object(
         'id',v.id,'name',v.name,'name_ar',v.name_ar,'sku',v.sku,'barcode',v.barcode,
         'color',v.color,'size',v.size,'selling_price',v.selling_price,'compare_price',v.compare_price,
         'stock',COALESCE((SELECT SUM(i.quantity-i.reserved_quantity) FROM inventory i WHERE i.variant_id=v.id),v.stock_quantity,0)
        ) ORDER BY v.created_at) FILTER(WHERE v.id IS NOT NULL),'[]') variants
-       FROM products p LEFT JOIN categories c ON c.id=p.category_id
+       FROM products p LEFT JOIN categories c ON c.id=p.category_id LEFT JOIN brands b ON b.id=p.brand_id
        LEFT JOIN product_variants v ON v.product_id=p.id
        WHERE ${where.join(' AND ')}
-       GROUP BY p.id,c.id,c.name,c.name_ar,c.slug ORDER BY p.created_at DESC LIMIT 200`,params,
+       GROUP BY p.id,c.id,c.name,c.name_ar,c.slug,b.id,b.name,b.name_ar,b.logo_url ORDER BY p.created_at DESC LIMIT 200`,params,
     );
     const categories=await this.db.query(
       `SELECT c.id,c.name,c.name_ar,c.slug,c.image_url,COUNT(DISTINCT p.id)::int product_count
@@ -139,12 +147,23 @@ export class StorefrontService implements OnModuleInit {
        WHERE c.company_id=$1 AND c.deleted_at IS NULL AND c.is_active=true
        GROUP BY c.id ORDER BY c.sort_order,c.name`,[companyId],
     );
-    return {products:products.rows,categories:categories.rows};
+    const brands=await this.db.query(`SELECT id,name,name_ar,logo_url FROM brands WHERE company_id=$1 AND is_active=true ORDER BY name`,[companyId]);
+    return {products:products.rows,categories:categories.rows,brands:brands.rows};
   }
 
   async getProduct(id:string){
     const catalog=await this.getCatalog();const product=catalog.products.find((p:any)=>p.id===id);
     if(!product)throw new NotFoundException('Product not found');return product;
+  }
+
+  async trackOrder(orderNumber:string,phone:string){
+    if(!orderNumber?.trim()||!phone?.trim())throw new BadRequestException('Order number and phone are required');
+    const companyId=await this.tenantId();
+    const row=await this.db.query(`SELECT o.order_number,o.status,o.total,o.created_at,o.updated_at,COUNT(l.id)::int item_count
+      FROM sales_orders o JOIN customers c ON c.id=o.customer_id LEFT JOIN sales_order_lines l ON l.order_id=o.id
+      WHERE o.company_id=$1 AND UPPER(o.order_number)=UPPER($2) AND regexp_replace(c.phone,'[^0-9]','','g')=regexp_replace($3,'[^0-9]','','g')
+      GROUP BY o.id LIMIT 1`,[companyId,orderNumber.trim(),phone.trim()]);
+    if(!row.rows[0])throw new NotFoundException('Order not found. Check the order number and phone.');return row.rows[0];
   }
 
   async checkout(dto:StoreCheckoutDto){

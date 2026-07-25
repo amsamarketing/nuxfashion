@@ -8,6 +8,7 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { Toaster } from 'react-hot-toast';
 import './globals.css';
+import { storefrontApi } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +35,7 @@ export default async function LocaleLayout({
   if (!locales.includes(locale as any)) notFound();
   const messages = await getMessages();
   const isRtl = locale === 'ar';
+  let storeConfig:any={};try{storeConfig=await storefrontApi.getConfig()}catch{}
 
   return (
     <html lang={locale} dir={isRtl ? 'rtl' : 'ltr'} className={inter.variable}>
@@ -49,7 +51,7 @@ export default async function LocaleLayout({
         <NextIntlClientProvider messages={messages}>
           <Header/>
           <main className="min-h-screen">{children}</main>
-          <Footer/>
+          <Footer config={storeConfig}/>
           {/* Mobile Bottom Nav */}
           <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 flex items-center justify-around py-2 px-4">
             <a href={`/${locale}`} className="flex flex-col items-center gap-0.5 text-gray-500 hover:text-luxury-900">

@@ -19,15 +19,16 @@ const ITEMS = {
   ],
 };
 
-export default function TrustSection({ locale }: { locale: string }) {
+export default function TrustSection({ locale,config={} }: { locale: string;config?:any }) {
   const isRtl = locale === 'ar';
-  const items = ITEMS[locale as 'en' | 'ar'] || ITEMS.en;
+  const custom=Array.isArray(config.trust_items)?config.trust_items:[];
+  const items = custom.length?custom.map((x:any)=>({icon:x.icon||'✓',title:isRtl?(x.title_ar||x.title):x.title,desc:isRtl?(x.description_ar||x.description):x.description})):(ITEMS[locale as 'en' | 'ar'] || ITEMS.en);
   return (
     <section className="py-12 bg-gray-50" dir={isRtl ? 'rtl' : 'ltr'}>
       <div className="max-w-7xl mx-auto px-4">
-        <h2 className="section-title text-center mb-8">{isRtl ? 'لماذا نكس ستور؟' : 'Why NuxStore?'}</h2>
+        <h2 className="section-title text-center mb-8">{isRtl ? (config.trust_title_ar||'لماذا نوكس ستور؟') : (config.trust_title||'Why NuxStore?')}</h2>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-5">
-          {items.map(item => (
+          {items.map((item:any) => (
             <div key={item.title} className="bg-white rounded-2xl p-5 border border-gray-100 hover:border-gray-200 hover:shadow-md transition-all flex gap-4">
               <span className="text-3xl flex-shrink-0">{item.icon}</span>
               <div>

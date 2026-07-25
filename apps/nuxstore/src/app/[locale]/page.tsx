@@ -46,6 +46,7 @@ export default async function HomePage() {
   // Fetch from existing NuxFashion API
   let products: Product[] = [];
   let categories: any[] = [];
+  let brands: any[] = [];
   let config: any = {};
 
   try {
@@ -55,6 +56,7 @@ export default async function HomePage() {
     ]);
     products = (catalogData.products || []).map(mapProduct);
     categories = catalogData.categories || [];
+    brands = catalogData.brands || [];
     config = configData;
   } catch (e) {
     // API not reachable during build — use empty state; hydrates on client
@@ -62,10 +64,13 @@ export default async function HomePage() {
   }
 
   // Slice sets for sections (tag-based when available, otherwise by position)
-  const newArrivals = products.filter(p => p.isNew).slice(0, 8);
-  const bestSellers = products.filter(p => p.isBestSeller).slice(0, 8);
-  const flashDeals  = products.filter(p => p.discount && p.discount >= 20).slice(0, 4);
-  const trending    = products.slice(0, 8);
+  const selected=(ids:any[],fallback:Product[])=>Array.isArray(ids)&&ids.length?ids.map(id=>products.find(p=>p.id===id)).filter(Boolean) as Product[]:fallback;
+  const visibleCategories=Array.isArray(config.category_ids)&&config.category_ids.length?config.category_ids.map((id:string)=>categories.find(c=>c.id===id)).filter(Boolean):categories;
+  const visibleBrands=Array.isArray(config.featured_brand_ids)&&config.featured_brand_ids.length?config.featured_brand_ids.map((id:string)=>brands.find(b=>b.id===id)).filter(Boolean):brands;
+  const newArrivals = selected(config.collection_product_ids,products.filter(p => p.isNew)).slice(0, 8);
+  const bestSellers = selected(config.best_seller_product_ids,products.filter(p => p.isBestSeller)).slice(0, 8);
+  const flashDeals  = selected(config.flash_product_ids,products.filter(p => p.discount && p.discount >= 20)).slice(0, 8);
+  const trending    = selected(config.trending_product_ids,products).slice(0, 8);
 
   // Fallback: if filters return nothing, use first N products
   const fill = (arr: Product[], n: number) => arr.length ? arr : products.slice(0, n);
@@ -81,7 +86,7 @@ export default async function HomePage() {
       {/* 3. Category Slider — real categories from DB */}
       {config.category_enabled !== false && <section className="py-10 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4">
-          <CategorySlider locale={locale} categories={categories}/>
+          <CategorySlider locale={locale} categories={visibleCategories}/>
         </div>
       </section>}
 
@@ -137,7 +142,7 @@ export default async function HomePage() {
       {/* 9. Brand Slider (static — no public brands API) */}
       {config.brands_enabled !== false && <section className="py-10 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4">
-          <BrandSlider locale={locale}/>
+          <BrandSlider locale={locale} brands={visibleBrands}/>
         </div>
       </section>}
 
@@ -168,7 +173,7 @@ export default async function HomePage() {
       {config.app_download_enabled === true && <AppDownload locale={locale}/>}
 
       {/* 13. Trust Section */}
-      {config.trust_enabled !== false && <TrustSection locale={locale}/>}
+      {config.trust_enabled !== false && <TrustSection locale={locale} config={config}/>} 
     </div>
   );
 }

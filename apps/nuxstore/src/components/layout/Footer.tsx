@@ -3,10 +3,14 @@ import Link from 'next/link';
 import { useTranslations, useLocale } from 'next-intl';
 import { Instagram, Twitter, Facebook, Youtube, MapPin, Phone, Mail } from 'lucide-react';
 
-export default function Footer() {
+export default function Footer({config={}}:{config?:any}) {
   const t = useTranslations('footer');
   const locale = useLocale();
   const isRtl = locale === 'ar';
+  const defaultsCustomer=[[t('track'),`/${locale}/track`],[t('returns'),`/${locale}/returns`],[t('faq'),`/${locale}/faq`],[t('contact'),`/${locale}/contact`],[locale==='ar'?'تتبع الشحنة':'Track Shipment',`/${locale}/shipment`]];
+  const defaultsCompany=[[t('about'),`/${locale}/about`],[t('careers'),`/${locale}/careers`],[t('press'),`/${locale}/press`],[t('blog'),`/${locale}/blog`],[locale==='ar'?'متاجرنا':'Our Stores',`/${locale}/stores`]];
+  const defaultsLegal=[[t('privacy'),`/${locale}/privacy`],[t('terms'),`/${locale}/terms`],[t('shipping_policy'),`/${locale}/shipping-policy`],[locale==='ar'?'سياسة ملفات تعريف الارتباط':'Cookie Policy',`/${locale}/cookies`],[locale==='ar'?'إمكانية الوصول':'Accessibility',`/${locale}/accessibility`]];
+  const links=(value:any[],fallback:any[])=>Array.isArray(value)&&value.length?value.filter(x=>x.enabled!==false).map(x=>[isRtl?(x.label_ar||x.label):x.label,x.url?.replace('{locale}',locale)||'#']):fallback;
 
   return (
     <footer className="bg-luxury-900 text-gray-300" dir={isRtl ? 'rtl' : 'ltr'}>
@@ -62,13 +66,13 @@ export default function Footer() {
           </div>
           <p className="text-gray-400 text-sm mb-4 leading-relaxed">
             {locale === 'ar'
-              ? 'وجهتك الأولى للموضة والأناقة في المملكة العربية السعودية'
-              : 'Your premier fashion destination in Saudi Arabia'}
+              ? (config.footer_about_ar||config.footer_about||'وجهتك الأولى للموضة والأناقة في المملكة العربية السعودية')
+              : (config.footer_about||'Your premier fashion destination in Saudi Arabia')}
           </p>
           <div className="space-y-2 text-sm text-gray-400">
-            <div className="flex items-center gap-2"><MapPin size={13}/>{locale === 'ar' ? 'الرياض، المملكة العربية السعودية' : 'Riyadh, Saudi Arabia'}</div>
-            <div className="flex items-center gap-2"><Phone size={13}/>920 000 0000</div>
-            <div className="flex items-center gap-2"><Mail size={13}/>hello@nuxstore.sa</div>
+            <div className="flex items-center gap-2"><MapPin size={13}/>{isRtl?(config.contact_address_ar||config.contact_address):(config.contact_address||'Riyadh, Saudi Arabia')}</div>
+            <div className="flex items-center gap-2"><Phone size={13}/>{config.contact_phone||config.support_phone||'—'}</div>
+            <div className="flex items-center gap-2"><Mail size={13}/>{config.contact_email||config.support_email||'—'}</div>
           </div>
         </div>
 
@@ -78,13 +82,7 @@ export default function Footer() {
             {locale === 'ar' ? 'خدمة العملاء' : 'Customer Service'}
           </h4>
           <ul className="space-y-2.5">
-            {[
-              [t('track'), `/${locale}/track`],
-              [t('returns'), `/${locale}/returns`],
-              [t('faq'), `/${locale}/faq`],
-              [t('contact'), `/${locale}/contact`],
-              [locale === 'ar' ? 'تتبع الشحنة' : 'Track Shipment', `/${locale}/shipment`],
-            ].map(([label, href]) => (
+            {links(config.footer_customer_links,defaultsCustomer).map(([label, href]) => (
               <li key={href}><Link href={href as string} className="text-sm text-gray-400 hover:text-gold-400 transition-colors">{label}</Link></li>
             ))}
           </ul>
@@ -96,13 +94,7 @@ export default function Footer() {
             {locale === 'ar' ? 'الشركة' : 'Company'}
           </h4>
           <ul className="space-y-2.5">
-            {[
-              [t('about'), `/${locale}/about`],
-              [t('careers'), `/${locale}/careers`],
-              [t('press'), `/${locale}/press`],
-              [t('blog'), `/${locale}/blog`],
-              [locale === 'ar' ? 'متاجرنا' : 'Our Stores', `/${locale}/stores`],
-            ].map(([label, href]) => (
+            {links(config.footer_company_links,defaultsCompany).map(([label, href]) => (
               <li key={href}><Link href={href as string} className="text-sm text-gray-400 hover:text-gold-400 transition-colors">{label}</Link></li>
             ))}
           </ul>
@@ -114,13 +106,7 @@ export default function Footer() {
             {locale === 'ar' ? 'قانوني' : 'Legal'}
           </h4>
           <ul className="space-y-2.5">
-            {[
-              [t('privacy'), `/${locale}/privacy`],
-              [t('terms'), `/${locale}/terms`],
-              [t('shipping_policy'), `/${locale}/shipping-policy`],
-              [locale === 'ar' ? 'سياسة ملفات تعريف الارتباط' : 'Cookie Policy', `/${locale}/cookies`],
-              [locale === 'ar' ? 'إمكانية الوصول' : 'Accessibility', `/${locale}/accessibility`],
-            ].map(([label, href]) => (
+            {links(config.footer_legal_links,defaultsLegal).map(([label, href]) => (
               <li key={href}><Link href={href as string} className="text-sm text-gray-400 hover:text-gold-400 transition-colors">{label}</Link></li>
             ))}
           </ul>
@@ -131,11 +117,11 @@ export default function Footer() {
           <h4 className="text-white font-bold text-sm mb-4 uppercase tracking-wider">{t('follow')}</h4>
           <div className="flex gap-3 mb-6">
             {[
-              { Icon: Instagram, href: 'https://instagram.com/nuxstore', color: 'hover:text-pink-400' },
-              { Icon: Twitter, href: 'https://twitter.com/nuxstore', color: 'hover:text-sky-400' },
-              { Icon: Facebook, href: 'https://facebook.com/nuxstore', color: 'hover:text-blue-400' },
-              { Icon: Youtube, href: 'https://youtube.com/nuxstore', color: 'hover:text-red-400' },
-            ].map(({ Icon, href, color }) => (
+              { Icon: Instagram, href: config.instagram_url, color: 'hover:text-pink-400' },
+              { Icon: Twitter, href: config.twitter_url, color: 'hover:text-sky-400' },
+              { Icon: Facebook, href: config.facebook_url, color: 'hover:text-blue-400' },
+              { Icon: Youtube, href: config.youtube_url, color: 'hover:text-red-400' },
+            ].filter(x=>x.href).map(({ Icon, href, color }) => (
               <a key={href} href={href} target="_blank" rel="noopener noreferrer"
                 className={`w-9 h-9 bg-white/10 rounded-full flex items-center justify-center text-gray-400 ${color} hover:bg-white/20 transition-all`}>
                 <Icon size={16}/>
@@ -160,7 +146,7 @@ export default function Footer() {
       <div className="border-t border-white/10">
         <div className="max-w-7xl mx-auto px-4 py-5 flex flex-col md:flex-row items-center justify-between gap-3">
           <div className="text-xs text-gray-500 text-center md:text-start">
-            <div>{t('rights')}</div>
+            <div>{isRtl?(config.footer_copyright_ar||t('rights')):(config.footer_copyright||t('rights'))}</div>
             <div>{t('vat')}</div>
           </div>
           {/* Payment icons */}
