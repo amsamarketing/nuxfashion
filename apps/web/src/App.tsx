@@ -25,6 +25,7 @@ import Storefront from './pages/store/Storefront';
 import Branches from './pages/admin/Branches';
 import BarcodeLabels from './pages/admin/BarcodeLabels';
 import B2BSales from './pages/admin/B2BSales';
+import Marketing from './pages/admin/Marketing';
 
 const qc = new QueryClient({ defaultOptions:{ queries:{ retry:1, staleTime:30000 }}});
 
@@ -41,6 +42,7 @@ const NAV = [
   { id:'ad-ecom',   label:'E-commerce',    icon:'ti-world',              sec:'Channels',perms:['ecommerce.view','ecommerce.content'] },
   { id:'ad-crm',    label:'Customers',     icon:'ti-users',              sec:'Channels',perms:['customers.view'] },
   { id:'ad-loyal',  label:'Loyalty',       icon:'ti-star',               sec:'Channels',perms:['loyalty.view','marketing.view'] },
+  { id:'ad-marketing',label:'Marketing',    icon:'ti-speakerphone',       sec:'Channels',perms:['marketing.view','marketing.*'] },
   { id:'ad-hr',     label:'HR & Payroll',  icon:'ti-id',                 sec:'People',perms:['hr.view','payroll.view'] },
   { id:'ad-acct',   label:'Accounting',    icon:'ti-report-money',       sec:'Finance',perms:['finance.view','invoices.view'] },
   { id:'ad-zatca',  label:'ZATCA',         icon:'ti-file-check',         sec:'Finance',perms:['vat.view'] },
@@ -66,6 +68,7 @@ const SCREENS: Record<string,React.ComponentType> = {
   'ad-branches':Branches,
   'ad-labels':BarcodeLabels,
   'ad-b2b':B2BSales,
+  'ad-marketing':Marketing,
 };
 
 const SECS = ['Main','Catalog','Channels','People','Finance','System'];

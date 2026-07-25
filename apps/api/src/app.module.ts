@@ -14,6 +14,7 @@ import { StorefrontModule } from './storefront/storefront.module';
 import { BranchesModule } from './branches/branches.module';
 import { B2bModule } from './b2b/b2b.module';
 import { SettingsModule } from './settings/settings.module';
+import { MarketingModule } from './marketing/marketing.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { SettingsModule } from './settings/settings.module';
     BranchesModule,
     B2bModule,
     SettingsModule,
+    MarketingModule,
   ],
 })
 export class AppModule {}
