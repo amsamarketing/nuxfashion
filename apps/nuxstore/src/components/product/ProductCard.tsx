@@ -119,7 +119,7 @@ export default function ProductCard({ product, layout = 'grid', showQuickAdd = t
   }
 
   return (
-    <Link href={`/${locale}/product/${product.slug}`} className="product-card block" dir={isRtl ? 'rtl' : 'ltr'}>
+    <Link href={`/${locale}/product/${product.slug}`} className="product-card group block" dir={isRtl ? 'rtl' : 'ltr'}>
       {/* Image */}
       <div className="relative aspect-[3/4] bg-gray-100 overflow-hidden">
         {product.image && (

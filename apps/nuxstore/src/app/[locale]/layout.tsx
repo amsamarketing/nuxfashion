@@ -9,6 +9,8 @@ import Footer from '@/components/layout/Footer';
 import { Toaster } from 'react-hot-toast';
 import './globals.css';
 
+export const dynamic = 'force-dynamic';
+
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 export const metadata: Metadata = {
