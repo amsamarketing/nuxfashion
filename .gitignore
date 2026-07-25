@@ -4,3 +4,8 @@ node_modules/
 apps/api/dist/
 
 apps/nuxstore/.next/
+.vercel
+.env*
+
+._*
+.turbo/
