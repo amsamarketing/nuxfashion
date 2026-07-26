@@ -75,112 +75,34 @@ export default async function HomePage() {
   // Fallback: if filters return nothing, use first N products
   const fill = (arr: Product[], n: number) => arr.length ? arr : products.slice(0, n);
 
-  return (
-    <div className="pb-8">
-      {/* 1. Hero Banner — uses banners from storefront_banners table */}
-      <div className="max-w-[1640px] mx-auto px-2 md:px-4 pt-4">
-        <div className="overflow-hidden rounded-[28px] aspect-[2.67/1] min-h-[420px]">
-          <HeroBanner locale={locale} banners={config.banners || []} autoplaySeconds={Number(config.hero_autoplay_seconds || 5)}/>
-        </div>
-      </div>
-
-      {/* 2. Promo strip — uses announcement from storefront_settings */}
-      <PromoStrip locale={locale} announcement={config.announcement} announcementAr={config.announcement_ar}/>
-
-      {/* 3. Category Slider — real categories from DB */}
-      {config.category_enabled !== false && <section className="py-10 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4">
-          <CategorySlider locale={locale} categories={visibleCategories}/>
-        </div>
-      </section>}
-
-      {/* 4. Flash Deals */}
-      {config.flash_enabled !== false && fill(flashDeals, 4).length > 0 && (
-        <section className="py-10 bg-luxury-900">
-          <div className="max-w-7xl mx-auto px-4">
-            <FlashDeals locale={locale} products={fill(flashDeals, 4)}/>
-          </div>
-        </section>
-      )}
-
-      {/* 5. New Arrivals */}
-      {config.new_arrivals_enabled !== false && products.length > 0 && (
-        <section className="py-12">
-          <div className="max-w-7xl mx-auto px-4">
-            <ProductSection
-              locale={locale}
-              titleEn={config.featured_title || 'New Arrivals'}
-              titleAr={config.featured_title_ar || 'وصل حديثاً'}
-              products={fill(newArrivals, 8)}
-              viewAllHref="/category/all"
-              autoplaySeconds={Number(config.product_slider_autoplay_seconds || 3)}
-            />
-          </div>
-        </section>
-      )}
-
-      {/* 6. Promo banners */}
-      {config.promo_banners_enabled !== false && <section className="py-8 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4">
-          <BannerRow locale={locale} config={config}/>
-        </div>
-      </section>}
-
-      {/* 7. Best Sellers */}
-      {config.best_sellers_enabled !== false && products.length > 0 && (
-        <section className="py-12">
-          <div className="max-w-7xl mx-auto px-4">
-            <ProductSection
-              locale={locale}
-              titleEn={config.best_sellers_title || 'Best Sellers'}
-              titleAr={config.best_sellers_title_ar || 'الأكثر مبيعاً'}
-              products={fill(bestSellers, 8)}
-              viewAllHref="/category/all"
-              autoplaySeconds={Number(config.product_slider_autoplay_seconds || 3)}
-            />
-          </div>
-        </section>
-      )}
-
-      {/* 8. Seasonal Campaign */}
-      {config.seasonal_enabled !== false && <SeasonalCampaign locale={locale} config={config}/>}
-
-      {/* 9. Brand Slider (static — no public brands API) */}
-      {config.brands_enabled !== false && <section className="py-10 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4">
-          <BrandSlider locale={locale} brands={visibleBrands}/>
-        </div>
-      </section>}
-
-      {/* 10. Trending */}
-      {config.trending_enabled !== false && products.length > 0 && (
-        <section className="py-12">
-          <div className="max-w-7xl mx-auto px-4">
-            <ProductSection
-              locale={locale}
-              titleEn={config.trending_title || 'Trending Now'}
-              titleAr={config.trending_title_ar || 'الأكثر رواجاً'}
-              products={fill(trending, 8)}
-              viewAllHref="/category/all"
-              badge="🔥"
-              autoplaySeconds={Number(config.product_slider_autoplay_seconds || 3)}
-            />
-          </div>
-        </section>
-      )}
-
-      {/* 11. Instagram Feed */}
-      {config.instagram_enabled !== false && <section className="py-10 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4">
-          <InstagramFeed locale={locale} instagramUrl={config.instagram_url}/>
-        </div>
-      </section>}
-
-      {/* 12. App Download */}
-      {config.app_download_enabled === true && <AppDownload locale={locale}/>}
-
-      {/* 13. Trust Section */}
-      {config.trust_enabled !== false && <TrustSection locale={locale} config={config}/>} 
-    </div>
-  );
+  const fallbackSections=[
+    {id:'hero',type:'hero',enabled:true},{id:'announcement',type:'announcement',enabled:true},
+    {id:'categories',type:'categories',title:'Shop by Category',title_ar:'تسوق حسب الفئة',enabled:true},
+    {id:'flash',type:'flash',title:'Flash Deals',title_ar:'عروض سريعة',enabled:true},
+    {id:'products',type:'products',title:'New Arrivals',title_ar:'وصل حديثاً',source:'collection',enabled:true},
+    {id:'promo',type:'promo_grid',layout:'two',enabled:true},{id:'brands',type:'brands',enabled:true},
+    {id:'trust',type:'trust',title:'Why NuxStore?',title_ar:'لماذا نوكس ستور؟',enabled:true}
+  ];
+  const sections=(Array.isArray(config.homepage_sections)&&config.homepage_sections.length?config.homepage_sections:fallbackSections).filter((x:any)=>x.enabled!==false);
+  const productsFor=(section:any)=>{
+    if(Array.isArray(section.product_ids)&&section.product_ids.length)return selected(section.product_ids,[]);
+    if(section.source==='best_sellers')return fill(bestSellers,8);
+    if(section.source==='trending')return fill(trending,8);
+    if(section.source==='flash')return fill(flashDeals,8);
+    return fill(newArrivals,8);
+  };
+  const renderSection=(section:any,index:number)=>{
+    const key=section.id||`${section.type}-${index}`;const speed=Number(section.autoplay_seconds??config.product_slider_autoplay_seconds??3);
+    if(section.type==='hero')return <div key={key} className="max-w-[1640px] mx-auto px-2 md:px-4 pt-4"><div className="overflow-hidden rounded-[28px] aspect-[2.67/1] min-h-[420px]"><HeroBanner locale={locale} banners={config.banners||[]} autoplaySeconds={speed||5}/></div></div>;
+    if(section.type==='announcement')return <PromoStrip key={key} locale={locale} announcement={config.announcement} announcementAr={config.announcement_ar}/>;
+    if(section.type==='categories'){const chosen=Array.isArray(section.category_ids)&&section.category_ids.length?section.category_ids.map((id:string)=>categories.find(c=>c.id===id)).filter(Boolean):visibleCategories;return <section key={key} className="py-10 bg-gray-50"><div className="max-w-7xl mx-auto px-4"><CategorySlider locale={locale} categories={chosen} titleEn={section.title||'Shop by Category'} titleAr={section.title_ar||section.title||'تسوق حسب الفئة'}/></div></section>}
+    if(section.type==='flash')return fill(flashDeals,5).length?<section key={key} className="py-10 bg-luxury-900"><div className="max-w-7xl mx-auto px-4"><FlashDeals locale={locale} products={fill(flashDeals,5)} titleEn={section.title||'Flash Deals'} titleAr={section.title_ar||section.title||'عروض سريعة'} endAt={section.end_at}/></div></section>:null;
+    if(section.type==='products'){const list=productsFor(section);return list.length?<section key={key} className="py-12"><div className="max-w-7xl mx-auto px-4"><ProductSection locale={locale} titleEn={section.title||'Featured Products'} titleAr={section.title_ar||section.title||'منتجات مختارة'} products={list} viewAllHref="/category/all" badge={section.source==='trending'?'🔥':undefined} autoplaySeconds={speed}/></div></section>:null}
+    if(section.type==='promo_grid')return <section key={key} className="py-8 bg-gray-50"><div className="max-w-7xl mx-auto px-4"><BannerRow locale={locale} config={config} section={section}/></div></section>;
+    if(section.type==='seasonal')return <SeasonalCampaign key={key} locale={locale} config={config}/>;
+    if(section.type==='brands')return <section key={key} className="py-10 bg-gray-50"><div className="max-w-7xl mx-auto px-4"><BrandSlider locale={locale} brands={visibleBrands}/></div></section>;
+    if(section.type==='trust')return <TrustSection key={key} locale={locale} config={{...config,trust_title:section.title||config.trust_title,trust_title_ar:section.title_ar||config.trust_title_ar}}/>;
+    return null;
+  };
+  return <div className="pb-8">{sections.map(renderSection)}{config.instagram_enabled!==false&&<section className="py-10 bg-gray-50"><div className="max-w-7xl mx-auto px-4"><InstagramFeed locale={locale} instagramUrl={config.instagram_url}/></div></section>}{config.app_download_enabled===true&&<AppDownload locale={locale}/>}</div>;
 }

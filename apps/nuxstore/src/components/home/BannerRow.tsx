@@ -23,22 +23,33 @@ const BANNERS = [
   },
 ];
 
-export default function BannerRow({ locale, config = {} }: { locale: string; config?: any }) {
+export default function BannerRow({ locale, config = {}, section = {} }: { locale: string; config?: any; section?: any }) {
   const isRtl = locale === 'ar';
-  const banners = [
+  const legacy = [
     {...BANNERS[0],titleEn:config.promo_card_1_title||BANNERS[0].titleEn,titleAr:config.promo_card_1_title_ar||BANNERS[0].titleAr,subEn:config.promo_card_1_subtitle||BANNERS[0].subEn,image:config.promo_card_1_image||BANNERS[0].image,href:config.promo_card_1_link||BANNERS[0].href},
     {...BANNERS[1],titleEn:config.promo_card_2_title||BANNERS[1].titleEn,titleAr:config.promo_card_2_title_ar||BANNERS[1].titleAr,subEn:config.promo_card_2_subtitle||BANNERS[1].subEn,image:config.promo_card_2_image||BANNERS[1].image,href:config.promo_card_2_link||BANNERS[1].href},
   ];
+  const banners = Array.isArray(section.items) && section.items.length
+    ? section.items.map((item:any,index:number)=>({
+        ...BANNERS[index%BANNERS.length],
+        titleEn:item.title||'Campaign',titleAr:item.title_ar||item.title||'حملة',
+        subEn:item.subtitle||'',subAr:item.subtitle_ar||item.subtitle||'',
+        ctaEn:item.button_label||'Shop Now',ctaAr:item.button_label_ar||'تسوق الآن',
+        image:item.image||BANNERS[index%BANNERS.length].image,
+        href:item.link||'/category/all',accent:item.accent||'#078c82'
+      })) : legacy;
+  const layout=section.layout||'two';
+  const gridClass=layout==='three'?'md:grid-cols-3':layout==='mosaic'?'md:grid-cols-3 md:grid-rows-2':'md:grid-cols-2';
   return (
-    <div className="grid md:grid-cols-2 gap-4" dir={isRtl ? 'rtl' : 'ltr'}>
-      {banners.map(b => (
+    <div className={`grid ${gridClass} gap-4`} dir={isRtl ? 'rtl' : 'ltr'}>
+      {banners.map((b:any,index:number) => (
         <Link
-          key={b.href}
+          key={`${b.href}-${index}`}
           href={`/${locale}${b.href}`}
-          className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${b.bg} p-6 md:p-8 group min-h-[160px] flex flex-col justify-between`}
+          className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${b.bg} p-6 md:p-8 group min-h-[220px] flex flex-col justify-between ${layout==='mosaic'&&index===0?'md:col-span-2 md:row-span-2 md:min-h-[456px]':''}`}
         >
           <div className="absolute inset-0 opacity-20">
-            <Image src={b.image} alt="" fill className="object-cover"/>
+            <Image src={b.image} alt="" fill className="object-cover" unoptimized/>
           </div>
           <div className="relative z-10">
             <h3 className="text-xl md:text-2xl font-black text-gray-900 mb-1">{isRtl ? b.titleAr : b.titleEn}</h3>

@@ -59,6 +59,23 @@ export class StorefrontService implements OnModuleInit {
       trending_enabled:true,trending_title:'Trending Now',trending_title_ar:'الأكثر رواجاً',
       instagram_enabled:true,app_download_enabled:false,trust_enabled:true,
       hero_autoplay_seconds:5,product_slider_autoplay_seconds:3,
+      homepage_sections:[
+        {id:'hero',type:'hero',title:'Hero Banner',enabled:true},
+        {id:'announcement',type:'announcement',title:'Announcement Bar',enabled:true},
+        {id:'categories',type:'categories',title:'Shop by Category',title_ar:'تسوق حسب الفئة',enabled:true},
+        {id:'flash',type:'flash',title:"Today's Top Offer",title_ar:'أفضل عروض اليوم',enabled:true},
+        {id:'new-arrivals',type:'products',title:'New Arrivals',title_ar:'وصل حديثاً',enabled:true,source:'collection'},
+        {id:'promo-grid',type:'promo_grid',title:'Campaign Banners',title_ar:'لافتات الحملات',enabled:true,layout:'mosaic',items:[
+          {id:'promo-1',title:"Women's Edit",title_ar:'تشكيلة المرأة',subtitle:'New season, new you',subtitle_ar:'موسم جديد، أنتِ جديدة',image:'',link:'/category/women'},
+          {id:'promo-2',title:"Men's Collection",title_ar:'مجموعة الرجال',subtitle:'Style meets comfort',subtitle_ar:'الأناقة تلتقي بالراحة',image:'',link:'/category/men'},
+          {id:'promo-3',title:'New Arrivals',title_ar:'وصل حديثاً',subtitle:'Fresh styles just landed',subtitle_ar:'أحدث التصاميم وصلت الآن',image:'',link:'/category/all'}
+        ]},
+        {id:'best-sellers',type:'products',title:'Best Sellers',title_ar:'الأكثر مبيعاً',enabled:true,source:'best_sellers'},
+        {id:'seasonal',type:'seasonal',title:'Seasonal Campaign',enabled:true},
+        {id:'brands',type:'brands',title:'Featured Brands',title_ar:'العلامات المميزة',enabled:true},
+        {id:'trending',type:'products',title:'Trending Now',title_ar:'الأكثر رواجاً',enabled:true,source:'trending'},
+        {id:'trust',type:'trust',title:'Why NuxStore?',title_ar:'لماذا نوكس ستور؟',enabled:true}
+      ],
       promo_card_1_title:"Women's Edit",promo_card_1_title_ar:'تشكيلة المرأة',promo_card_1_subtitle:'New season, new you',promo_card_1_image:'',promo_card_1_link:'/category/women',
       promo_card_2_title:"Men's Collection",promo_card_2_title_ar:'مجموعة الرجال',promo_card_2_subtitle:'Style meets comfort',promo_card_2_image:'',promo_card_2_link:'/category/men',
       seasonal_title:'Dress for the Season',seasonal_title_ar:'تألق في الموسم',seasonal_subtitle:'Discover our latest seasonal edit.',seasonal_subtitle_ar:'اكتشف أحدث تشكيلاتنا الموسمية.',seasonal_image:'',seasonal_button_label:'Shop Collection',seasonal_button_label_ar:'تسوق المجموعة',seasonal_button_link:'/category/all',

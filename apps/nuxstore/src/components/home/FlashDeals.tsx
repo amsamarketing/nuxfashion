@@ -23,9 +23,9 @@ function useCountdown(endMs: number) {
 
 const END_TIME = Date.now() + 6 * 60 * 60 * 1000; // 6 hours from now
 
-export default function FlashDeals({ locale, products }: { locale: string; products: Product[] }) {
+export default function FlashDeals({ locale, products, titleEn='Flash Deals', titleAr='عروض سريعة', endAt }: { locale: string; products: Product[]; titleEn?:string; titleAr?:string; endAt?:string }) {
   const isRtl = locale === 'ar';
-  const timer = useCountdown(END_TIME);
+  const timer = useCountdown(endAt ? new Date(endAt).getTime() : END_TIME);
   const addItem = useCartStore(s => s.addItem);
 
   return (
@@ -38,7 +38,7 @@ export default function FlashDeals({ locale, products }: { locale: string; produ
           </div>
           <div>
             <h2 className="text-2xl md:text-3xl font-black text-white">
-              {isRtl ? 'عروض سريعة' : 'Flash Deals'}
+              {isRtl ? titleAr : titleEn}
             </h2>
             <p className="text-white/60 text-xs">{isRtl ? 'عروض لا تُفوَّت!' : "Don't miss these deals!"}</p>
           </div>

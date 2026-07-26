@@ -39,6 +39,8 @@ interface ApiCategory {
 interface Props {
   locale: string;
   categories?: ApiCategory[];
+  titleEn?: string;
+  titleAr?: string;
 }
 
 // Fallback static categories shown while API loads or if empty
@@ -51,14 +53,14 @@ const STATIC_CATS: ApiCategory[] = [
   { id: 'shoes',   name: 'Shoes',    name_ar: 'أحذية',    slug: 'shoes' },
 ];
 
-export default function CategorySlider({ locale, categories = [] }: Props) {
+export default function CategorySlider({ locale, categories = [], titleEn='Shop by Category', titleAr='تسوق حسب الفئة' }: Props) {
   const isRtl = locale === 'ar';
   const cats = categories.length > 0 ? categories : STATIC_CATS;
 
   return (
     <div dir={isRtl ? 'rtl' : 'ltr'}>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="section-title">{isRtl ? 'تسوق حسب الفئة' : 'Shop by Category'}</h2>
+        <h2 className="section-title">{isRtl ? titleAr : titleEn}</h2>
         <Link href={`/${locale}/category/all`} className="text-sm font-bold text-luxury-900 hover:text-gold-600 transition-colors">
           {isRtl ? 'عرض الكل ←' : 'See All →'}
         </Link>
