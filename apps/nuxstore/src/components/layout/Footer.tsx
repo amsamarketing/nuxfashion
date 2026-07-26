@@ -2,11 +2,15 @@
 import Link from 'next/link';
 import { useTranslations, useLocale } from 'next-intl';
 import { Instagram, Twitter, Facebook, Youtube, MapPin, Phone, Mail } from 'lucide-react';
+import { useState } from 'react';
+import { storefrontApi } from '@/lib/api';
 
 export default function Footer({config={}}:{config?:any}) {
   const t = useTranslations('footer');
   const locale = useLocale();
   const isRtl = locale === 'ar';
+  const [newsletterEmail,setNewsletterEmail]=useState('');
+  const [newsletterState,setNewsletterState]=useState<'idle'|'loading'|'success'|'error'>('idle');
   const defaultsCustomer=[[t('track'),`/${locale}/track`],[t('returns'),`/${locale}/returns`],[t('faq'),`/${locale}/faq`],[t('contact'),`/${locale}/contact`],[locale==='ar'?'تتبع الشحنة':'Track Shipment',`/${locale}/shipment`]];
   const defaultsCompany=[[t('about'),`/${locale}/about`],[t('careers'),`/${locale}/careers`],[t('press'),`/${locale}/press`],[t('blog'),`/${locale}/blog`],[locale==='ar'?'متاجرنا':'Our Stores',`/${locale}/stores`]];
   const defaultsLegal=[[t('privacy'),`/${locale}/privacy`],[t('terms'),`/${locale}/terms`],[t('shipping_policy'),`/${locale}/shipping-policy`],[locale==='ar'?'سياسة ملفات تعريف الارتباط':'Cookie Policy',`/${locale}/cookies`],[locale==='ar'?'إمكانية الوصول':'Accessibility',`/${locale}/accessibility`]];
@@ -41,15 +45,22 @@ export default function Footer({config={}}:{config?:any}) {
             <h3 className="text-white font-black text-xl mb-1">{t('newsletter_title')}</h3>
             <p className="text-gray-400 text-sm">{t('newsletter_sub')}</p>
           </div>
-          <form className="flex gap-2 w-full md:w-auto" onSubmit={e => e.preventDefault()}>
+          <form className="flex flex-col gap-2 w-full md:w-auto" onSubmit={async e=>{e.preventDefault();setNewsletterState('loading');try{await storefrontApi.subscribe(newsletterEmail);setNewsletterEmail('');setNewsletterState('success')}catch{setNewsletterState('error')}}}>
+            <div className="flex gap-2">
             <input
               type="email"
+              required
+              value={newsletterEmail}
+              onChange={e=>setNewsletterEmail(e.target.value)}
               placeholder={t('newsletter_placeholder')}
               className="flex-1 md:w-72 bg-white/10 border border-white/20 rounded-full px-4 py-2.5 text-sm text-white placeholder:text-gray-400 outline-none focus:border-gold-400"
             />
-            <button className="bg-gold-500 hover:bg-gold-400 text-white font-bold px-6 py-2.5 rounded-full text-sm transition-colors whitespace-nowrap">
-              {t('newsletter_btn')}
+            <button disabled={newsletterState==='loading'} className="bg-gold-500 hover:bg-gold-400 disabled:opacity-60 text-white font-bold px-6 py-2.5 rounded-full text-sm transition-colors whitespace-nowrap">
+              {newsletterState==='loading'?'…':t('newsletter_btn')}
             </button>
+            </div>
+            {newsletterState==='success'&&<p className="text-xs text-green-400">{isRtl?'تم الاشتراك بنجاح':'Subscription confirmed'}</p>}
+            {newsletterState==='error'&&<p className="text-xs text-red-400">{isRtl?'تعذر الاشتراك. حاول مرة أخرى':'Could not subscribe. Please try again.'}</p>}
           </form>
         </div>
       </div>
@@ -128,17 +139,17 @@ export default function Footer({config={}}:{config?:any}) {
               </a>
             ))}
           </div>
-          <h4 className="text-white font-bold text-sm mb-3 uppercase tracking-wider">{t('app_title')}</h4>
+          {(config.app_store_url||config.google_play_url)&&<><h4 className="text-white font-bold text-sm mb-3 uppercase tracking-wider">{t('app_title')}</h4>
           <div className="space-y-2">
-            <a href="#" className="flex items-center gap-2 bg-white/10 hover:bg-white/20 rounded-lg px-3 py-2 transition-colors">
+            {config.app_store_url&&<a href={config.app_store_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-white/10 hover:bg-white/20 rounded-lg px-3 py-2 transition-colors">
               <span className="text-lg">🍎</span>
               <div className="text-xs"><div className="text-gray-400">Download on the</div><div className="text-white font-bold">App Store</div></div>
-            </a>
-            <a href="#" className="flex items-center gap-2 bg-white/10 hover:bg-white/20 rounded-lg px-3 py-2 transition-colors">
+            </a>}
+            {config.google_play_url&&<a href={config.google_play_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-white/10 hover:bg-white/20 rounded-lg px-3 py-2 transition-colors">
               <span className="text-lg">▶</span>
               <div className="text-xs"><div className="text-gray-400">Get it on</div><div className="text-white font-bold">Google Play</div></div>
-            </a>
-          </div>
+            </a>}
+          </div></>}
         </div>
       </div>
 

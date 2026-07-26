@@ -373,6 +373,18 @@ export class SalesService {
     const taxAmount = taxableAmount * 0.15;
     const total = taxableAmount + taxAmount;
     const warehouseId=activeSession.rows[0].warehouse_id;
+    // Refuse overselling before an order is created. Existing negative balances
+    // still need a physical stock reconciliation, but new POS sales cannot make
+    // them worse.
+    for (const line of processedLines) {
+      const stock=await this.db.query(
+        `SELECT quantity-reserved_quantity available FROM inventory
+         WHERE warehouse_id=$1 AND variant_id=$2`,
+        [warehouseId,line.variant_id],
+      );
+      if(Number(stock.rows[0]?.available||0)<Number(line.quantity))
+        throw new BadRequestException('Insufficient stock for one or more sale items');
+    }
     const branch=await this.db.query(
       `SELECT invoice_prefix FROM branches WHERE company_id=$1 AND warehouse_id=$2 AND is_active=true`,
       [companyId,warehouseId],

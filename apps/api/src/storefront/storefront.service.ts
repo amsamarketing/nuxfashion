@@ -32,6 +32,11 @@ export class StorefrontService implements OnModuleInit {
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),company_id uuid NOT NULL,
       discount_id uuid NOT NULL REFERENCES discounts(id),customer_id uuid,order_id uuid,
       amount numeric(12,2) NOT NULL DEFAULT 0,created_at timestamptz NOT NULL DEFAULT now())`);
+    await this.db.query(`CREATE TABLE IF NOT EXISTS storefront_subscribers(
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),company_id uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+      email varchar(320) NOT NULL,is_active boolean NOT NULL DEFAULT true,source varchar(40) NOT NULL DEFAULT 'footer',
+      subscribed_at timestamptz NOT NULL DEFAULT now(),unsubscribed_at timestamptz,
+      UNIQUE(company_id,email))`);
   }
 
   private defaults(){
@@ -113,6 +118,15 @@ export class StorefrontService implements OnModuleInit {
       currency:'SAR',vat_rate:15,...settings,banners:banners.rows,
       payment_methods:['cash_on_delivery','bank_transfer'],
     };
+  }
+
+  async subscribe(email:string){
+    const normalized=String(email||'').trim().toLowerCase();
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized))throw new BadRequestException('Enter a valid email address');
+    const companyId=await this.tenantId();
+    await this.db.query(`INSERT INTO storefront_subscribers(company_id,email) VALUES($1,$2)
+      ON CONFLICT(company_id,email) DO UPDATE SET is_active=true,unsubscribed_at=NULL,subscribed_at=NOW()`,[companyId,normalized]);
+    return {success:true,message:'Subscription confirmed'};
   }
 
   async getAdminContent(companyId:string){

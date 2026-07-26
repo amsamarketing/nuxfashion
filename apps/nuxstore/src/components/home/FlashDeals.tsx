@@ -8,9 +8,12 @@ import toast from 'react-hot-toast';
 import type { Product } from '../product/ProductCard';
 
 function useCountdown(endMs: number) {
-  const [left, setLeft] = useState(endMs - Date.now());
+  // Keep the server and first client render identical to avoid hydration errors.
+  const [left, setLeft] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setLeft(endMs - Date.now()), 1000);
+    const update = () => setLeft(Math.max(0, endMs - Date.now()));
+    update();
+    const t = setInterval(update, 1000);
     return () => clearInterval(t);
   }, [endMs]);
   const s = Math.max(0, Math.floor(left / 1000));
@@ -21,11 +24,14 @@ function useCountdown(endMs: number) {
   };
 }
 
-const END_TIME = Date.now() + 6 * 60 * 60 * 1000; // 6 hours from now
+const FALLBACK_DURATION = 6 * 60 * 60 * 1000;
 
 export default function FlashDeals({ locale, products, titleEn='Flash Deals', titleAr='عروض سريعة', endAt }: { locale: string; products: Product[]; titleEn?:string; titleAr?:string; endAt?:string }) {
   const isRtl = locale === 'ar';
-  const timer = useCountdown(endAt ? new Date(endAt).getTime() : END_TIME);
+  const [fallbackEnd, setFallbackEnd] = useState(0);
+  useEffect(() => setFallbackEnd(Date.now() + FALLBACK_DURATION), []);
+  const configuredEnd = endAt ? new Date(endAt).getTime() : fallbackEnd;
+  const timer = useCountdown(configuredEnd);
   const addItem = useCartStore(s => s.addItem);
 
   return (
@@ -67,7 +73,9 @@ export default function FlashDeals({ locale, products, titleEn='Flash Deals', ti
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {products.map(p => {
           const discount = p.originalPrice ? Math.round((1 - p.price / p.originalPrice) * 100) : 30;
-          const pct = Math.random() * 0.4 + 0.3; // 30-70% sold
+          // Stable demo progress derived from product id; never random during render.
+          const hash = String(p.id).split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+          const pct = 0.3 + (hash % 41) / 100; // 30-70% sold
           return (
             <Link key={p.id} href={`/${locale}/product/${p.slug}`}
               className="bg-white/10 hover:bg-white/20 rounded-2xl p-3 transition-all group border border-white/10 hover:border-white/30">
@@ -90,7 +98,7 @@ export default function FlashDeals({ locale, products, titleEn='Flash Deals', ti
                 </div>
               </div>
               <button
-                onClick={e => { e.preventDefault(); addItem({...p, productId: p.id, variantId: p.id, sku: p.id, stock: 10}); toast.success(isRtl ? 'أُضيف ✓' : 'Added ✓', {duration:1500}); }}
+                onClick={e => { e.preventDefault(); addItem({...p, productId: p.id, variantId: p.variantId||p.id, sku: p.sku||p.id, stock: p.stock??0}); toast.success(isRtl ? 'أُضيف ✓' : 'Added ✓', {duration:1500}); }}
                 className="w-full bg-gold-500 hover:bg-gold-400 text-white text-xs font-bold py-2 rounded-lg transition-colors"
               >
                 {isRtl ? 'أضف للسلة' : 'Add to Cart'}

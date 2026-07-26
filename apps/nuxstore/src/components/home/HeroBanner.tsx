@@ -123,10 +123,10 @@ export default function HeroBanner({ locale, banners = [], autoplaySeconds = 5 }
 
       {slides.length > 1 && (
         <>
-          <button onClick={prev} className="absolute start-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white/20 hover:bg-white/40 text-white flex items-center justify-center transition-all backdrop-blur-sm">
+          <button onClick={prev} className="absolute start-2 top-1/2 z-20 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-sm transition-all hover:bg-white/40 md:start-4 md:h-10 md:w-10">
             {isRtl ? <ChevronRight size={18}/> : <ChevronLeft size={18}/>}
           </button>
-          <button onClick={next} className="absolute end-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white/20 hover:bg-white/40 text-white flex items-center justify-center transition-all backdrop-blur-sm">
+          <button onClick={next} className="absolute end-2 top-1/2 z-20 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-sm transition-all hover:bg-white/40 md:end-4 md:h-10 md:w-10">
             {isRtl ? <ChevronLeft size={18}/> : <ChevronRight size={18}/>}
           </button>
           <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-2 z-20">

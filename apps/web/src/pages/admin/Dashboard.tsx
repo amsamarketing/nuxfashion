@@ -58,7 +58,7 @@ export default function Dashboard(){
       <div className="dash-head-actions">
         <button className="btn-nx ghost" onClick={()=>refetch()} disabled={isFetching}><i className={`ti ti-refresh${isFetching?' login-spin':''}`}/> Refresh</button>
         <button className="btn-nx ghost" onClick={()=>nav('ad-rep')}><i className="ti ti-chart-bar"/> All Reports</button>
-        <button className="btn-nx primary" onClick={()=>window.dispatchEvent(new CustomEvent('resume-held'))}><i className="ti ti-cash-register"/> Open POS</button>
+        <button className="btn-nx primary" onClick={()=>{window.location.href='/pos-login'}}><i className="ti ti-cash-register"/> Branch POS Login</button>
       </div>
     </header>
 

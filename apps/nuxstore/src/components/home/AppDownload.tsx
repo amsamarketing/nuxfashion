@@ -1,6 +1,6 @@
 'use client';
 
-export default function AppDownload({ locale }: { locale: string }) {
+export default function AppDownload({ locale,appStoreUrl,googlePlayUrl }: { locale: string;appStoreUrl?:string;googlePlayUrl?:string }) {
   const isRtl = locale === 'ar';
   return (
     <section className="bg-gradient-to-br from-luxury-900 to-luxury-700 py-16" dir={isRtl ? 'rtl' : 'ltr'}>
@@ -16,14 +16,14 @@ export default function AppDownload({ locale }: { locale: string }) {
               : 'Download the app for exclusive deals, instant notifications, and seamless shopping'}
           </p>
           <div className="flex flex-wrap gap-3">
-            <a href="#" className="flex items-center gap-3 bg-white text-luxury-900 rounded-xl px-4 py-3 hover:bg-gray-100 transition-colors">
+            {appStoreUrl&&<a href={appStoreUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 bg-white text-luxury-900 rounded-xl px-4 py-3 hover:bg-gray-100 transition-colors">
               <span className="text-2xl">🍎</span>
               <div><div className="text-[10px] text-gray-500">Download on the</div><div className="font-bold text-sm">App Store</div></div>
-            </a>
-            <a href="#" className="flex items-center gap-3 bg-white text-luxury-900 rounded-xl px-4 py-3 hover:bg-gray-100 transition-colors">
+            </a>}
+            {googlePlayUrl&&<a href={googlePlayUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 bg-white text-luxury-900 rounded-xl px-4 py-3 hover:bg-gray-100 transition-colors">
               <span className="text-2xl">▶️</span>
               <div><div className="text-[10px] text-gray-500">Get it on</div><div className="font-bold text-sm">Google Play</div></div>
-            </a>
+            </a>}
           </div>
           <div className="flex gap-6 mt-6">
             {[['4.8★', isRtl ? 'تقييم التطبيق' : 'App Rating'], ['1M+', isRtl ? 'تحميل' : 'Downloads'], ['50K+', isRtl ? 'تقييم' : 'Reviews']].map(([val, lab]) => (

@@ -104,5 +104,5 @@ export default async function HomePage() {
     if(section.type==='trust')return <TrustSection key={key} locale={locale} config={{...config,trust_title:section.title||config.trust_title,trust_title_ar:section.title_ar||config.trust_title_ar}}/>;
     return null;
   };
-  return <div className="pb-8">{sections.map(renderSection)}{config.instagram_enabled!==false&&<section className="py-10 bg-gray-50"><div className="max-w-7xl mx-auto px-4"><InstagramFeed locale={locale} instagramUrl={config.instagram_url}/></div></section>}{config.app_download_enabled===true&&<AppDownload locale={locale}/>}</div>;
+  return <div className="pb-8">{sections.map(renderSection)}{config.instagram_enabled!==false&&<section className="py-10 bg-gray-50"><div className="max-w-7xl mx-auto px-4"><InstagramFeed locale={locale} instagramUrl={config.instagram_url}/></div></section>}{config.app_download_enabled===true&&(config.app_store_url||config.google_play_url)&&<AppDownload locale={locale} appStoreUrl={config.app_store_url} googlePlayUrl={config.google_play_url}/>}</div>;
 }

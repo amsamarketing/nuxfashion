@@ -32,6 +32,9 @@ export const storefrontApi = {
   trackOrder: (order_number:string,phone:string) =>
     api.get('/storefront/track',{params:{order_number,phone}}).then(r=>r.data),
 
+  subscribe: (email:string) =>
+    api.post('/storefront/subscribe',{email}).then(r=>r.data),
+
   /** Place an order
    *  DTO: { customer_name, phone, email?, city, address, district?, postal_code?,
    *         notes?, coupon_code?, payment_method, lines:[{variant_id,quantity}] } */

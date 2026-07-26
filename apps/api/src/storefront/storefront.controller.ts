@@ -22,6 +22,9 @@ export class StorefrontController {
   @Get('track')
   track(@Query('order_number') orderNumber:string,@Query('phone') phone:string){return this.service.trackOrder(orderNumber,phone)}
 
+  @Post('subscribe')
+  subscribe(@Body('email') email:string){return this.service.subscribe(email)}
+
   @Post('checkout')
   checkout(@Body() dto:StoreCheckoutDto) { return this.service.checkout(dto); }
 }
