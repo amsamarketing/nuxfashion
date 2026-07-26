@@ -78,7 +78,11 @@ export default async function HomePage() {
   return (
     <div className="pb-8">
       {/* 1. Hero Banner — uses banners from storefront_banners table */}
-      <HeroBanner locale={locale} banners={config.banners || []}/>
+      <div className="max-w-[1640px] mx-auto px-2 md:px-4 pt-4">
+        <div className="overflow-hidden rounded-[28px] aspect-[2.67/1] min-h-[420px]">
+          <HeroBanner locale={locale} banners={config.banners || []} autoplaySeconds={Number(config.hero_autoplay_seconds || 5)}/>
+        </div>
+      </div>
 
       {/* 2. Promo strip — uses announcement from storefront_settings */}
       <PromoStrip locale={locale} announcement={config.announcement} announcementAr={config.announcement_ar}/>
@@ -109,6 +113,7 @@ export default async function HomePage() {
               titleAr={config.featured_title_ar || 'وصل حديثاً'}
               products={fill(newArrivals, 8)}
               viewAllHref="/category/all"
+              autoplaySeconds={Number(config.product_slider_autoplay_seconds || 3)}
             />
           </div>
         </section>
@@ -131,6 +136,7 @@ export default async function HomePage() {
               titleAr={config.best_sellers_title_ar || 'الأكثر مبيعاً'}
               products={fill(bestSellers, 8)}
               viewAllHref="/category/all"
+              autoplaySeconds={Number(config.product_slider_autoplay_seconds || 3)}
             />
           </div>
         </section>
@@ -157,6 +163,7 @@ export default async function HomePage() {
               products={fill(trending, 8)}
               viewAllHref="/category/all"
               badge="🔥"
+              autoplaySeconds={Number(config.product_slider_autoplay_seconds || 3)}
             />
           </div>
         </section>

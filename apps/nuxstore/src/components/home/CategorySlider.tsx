@@ -73,7 +73,7 @@ export default function CategorySlider({ locale, categories = [] }: Props) {
           return (
             <Link key={cat.id} href={href} className="flex-shrink-0 snap-start flex flex-col items-center gap-2.5 group">
               <div
-                className="w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center border-2 group-hover:scale-110 transition-all duration-300 group-hover:shadow-lg overflow-hidden"
+                className="w-28 h-28 md:w-40 md:h-40 rounded-full flex items-center justify-center border group-hover:scale-105 transition-all duration-300 group-hover:shadow-lg overflow-hidden"
                 style={{ background: meta.color, borderColor: meta.border }}
               >
                 {cat.image_url ? (

@@ -55,7 +55,15 @@ export default function ProductPage() {
         if (data.variants?.[0]?.color) setSelColor(data.variants[0].color);
         if (data.variants?.[0]?.size)  setSelSize(data.variants[0].size);
       })
-      .catch(() => setProduct(null))
+      .catch(async () => {
+        try {
+          const catalog = await storefrontApi.getCatalog();
+          const match = (catalog.products || []).find((item:any) => item.id === String(slug) || item.slug === String(slug));
+          setProduct(match || null);
+          if (match?.variants?.[0]?.color) setSelColor(match.variants[0].color);
+          if (match?.variants?.[0]?.size) setSelSize(match.variants[0].size);
+        } catch { setProduct(null); }
+      })
       .finally(() => setLoading(false));
   }, [slug]);
 
@@ -95,7 +103,7 @@ export default function ProductPage() {
   const origPrice = Number(activeVariant?.compare_price || 0);
   const discount  = origPrice > price ? Math.round((1-price/origPrice)*100) : 0;
   const inStock   = Number(activeVariant?.stock || 0) > 0;
-  const images    = [...new Set([...(product.images || []), product.image_url].filter(Boolean))] as string[];
+  const images    = [...new Set([product.image_url, ...(product.images || [])].filter(Boolean))] as string[];
 
   const name = isRtl ? (product.name_ar || product.name) : product.name;
   const desc = isRtl ? (product.description_ar || product.description) : product.description;

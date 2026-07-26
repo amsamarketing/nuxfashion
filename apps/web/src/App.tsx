@@ -78,6 +78,7 @@ function App() {
   const [mode, setMode] = useState<'pos'|'admin'>(()=>user?.portal==='pos'?'pos':'admin');
   const [screen, setScreen] = useState(()=>user?.portal==='pos'?'pos-sale':'ad-dash');
   const [sideOpen, setSideOpen] = useState(false);
+  const [openGroups,setOpenGroups]=useState<string[]>(['Main','Catalog']);
   const visibleNav=NAV.filter(n=>hasPermission(user,n.perms));
 
   useEffect(()=>{
@@ -141,15 +142,15 @@ function App() {
             const items=visibleNav.filter(n=>n.sec===sec);if(!items.length)return null;
             return (
               <div key={sec} className="p-nav-group">
-                <div className="p-nav-label">{sec}</div>
-                {items.map(n=>(
+                <button className="p-nav-label p-nav-toggle" onClick={()=>setOpenGroups(g=>g.includes(sec)?g.filter(x=>x!==sec):[...g,sec])}><span>{sec}</span><i className={`ti ti-chevron-${openGroups.includes(sec)?'up':'down'}`}/></button>
+                <div className={`p-nav-children${openGroups.includes(sec)?' open':''}`}>{items.map(n=>(
                   <button key={n.id} className={`p-nav-item${safeScreen===n.id?' active':''}`}
                     onClick={()=>{ setScreen(n.id); setSideOpen(false); }}>
                     <i className={`ti ${n.icon} p-nav-ic`}/>
                     <span>{n.label}</span>
                     {n.id==='ad-ecom' && <span className="p-new-badge">New</span>}
                   </button>
-                ))}
+                ))}</div>
               </div>
             );
           })}

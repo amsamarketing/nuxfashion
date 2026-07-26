@@ -18,6 +18,8 @@ export class StorefrontService implements OnModuleInit {
       sort_order INTEGER NOT NULL DEFAULT 0,is_active BOOLEAN NOT NULL DEFAULT TRUE,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
     await this.db.query(`ALTER TABLE storefront_banners ADD COLUMN IF NOT EXISTS mobile_image_url TEXT`);
+    await this.db.query(`ALTER TABLE storefront_banners ADD COLUMN IF NOT EXISTS image_url_ar TEXT`);
+    await this.db.query(`ALTER TABLE storefront_banners ADD COLUMN IF NOT EXISTS mobile_image_url_ar TEXT`);
     await this.db.query(`ALTER TABLE storefront_banners ADD COLUMN IF NOT EXISTS kicker TEXT`);
     await this.db.query(`ALTER TABLE storefront_banners ADD COLUMN IF NOT EXISTS subtitle_ar TEXT`);
     await this.db.query(`ALTER TABLE storefront_banners ADD COLUMN IF NOT EXISTS button_label_ar TEXT`);
@@ -56,6 +58,7 @@ export class StorefrontService implements OnModuleInit {
       promo_banners_enabled:true,seasonal_enabled:true,brands_enabled:true,
       trending_enabled:true,trending_title:'Trending Now',trending_title_ar:'الأكثر رواجاً',
       instagram_enabled:true,app_download_enabled:false,trust_enabled:true,
+      hero_autoplay_seconds:5,product_slider_autoplay_seconds:3,
       promo_card_1_title:"Women's Edit",promo_card_1_title_ar:'تشكيلة المرأة',promo_card_1_subtitle:'New season, new you',promo_card_1_image:'',promo_card_1_link:'/category/women',
       promo_card_2_title:"Men's Collection",promo_card_2_title_ar:'مجموعة الرجال',promo_card_2_subtitle:'Style meets comfort',promo_card_2_image:'',promo_card_2_link:'/category/men',
       seasonal_title:'Dress for the Season',seasonal_title_ar:'تألق في الموسم',seasonal_subtitle:'Discover our latest seasonal edit.',seasonal_subtitle_ar:'اكتشف أحدث تشكيلاتنا الموسمية.',seasonal_image:'',seasonal_button_label:'Shop Collection',seasonal_button_label_ar:'تسوق المجموعة',seasonal_button_link:'/category/all',
@@ -108,15 +111,15 @@ export class StorefrontService implements OnModuleInit {
   }
   async createBanner(companyId:string,body:any){
     if(!String(body.title||'').trim())throw new BadRequestException('Banner title is required');
-    const result=await this.db.query(`INSERT INTO storefront_banners(id,company_id,title,title_ar,subtitle,subtitle_ar,image_url,mobile_image_url,kicker,button_label,button_label_ar,button_link,sort_order,is_active,overlay_strength,text_position,starts_at,ends_at)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *`,[randomUUID(),companyId,body.title,body.title_ar||null,body.subtitle||null,body.subtitle_ar||null,body.image_url||null,body.mobile_image_url||null,body.kicker||null,body.button_label||'Shop Now',body.button_label_ar||null,body.button_link||'#collection',Number(body.sort_order||0),body.is_active!==false,Number(body.overlay_strength??.65),body.text_position||'left',body.starts_at||null,body.ends_at||null]);
+    const result=await this.db.query(`INSERT INTO storefront_banners(id,company_id,title,title_ar,subtitle,subtitle_ar,image_url,mobile_image_url,image_url_ar,mobile_image_url_ar,kicker,button_label,button_label_ar,button_link,sort_order,is_active,overlay_strength,text_position,starts_at,ends_at)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING *`,[randomUUID(),companyId,body.title,body.title_ar||null,body.subtitle||null,body.subtitle_ar||null,body.image_url||null,body.mobile_image_url||null,body.image_url_ar||null,body.mobile_image_url_ar||null,body.kicker||null,body.button_label||'Shop Now',body.button_label_ar||null,body.button_link||'#collection',Number(body.sort_order||0),body.is_active!==false,Number(body.overlay_strength??.65),body.text_position||'left',body.starts_at||null,body.ends_at||null]);
     return result.rows[0];
   }
   async updateBanner(companyId:string,id:string,body:any){
     const current=await this.db.query(`SELECT * FROM storefront_banners WHERE id=$1 AND company_id=$2`,[id,companyId]);
     if(!current.rows[0])throw new NotFoundException('Banner not found');const b={...current.rows[0],...body};
-    const result=await this.db.query(`UPDATE storefront_banners SET title=$1,title_ar=$2,subtitle=$3,subtitle_ar=$4,image_url=$5,mobile_image_url=$6,kicker=$7,button_label=$8,button_label_ar=$9,button_link=$10,sort_order=$11,is_active=$12,overlay_strength=$13,text_position=$14,starts_at=$15,ends_at=$16,updated_at=NOW() WHERE id=$17 AND company_id=$18 RETURNING *`,
-      [b.title,b.title_ar||null,b.subtitle||null,b.subtitle_ar||null,b.image_url||null,b.mobile_image_url||null,b.kicker||null,b.button_label||'Shop Now',b.button_label_ar||null,b.button_link||'#collection',Number(b.sort_order||0),b.is_active!==false,Number(b.overlay_strength??.65),b.text_position||'left',b.starts_at||null,b.ends_at||null,id,companyId]);
+    const result=await this.db.query(`UPDATE storefront_banners SET title=$1,title_ar=$2,subtitle=$3,subtitle_ar=$4,image_url=$5,mobile_image_url=$6,image_url_ar=$7,mobile_image_url_ar=$8,kicker=$9,button_label=$10,button_label_ar=$11,button_link=$12,sort_order=$13,is_active=$14,overlay_strength=$15,text_position=$16,starts_at=$17,ends_at=$18,updated_at=NOW() WHERE id=$19 AND company_id=$20 RETURNING *`,
+      [b.title,b.title_ar||null,b.subtitle||null,b.subtitle_ar||null,b.image_url||null,b.mobile_image_url||null,b.image_url_ar||null,b.mobile_image_url_ar||null,b.kicker||null,b.button_label||'Shop Now',b.button_label_ar||null,b.button_link||'#collection',Number(b.sort_order||0),b.is_active!==false,Number(b.overlay_strength??.65),b.text_position||'left',b.starts_at||null,b.ends_at||null,id,companyId]);
     return result.rows[0];
   }
   async deleteBanner(companyId:string,id:string){await this.db.query(`DELETE FROM storefront_banners WHERE id=$1 AND company_id=$2`,[id,companyId]);return{success:true}}
@@ -153,7 +156,7 @@ export class StorefrontService implements OnModuleInit {
   }
 
   async getProduct(id:string){
-    const catalog=await this.getCatalog();const product=catalog.products.find((p:any)=>p.id===id);
+    const catalog=await this.getCatalog();const product=catalog.products.find((p:any)=>p.id===id||p.slug===id);
     if(!product)throw new NotFoundException('Product not found');return product;
   }
 

@@ -18,7 +18,7 @@ export default function Dashboard(){
   const {data,isLoading,refetch,isFetching}=useQuery({
     queryKey:['executive-dashboard',today],
     queryFn:async()=>{
-      const [summary,orders,trend,products,categories,payments,valuation,lowStock,profit,vat]=await Promise.all([
+      const [summary,orders,trend,products,categories,payments,valuation,lowStock,profit,vat,branches]=await Promise.all([
         get('/reports/dashboard'),
         get('/sales/orders?limit=8'),
         get(`/reports/sales/by-period?group_by=day&from=${trendStart}&to=${today}`),
@@ -29,12 +29,13 @@ export default function Dashboard(){
         get('/reports/inventory/low-stock'),
         get(`/finance/reports/profit-loss?from=${monthStart}&to=${today}`),
         get(`/finance/reports/vat?from=${monthStart}&to=${today}`),
+        get(`/branches/reports/performance?from=${monthStart}&to=${today}`),
       ]);
-      return{summary:summary||{},orders:Array.isArray(orders)?orders:orders?.orders||orders?.data||[],trend:Array.isArray(trend)?trend:[],products:Array.isArray(products)?products:[],categories:Array.isArray(categories)?categories:[],payments:Array.isArray(payments)?payments:[],valuation:valuation||{},lowStock:Array.isArray(lowStock)?lowStock:[],profit:profit||{},vat:vat||{}};
+      return{summary:summary||{},orders:Array.isArray(orders)?orders:orders?.orders||orders?.data||[],trend:Array.isArray(trend)?trend:[],products:Array.isArray(products)?products:[],categories:Array.isArray(categories)?categories:[],payments:Array.isArray(payments)?payments:[],valuation:valuation||{},lowStock:Array.isArray(lowStock)?lowStock:[],profit:profit||{},vat:vat||{},branches:branches||{branches:[],totals:{}}};
     },
     staleTime:60000,
   });
-  const d=data||{summary:{},orders:[],trend:[],products:[],categories:[],payments:[],valuation:{},lowStock:[],profit:{},vat:{}};
+  const d=data||{summary:{},orders:[],trend:[],products:[],categories:[],payments:[],valuation:{},lowStock:[],profit:{},vat:{},branches:{branches:[],totals:{}}};
   const s:any=d.summary;
   const maxTrend=Math.max(1,...d.trend.map((x:any)=>n(x.revenue)));
   const monthRevenue=n(s?.this_month?.revenue);
@@ -75,6 +76,10 @@ export default function Dashboard(){
       <button className="dash-alert warning" onClick={()=>nav('ad-purch')}><i className="ti ti-truck-delivery"/><div><b>{n(s?.alerts?.open_purchase_orders)} open purchase orders</b><span>Awaiting approval or receiving</span></div><i className="ti ti-chevron-right"/></button>
       <button className="dash-alert info" onClick={()=>nav('ad-crm')}><i className="ti ti-user-plus"/><div><b>{n(s?.customers?.new_this_month)} new customers</b><span>{n(s?.customers?.total)} total customer profiles</span></div><i className="ti ti-chevron-right"/></button>
     </section>
+
+    <Panel title="Branch-wise Sales" sub="Month-to-date sales, orders and profit for every location" action={<button onClick={()=>nav('ad-branches')}>Manage branches <i className="ti ti-arrow-right"/></button>}>
+      <div className="branch-sales-grid">{(d.branches?.branches||[]).map((row:any)=><button key={row.branch?.id} onClick={()=>nav('ad-branches')}><div><i className="ti ti-building-store"/><span><b>{row.branch?.name}</b><small>{row.branch?.city||row.branch?.code||'Branch'}</small></span></div><strong>{money(row.sales?.net_revenue)}</strong><footer><span>{n(row.sales?.orders)} orders</span><span className={n(row.net_profit)>=0?'positive':'negative'}>{money(row.net_profit)} profit</span></footer></button>)}{!(d.branches?.branches||[]).length&&<Empty text="No active branch performance available"/>}</div>
+    </Panel>
 
     <section className="dash-main-grid">
       <Panel title="7-Day Sales Trend" sub="Daily paid revenue" action={<button onClick={()=>nav('ad-rep')}>Detailed report <i className="ti ti-arrow-right"/></button>}>

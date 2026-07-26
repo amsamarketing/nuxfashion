@@ -41,6 +41,8 @@ interface ApiBanner {
   kicker?: string;
   image_url?: string;
   mobile_image_url?: string;
+  image_url_ar?: string;
+  mobile_image_url_ar?: string;
   button_label?: string;
   button_label_ar?: string;
   button_link?: string;
@@ -50,9 +52,10 @@ interface ApiBanner {
 interface Props {
   locale: string;
   banners?: ApiBanner[];
+  autoplaySeconds?: number;
 }
 
-export default function HeroBanner({ locale, banners = [] }: Props) {
+export default function HeroBanner({ locale, banners = [], autoplaySeconds = 5 }: Props) {
   const isRtl = locale === 'ar';
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -65,9 +68,9 @@ export default function HeroBanner({ locale, banners = [] }: Props) {
 
   useEffect(() => {
     if (paused || slides.length < 2) return;
-    const t = setInterval(next, 5500);
+    const t = setInterval(next, Math.max(1, autoplaySeconds) * 1000);
     return () => clearInterval(t);
-  }, [next, paused, slides.length]);
+  }, [next, paused, slides.length, autoplaySeconds]);
 
   const slide = slides[active];
 
@@ -76,7 +79,8 @@ export default function HeroBanner({ locale, banners = [] }: Props) {
   const sub     = isRtl ? ((slide as any).subtitle_ar || (slide as any).subtitleAr || (slide as any).subtitle || (slide as any).subtitleEn) : ((slide as any).subtitle || (slide as any).subtitleEn);
   const cta     = isRtl ? ((slide as any).button_label_ar || (slide as any).ctaAr || 'تسوق الآن') : ((slide as any).button_label || (slide as any).ctaEn || 'Shop Now');
   const ctaLink = (slide as any).button_link || (slide as any).ctaLink || '/category/all';
-  const img     = (slide as any).image_url || '';
+  const desktopImg = isRtl ? ((slide as any).image_url_ar || (slide as any).image_url || '') : ((slide as any).image_url || '');
+  const mobileImg = isRtl ? ((slide as any).mobile_image_url_ar || (slide as any).image_url_ar || (slide as any).mobile_image_url || desktopImg) : ((slide as any).mobile_image_url || desktopImg);
   const bg      = (slide as any).bg || 'from-luxury-900 via-luxury-800 to-luxury-700';
   const accent  = (slide as any).accent || '#f59e0b';
 
@@ -86,13 +90,15 @@ export default function HeroBanner({ locale, banners = [] }: Props) {
       dir={isRtl ? 'rtl' : 'ltr'}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
-      style={{ minHeight: 480 }}
+      style={{ minHeight: 420 }}
     >
-      {img && (
-        <div className="absolute inset-0 opacity-20">
-          <Image src={img} alt="" fill className="object-cover" priority unoptimized/>
-        </div>
+      {desktopImg && (
+        <picture className="absolute inset-0">
+          <source media="(max-width: 767px)" srcSet={mobileImg}/>
+          <img src={desktopImg} alt="" className="h-full w-full object-cover"/>
+        </picture>
       )}
+      <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/25 to-transparent rtl:bg-gradient-to-l"/>
       <div className="absolute -end-20 -top-20 w-80 h-80 rounded-full opacity-10" style={{ background: accent }}/>
       <div className="absolute -start-10 -bottom-10 w-60 h-60 rounded-full opacity-5" style={{ background: accent }}/>
 
@@ -113,14 +119,7 @@ export default function HeroBanner({ locale, banners = [] }: Props) {
             {cta}
           </Link>
         </div>
-        {img && (
-          <div className="flex-shrink-0 w-64 md:w-80">
-            <div className="relative w-full aspect-[3/4] rounded-3xl overflow-hidden shadow-2xl border border-white/20">
-              <Image src={img} alt="" fill className="object-cover" unoptimized/>
-              <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"/>
-            </div>
-          </div>
-        )}
+        <div className="hidden md:block flex-1"/>
       </div>
 
       {slides.length > 1 && (
