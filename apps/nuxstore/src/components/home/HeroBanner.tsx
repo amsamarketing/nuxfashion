@@ -101,8 +101,8 @@ export default function HeroBanner({ locale, banners = [], autoplaySeconds = 5 }
       <div className="absolute -end-20 -top-20 w-80 h-80 rounded-full opacity-10" style={{ background: accent }}/>
       <div className="absolute -start-10 -bottom-10 w-60 h-60 rounded-full opacity-5" style={{ background: accent }}/>
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 py-20 md:py-28 flex flex-col md:flex-row items-center gap-12">
-        <div className="flex-1 text-white">
+      <div className="relative z-10 mx-auto flex h-full max-w-7xl flex-col items-start justify-center gap-6 px-12 pb-16 pt-10 sm:px-14 md:flex-row md:items-center md:gap-12 md:px-4 md:py-28">
+        <div className="w-full text-white md:flex-1">
           {(slide as any).kicker && (
             <div className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase mb-4 px-3 py-1.5 rounded-full border"
               style={{ color: accent, borderColor: accent + '44', background: accent + '11' }}>
@@ -110,10 +110,10 @@ export default function HeroBanner({ locale, banners = [], autoplaySeconds = 5 }
               {(slide as any).kicker}
             </div>
           )}
-          <h1 className="text-5xl md:text-7xl font-black leading-none mb-6">{title}</h1>
-          {sub && <p className="text-white/70 text-sm md:text-base max-w-md mb-8 leading-relaxed">{sub}</p>}
+          <h1 className="mb-4 text-3xl font-black leading-tight sm:text-4xl md:mb-6 md:text-7xl md:leading-none">{title}</h1>
+          {sub && <p className="mb-6 max-w-md text-sm leading-relaxed text-white/80 md:mb-8 md:text-base md:text-white/70">{sub}</p>}
           <Link href={`/${locale}${ctaLink.startsWith('/') ? ctaLink : '/' + ctaLink}`}
-            className="inline-flex items-center gap-2 font-bold px-8 py-3.5 rounded-full text-sm transition-all hover:scale-105 active:scale-95"
+            className="inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-bold transition-all hover:scale-105 active:scale-95 md:px-8 md:py-3.5"
             style={{ background: accent, color: '#fff' }}>
             {cta}
           </Link>
