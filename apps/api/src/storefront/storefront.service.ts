@@ -147,7 +147,7 @@ export class StorefrontService implements OnModuleInit {
       `NOT ('channel:no-ecommerce'=ANY(COALESCE(p.tags,ARRAY[]::text[])))`,
     ];
     if(search){params.push(`%${search}%`);where.push(`(p.name ILIKE $${params.length} OR p.name_ar ILIKE $${params.length} OR p.description ILIKE $${params.length})`)}
-    if(category){params.push(category);where.push(`(c.id::text=$${params.length} OR c.slug=$${params.length})`)}
+    if(category){params.push(category);where.push(`(c.id::text=$${params.length} OR LOWER(c.slug)=LOWER($${params.length}) OR LOWER(REPLACE(c.name,' ','-'))=LOWER($${params.length}))`)}
     const products=await this.db.query(
       `SELECT p.id,p.name,p.name_ar,p.description,p.description_ar,p.image_url,p.tags,b.id brand_id,b.name brand_name,b.name_ar brand_name_ar,b.logo_url brand_logo_url,
        c.id category_id,c.name category_name,c.name_ar category_name_ar,c.slug category_slug,

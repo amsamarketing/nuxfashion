@@ -40,6 +40,7 @@ export default function ProductPage() {
 
   const [product, setProduct]     = useState<ProductDetail | null>(null);
   const [loading, setLoading]     = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [activeImg, setActiveImg] = useState(0);
   const [selColor, setSelColor]   = useState('');
   const [selSize, setSelSize]     = useState('');
@@ -49,6 +50,7 @@ export default function ProductPage() {
   const [wishlist, setWishlist]   = useState(false);
 
   useEffect(() => {
+    setLoading(true);setLoadError('');
     storefrontApi.getProduct(String(slug))
       .then((data: ProductDetail) => {
         setProduct(data);
@@ -62,7 +64,7 @@ export default function ProductPage() {
           setProduct(match || null);
           if (match?.variants?.[0]?.color) setSelColor(match.variants[0].color);
           if (match?.variants?.[0]?.size) setSelSize(match.variants[0].size);
-        } catch { setProduct(null); }
+        } catch (error:any) { setProduct(null);setLoadError(error?.response?.data?.message||error?.message||'Unable to load product'); }
       })
       .finally(() => setLoading(false));
   }, [slug]);
@@ -86,7 +88,7 @@ export default function ProductPage() {
     return (
       <div className="max-w-7xl mx-auto px-4 py-20 text-center text-gray-400" dir={isRtl?'rtl':'ltr'}>
         <div className="text-6xl mb-4">😔</div>
-        <p className="font-medium">{isRtl ? 'المنتج غير موجود' : 'Product not found'}</p>
+        <p className="font-medium">{loadError||(isRtl ? 'المنتج غير موجود' : 'Product not found')}</p>
         <Link href={`/${locale}/category/all`} className="mt-4 inline-block text-luxury-900 font-bold hover:underline">
           {isRtl ? '← متابعة التسوق' : '← Continue Shopping'}
         </Link>

@@ -41,6 +41,7 @@ export default function CategoryPage() {
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [view, setView] = useState<'grid'|'list'>('grid');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [sort, setSort] = useState(0);
@@ -50,6 +51,7 @@ export default function CategoryPage() {
 
   useEffect(() => {
     setLoading(true);
+    setLoadError('');
     const categoryParam = String(slug) === 'all' ? undefined : String(slug);
     storefrontApi.getCatalog({ category: categoryParam })
       .then(data => {
@@ -64,7 +66,7 @@ export default function CategoryPage() {
         if (selectedSizes.length) mapped = mapped.filter(p => p.sizeOptions?.some(s => selectedSizes.includes(s)));
         setProducts(mapped);
       })
-      .catch(() => setProducts([]))
+      .catch((error:any) => {setProducts([]);setLoadError(error?.response?.data?.message||error?.message||'Unable to load catalog');})
       .finally(() => setLoading(false));
   }, [slug, sort, priceRange, selectedSizes]);
 
@@ -157,6 +159,8 @@ export default function CategoryPage() {
                 <div key={i} className="bg-gray-100 rounded-2xl aspect-[3/4] animate-pulse"/>
               ))}
             </div>
+          ) : loadError ? (
+            <div className="text-center py-20 rounded-2xl border border-red-100 bg-red-50 text-red-700"><div className="text-4xl mb-3">⚠️</div><p className="font-bold">{isRtl?'تعذر تحميل المنتجات':'Catalog could not be loaded'}</p><p className="text-sm mt-2">{loadError}</p><button onClick={()=>window.location.reload()} className="mt-4 rounded-full bg-red-600 px-5 py-2 text-sm font-bold text-white">{isRtl?'إعادة المحاولة':'Try again'}</button></div>
           ) : products.length === 0 ? (
             <div className="text-center py-20 text-gray-400">
               <div className="text-5xl mb-4">🛍</div>
