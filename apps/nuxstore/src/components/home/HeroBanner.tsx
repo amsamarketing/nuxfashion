@@ -86,11 +86,10 @@ export default function HeroBanner({ locale, banners = [], autoplaySeconds = 5 }
 
   return (
     <div
-      className={`relative overflow-hidden bg-gradient-to-br ${bg} transition-all duration-700`}
+      className={`relative h-full min-h-0 overflow-hidden bg-gradient-to-br ${bg} transition-all duration-700`}
       dir={isRtl ? 'rtl' : 'ltr'}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
-      style={{ minHeight: 420 }}
     >
       {desktopImg && (
         <picture className="absolute inset-0">
