@@ -13,6 +13,18 @@ type ContentWorkspace='home'|'hero'|'catalog'|'campaigns'|'footer'|'pages'|'gene
 export default function Ecommerce({initialTab='overview',initialWorkspace='home'}:{initialTab?:EcommerceTab;initialWorkspace?:ContentWorkspace}){
   const [tab,setTab]=useState<EcommerceTab>(initialTab);const [q,setQ]=useState('');
   useEffect(()=>setTab(initialTab),[initialTab]);
+  const pageMeta:Record<string,[string,string]>= {
+    overview:['E-commerce Dashboard','Monitor online revenue, orders, catalog health and storefront readiness.'],
+    orders:['Online Orders','Review website orders and continue fulfilment in the order control center.'],
+    catalog:['Online Catalog','Control which products, variants, prices and stock are available online.'],
+    settings:['Store Settings','Review checkout, delivery, tax, currency and payment configuration.'],
+    'content-home':['Homepage Builder','Arrange, configure and publish storefront homepage sections.'],
+    'content-hero':['Hero Banners','Manage bilingual desktop and mobile hero banners.'],
+    'content-campaigns':['Campaign Content','Manage promotional and seasonal storefront campaigns.'],
+    'content-pages':['Website Pages','Manage customer-service, company and legal website content.'],
+    'content-footer':['Footer & Contact','Manage footer navigation, contact details and social links.'],
+  };
+  const [pageTitle,pageDescription]=pageMeta[tab==='content'?`content-${initialWorkspace}`:tab]||['E-commerce Store','Manage your online sales channel.'];
   const {data:config}=useQuery({queryKey:['store-config-admin'],queryFn:()=>api.get('/storefront/config').then(r=>r.data)});
   const {data:catalog,isLoading:catalogLoading}=useQuery({queryKey:['store-catalog-admin'],queryFn:()=>api.get('/storefront/catalog').then(r=>r.data)});
   const {data:allOrders=[],isLoading:ordersLoading,refetch,isFetching}=useQuery<any[]>({queryKey:['ecommerce-orders'],queryFn:()=>api.get('/sales/orders').then(r=>Array.isArray(r.data)?r.data:[])});
@@ -20,11 +32,21 @@ export default function Ecommerce({initialTab='overview',initialWorkspace='home'
   const products:any[]=catalog?.products||[];const variants=products.flatMap(p=>p.variants||[]);const liveProducts=products.filter(p=>(p.variants||[]).some((v:any)=>Number(v.stock)>0&&Number(v.selling_price)>0)).length;
   const revenue=orders.filter(o=>o.status==='paid').reduce((s,o)=>s+Number(o.total||0),0);const pending=orders.filter(o=>o.status==='confirmed').length;const units=orders.reduce((s,o)=>s+Number(o.item_count||0),0);
   return <div className="ecom-admin">
-    <div className="nx-page-head"><div><h1 className="nx-page-title">E-commerce Store</h1><p className="nx-page-sub">Manage your NuxFashion website catalog, checkout and online orders.</p></div><div className="orders-head-actions"><button className="btn-nx ghost" onClick={()=>refetch()}><i className={`ti ti-refresh${isFetching?' login-spin':''}`}/> Refresh</button><a className="btn-nx ghost" href="https://nuxfashion-store.vercel.app" target="_blank"><i className="ti ti-external-link"/> Open Store</a><button className="btn-nx primary" onClick={()=>nav('ad-orders')}><i className="ti ti-shopping-bag"/> Manage Orders</button></div></div>
+    <div className="nx-page-head"><div><h1 className="nx-page-title">{pageTitle}</h1><p className="nx-page-sub">{pageDescription}</p></div><div className="orders-head-actions"><button className="btn-nx ghost" onClick={()=>refetch()}><i className={`ti ti-refresh${isFetching?' login-spin':''}`}/> Refresh</button><a className="btn-nx ghost" href="https://nuxfashion-store.vercel.app" target="_blank"><i className="ti ti-external-link"/> Open Store</a>{tab==='overview'&&<button className="btn-nx primary" onClick={()=>nav('ad-ecom-orders')}><i className="ti ti-shopping-bag"/> Online Orders</button>}</div></div>
     <div className="ecom-status"><div><i className="ti ti-world-check"/><span><b>Own Website</b><small>Public storefront available at /#store</small></span></div><span><i className="ti ti-circle-check-filled"/> Storefront Active</span></div>
     <div className="nx-stats cols-4"><Stat icon="ti-shopping-cart" tone="indigo" value={orders.length} label="Online Orders"/><Stat icon="ti-cash" tone="green" value={money(revenue)} label="Paid Revenue"/><Stat icon="ti-clock" tone="amber" value={pending} label="Awaiting Processing"/><Stat icon="ti-hanger-2" tone="teal" value={liveProducts} label="Live Products"/></div>
-    <div className="nx-tabs">{([['overview','Overview'],['orders','Online Orders'],['catalog','Store Catalog'],['content','Banners & Content'],['settings','Store Settings']] as const).map(([id,title])=><button key={id} className={`nx-tab${tab===id?' on':''}`} onClick={()=>setTab(id)}>{title}</button>)}</div>
     {tab==='overview'&&<div className="ecom-overview">
+      <section className="ecom-command-center">
+        <header><div><small>STORE CONTROL CENTER</small><h3>Manage your online business</h3><p>Use the E-commerce dropdown for full navigation or jump directly to a frequent task.</p></div><span><i className="ti ti-circle-check-filled"/> Live &amp; connected</span></header>
+        <div>{[
+          ['ad-ecom-home','ti-layout-dashboard','Homepage Builder','Arrange storefront sections'],
+          ['ad-ecom-banners','ti-photo','Hero Banners','Desktop, mobile, English & Arabic'],
+          ['ad-ecom-catalog','ti-category','Online Catalog','Products, prices and availability'],
+          ['ad-ecom-orders','ti-shopping-bag','Online Orders','Process and fulfil orders'],
+          ['ad-ecom-campaigns','ti-speakerphone','Campaign Content','Promotions and seasonal content'],
+          ['ad-ecom-settings','ti-settings','Store Settings','Delivery, VAT and payments'],
+        ].map(([id,icon,title,text])=><button key={id} onClick={()=>nav(id)}><i className={`ti ${icon}`}/><span><b>{title}</b><small>{text}</small></span><i className="ti ti-chevron-right"/></button>)}</div>
+      </section>
       <section className="dash-panel"><header><div><h3>Store Performance</h3><p>Real data from website checkout</p></div></header><div className="dash-panel-body"><div className="ecom-metrics"><div><small>Average online order</small><b>{money(orders.length?orders.reduce((s,o)=>s+Number(o.total||0),0)/orders.length:0)}</b></div><div><small>Units ordered</small><b>{units}</b></div><div><small>Active variants</small><b>{variants.filter((v:any)=>Number(v.stock)>0).length}</b></div><div><small>Out-of-stock variants</small><b>{variants.filter((v:any)=>Number(v.stock)<=0).length}</b></div></div><div className="ecom-flow"><Flow icon="ti-world" title="Customer Store" text="Browse products"/><i className="ti ti-arrow-right"/><Flow icon="ti-shopping-cart" title="Checkout" text="VAT & delivery"/><i className="ti ti-arrow-right"/><Flow icon="ti-package-export" title="ERP Order" text="Stock deducted"/><i className="ti ti-arrow-right"/><Flow icon="ti-truck-delivery" title="Fulfilment" text="Admin processing"/></div></div></section>
       <section className="dash-panel"><header><div><h3>Store Readiness</h3><p>Required operating configuration</p></div></header><div className="dash-panel-body"><Ready ok={products.length>0} text="Online catalog published"/><Ready ok={variants.some((v:any)=>Number(v.stock)>0)} text="Sellable stock available"/><Ready ok text="VAT 15% checkout"/><Ready ok text="COD and bank transfer"/><Ready ok={false} text="Online card gateway"/><Ready ok={false} text="Courier API integration"/></div></section>
     </div>}
