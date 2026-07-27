@@ -578,7 +578,7 @@ function ReportView({ records, categories, purchaseOrders }: any) {
           data
             .map((r) =>
               r
-                .map((v) => `"${String(v ?? "").replaceAll('"', '""')}"`)
+                .map((v: unknown) => `"${String(v ?? "").replaceAll('"', '""')}"`)
                 .join(","),
             )
             .join("\n"),
@@ -994,7 +994,7 @@ export default function Expenses({
           rows
             .map((r) =>
               r
-                .map((v) => `"${String(v ?? "").replaceAll('"', '""')}"`)
+                .map((v: unknown) => `"${String(v ?? "").replaceAll('"', '""')}"`)
                 .join(","),
             )
             .join("\n"),
