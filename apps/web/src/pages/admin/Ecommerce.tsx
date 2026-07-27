@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
 import { useToast } from '../../components/Toast';
@@ -8,8 +8,11 @@ const money=(v:any)=>'SAR '+Number(v||0).toLocaleString('en-SA',{minimumFraction
 const nav=(s:string)=>window.dispatchEvent(new CustomEvent('nav',{detail:s}));
 const statusClass:Record<string,string>={paid:'active',confirmed:'pending',partial_return:'blue',refunded:'danger',cancelled:'inactive'};
 
-export default function Ecommerce(){
-  const [tab,setTab]=useState<'overview'|'orders'|'catalog'|'content'|'settings'>('overview');const [q,setQ]=useState('');
+type EcommerceTab='overview'|'orders'|'catalog'|'content'|'settings';
+type ContentWorkspace='home'|'hero'|'catalog'|'campaigns'|'footer'|'pages'|'general';
+export default function Ecommerce({initialTab='overview',initialWorkspace='home'}:{initialTab?:EcommerceTab;initialWorkspace?:ContentWorkspace}){
+  const [tab,setTab]=useState<EcommerceTab>(initialTab);const [q,setQ]=useState('');
+  useEffect(()=>setTab(initialTab),[initialTab]);
   const {data:config}=useQuery({queryKey:['store-config-admin'],queryFn:()=>api.get('/storefront/config').then(r=>r.data)});
   const {data:catalog,isLoading:catalogLoading}=useQuery({queryKey:['store-catalog-admin'],queryFn:()=>api.get('/storefront/catalog').then(r=>r.data)});
   const {data:allOrders=[],isLoading:ordersLoading,refetch,isFetching}=useQuery<any[]>({queryKey:['ecommerce-orders'],queryFn:()=>api.get('/sales/orders').then(r=>Array.isArray(r.data)?r.data:[])});
@@ -27,7 +30,7 @@ export default function Ecommerce(){
     </div>}
     {tab==='orders'&&<div><div className="nx-toolbar"><div className="nx-search"><i className="ti ti-search"/><input className="nx-input" value={q} onChange={e=>setQ(e.target.value)} placeholder="Order or customer…"/></div><div className="nx-toolbar-right"><button className="btn-nx primary" onClick={()=>nav('ad-orders')}>Open Order Control Center <i className="ti ti-arrow-right"/></button></div></div><div className="nx-table-wrap"><table className="nx-table"><thead><tr><th>Online Order</th><th>Customer</th><th>Items</th><th>Payment</th><th>Total</th><th>Status</th><th>Date</th></tr></thead><tbody>{ordersLoading?<tr><td colSpan={7}><Empty text="Loading online orders…"/></td></tr>:!orders.length?<tr><td colSpan={7}><Empty text="No online orders yet"/></td></tr>:orders.map(o=><tr key={o.id}><td><b className="order-number">#{o.order_number}</b></td><td><b>{o.customer_name}</b><small className="table-sub">{o.customer_phone}</small></td><td>{o.item_count||0}</td><td><span className="payment-pill">{String(o.notes||'').includes('bank_transfer')?'Bank Transfer':'Cash on Delivery'}</span></td><td><b>{money(o.total)}</b></td><td><span className={`nx-badge ${statusClass[o.status]||'inactive'}`}>{o.status}</span></td><td>{new Date(o.created_at).toLocaleString('en-SA')}</td></tr>)}</tbody></table></div></div>}
     {tab==='catalog'&&<div><div className="ecom-catalog-head"><span>{products.length} products · {variants.length} variants</span><button className="btn-nx primary" onClick={()=>nav('ad-prod')}><i className="ti ti-edit"/> Manage Products</button></div><div className="nx-table-wrap"><table className="nx-table"><thead><tr><th>Product</th><th>Category</th><th>Variants</th><th>Starting Price</th><th>Available Stock</th><th>Website Status</th></tr></thead><tbody>{catalogLoading?<tr><td colSpan={6}><Empty text="Loading catalog…"/></td></tr>:products.map(p=>{const pv=p.variants||[];const sellable=pv.filter((v:any)=>Number(v.stock)>0&&Number(v.selling_price)>0);return <tr key={p.id}><td><b>{p.name}</b><small className="table-sub">{p.name_ar}</small></td><td>{p.category_name||'—'}</td><td>{pv.length}</td><td>{sellable.length?money(Math.min(...sellable.map((v:any)=>Number(v.selling_price)))):'—'}</td><td>{pv.reduce((s:number,v:any)=>s+Number(v.stock||0),0)}</td><td><span className={`nx-badge ${sellable.length?'active':'pending'}`}>{sellable.length?'Live':'Unavailable'}</span></td></tr>})}</tbody></table></div></div>}
-    {tab==='content'&&<ContentManager/>}
+    {tab==='content'&&<ContentManager initialWorkspace={initialWorkspace}/>} 
     {tab==='settings'&&<div className="ecom-settings"><section><h3><i className="ti ti-truck-delivery"/> Delivery</h3><Row label="Standard delivery fee" value={money(config?.shipping_fee||25)}/><Row label="Free shipping threshold" value={money(config?.free_shipping_from||300)}/><Row label="Estimated delivery" value="2–5 business days"/></section><section><h3><i className="ti ti-receipt-tax"/> Tax & Currency</h3><Row label="Currency" value={config?.currency||'SAR'}/><Row label="VAT rate" value={`${config?.vat_rate||15}%`}/><Row label="Invoice integration" value="ERP + ZATCA QR"/></section><section><h3><i className="ti ti-credit-card"/> Payments</h3><Ready ok text="Cash on Delivery"/><Ready ok text="Bank Transfer"/><Ready ok={false} text="Mada / Apple Pay gateway"/><Ready ok={false} text="Tabby / Tamara gateway"/></section><div className="ecom-env-help"><i className="ti ti-settings-code"/> Delivery values can be changed on Railway API variables: <code>STOREFRONT_SHIPPING_FEE</code> and <code>STOREFRONT_FREE_SHIPPING_FROM</code>.</div></div>}
   </div>;
 }
@@ -37,8 +40,9 @@ function Ready({ok=false,text}:{ok?:boolean;text:string}){return <div className=
 function Row({label,value}:{label:string;value:string}){return <div className="setting-row"><span>{label}</span><b>{value}</b></div>}
 function Empty({text}:{text:string}){return <div className="orders-empty"><i className="ti ti-shopping-bag-off"/><span>{text}</span></div>}
 
-function ContentManager(){
-  const qc=useQueryClient();const {toast}=useToast();const [editing,setEditing]=useState<any>(null);const [workspace,setWorkspace]=useState<'home'|'hero'|'catalog'|'campaigns'|'footer'|'pages'|'general'>('home');
+function ContentManager({initialWorkspace='home'}:{initialWorkspace?:ContentWorkspace}){
+  const qc=useQueryClient();const {toast}=useToast();const [editing,setEditing]=useState<any>(null);const [workspace,setWorkspace]=useState<ContentWorkspace>(initialWorkspace);
+  useEffect(()=>setWorkspace(initialWorkspace),[initialWorkspace]);
   const {data,isLoading}=useQuery({queryKey:['store-admin-content'],queryFn:()=>api.get('/storefront/admin/content').then(r=>r.data)});
   const settings=data?.settings||{};const banners:any[]=data?.banners||[];
   const saveSettings=useMutation({mutationFn:(body:any)=>api.patch('/storefront/admin/settings',body),onSuccess:()=>{toast('Store content updated','success');qc.invalidateQueries({queryKey:['store-admin-content']});qc.invalidateQueries({queryKey:['store-config-admin']})},onError:(e:any)=>toast(getErr(e),'error')});

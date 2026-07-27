@@ -50,6 +50,18 @@ const NAV = [
   { id:'ad-set',    label:'Settings',      icon:'ti-settings',           sec:'System',perms:['settings.view','users.view'] },
 ];
 
+const ECOM_NAV = [
+  { id:'ad-ecom',              label:'E-commerce Dashboard', icon:'ti-dashboard' },
+  { id:'ad-ecom-home',         label:'Homepage Builder',     icon:'ti-layout-dashboard' },
+  { id:'ad-ecom-banners',      label:'Hero Banners',         icon:'ti-photo' },
+  { id:'ad-ecom-catalog',      label:'Online Catalog',       icon:'ti-category' },
+  { id:'ad-ecom-orders',       label:'Online Orders',        icon:'ti-shopping-bag' },
+  { id:'ad-ecom-campaigns',    label:'Campaign Content',     icon:'ti-speakerphone' },
+  { id:'ad-ecom-pages',        label:'Website Pages',        icon:'ti-file-text' },
+  { id:'ad-ecom-footer',       label:'Footer & Contact',     icon:'ti-layout-bottombar' },
+  { id:'ad-ecom-settings',     label:'Store Settings',       icon:'ti-settings' },
+];
+
 function hasPermission(user:any,required:string[]){const permissions:string[]=user?.permissions||[];if(!permissions.length)return String(user?.role||'').toLowerCase().includes('admin');if(permissions.includes('*'))return true;return required.some(need=>permissions.some(got=>got===need||(got.endsWith('.*')&&need.startsWith(got.slice(0,-1)))))}
 
 const POS_TABS = [
@@ -69,6 +81,14 @@ const SCREENS: Record<string,React.ComponentType> = {
   'ad-labels':BarcodeLabels,
   'ad-b2b':B2BSales,
   'ad-marketing':Marketing,
+  'ad-ecom-home':()=> <Ecommerce initialTab="content" initialWorkspace="home"/>,
+  'ad-ecom-banners':()=> <Ecommerce initialTab="content" initialWorkspace="hero"/>,
+  'ad-ecom-catalog':()=> <Ecommerce initialTab="catalog"/>,
+  'ad-ecom-orders':()=> <Ecommerce initialTab="orders"/>,
+  'ad-ecom-campaigns':()=> <Ecommerce initialTab="content" initialWorkspace="campaigns"/>,
+  'ad-ecom-pages':()=> <Ecommerce initialTab="content" initialWorkspace="pages"/>,
+  'ad-ecom-footer':()=> <Ecommerce initialTab="content" initialWorkspace="footer"/>,
+  'ad-ecom-settings':()=> <Ecommerce initialTab="settings"/>,
 };
 
 const SECS = ['Main','Catalog','Channels','People','Finance','System'];
@@ -94,12 +114,13 @@ function App() {
   const posLogin=window.location.pathname.startsWith('/pos-login')||window.location.hash==='#pos-login';
   if(!user) return <Login portal={posLogin?'pos':'admin'} onLogin={portal=>{setMode(portal);setScreen(portal==='pos'?'pos-sale':'ad-dash')}}/>;
 
-  const safeScreen=mode==='admin'&&!visibleNav.some(n=>n.id===screen)?(visibleNav[0]?.id||'ad-dash'):screen;
+  const ecommerceAllowed=visibleNav.some(n=>n.id==='ad-ecom')&&ECOM_NAV.some(n=>n.id===screen);
+  const safeScreen=mode==='admin'&&!visibleNav.some(n=>n.id===screen)&&!ecommerceAllowed?(visibleNav[0]?.id||'ad-dash'):screen;
   const Screen = SCREENS[safeScreen] || Dashboard;
   const initials=(user.name||user.email||'A').slice(0,2).toUpperCase();
   const firstName=user.name?.split(' ')[0]||'Admin';
   const today=new Date().toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
-  const curLabel=NAV.find(n=>n.id===safeScreen)?.label||'Dashboard';
+  const curLabel=NAV.find(n=>n.id===safeScreen)?.label||ECOM_NAV.find(n=>n.id===safeScreen)?.label||'Dashboard';
 
   if(mode==='pos') return (
     <div className="p-pos-shell">
@@ -143,12 +164,18 @@ function App() {
             return (
               <div key={sec} className="p-nav-group">
                 <button className="p-nav-label p-nav-toggle" onClick={()=>setOpenGroups(g=>g.includes(sec)?g.filter(x=>x!==sec):[...g,sec])}><span>{sec}</span><i className={`ti ti-chevron-${openGroups.includes(sec)?'up':'down'}`}/></button>
-                <div className={`p-nav-children${openGroups.includes(sec)?' open':''}`}>{items.map(n=>(
-                  <button key={n.id} className={`p-nav-item${safeScreen===n.id?' active':''}`}
-                    onClick={()=>{ setScreen(n.id); setSideOpen(false); }}>
-                    <i className={`ti ${n.icon} p-nav-ic`}/>
-                    <span>{n.label}</span>
-                    {n.id==='ad-ecom' && <span className="p-new-badge">New</span>}
+                <div className={`p-nav-children${openGroups.includes(sec)?' open':''}`}>{items.map(n=>n.id==='ad-ecom'?(
+                  <div className={`p-subnav${safeScreen.startsWith('ad-ecom')?' active':''}`} key={n.id}>
+                    <button className="p-nav-item p-subnav-trigger" onClick={()=>setOpenGroups(g=>g.includes('E-commerce')?g.filter(x=>x!=='E-commerce'):[...g,'E-commerce'])}>
+                      <i className={`ti ${n.icon} p-nav-ic`}/><span>{n.label}</span><i className={`ti ti-chevron-${openGroups.includes('E-commerce')?'up':'down'} p-subnav-chevron`}/>
+                    </button>
+                    <div className={`p-subnav-menu${openGroups.includes('E-commerce')?' open':''}`}>
+                      {ECOM_NAV.map(item=><button key={item.id} className={safeScreen===item.id?'active':''} onClick={()=>{setScreen(item.id);setSideOpen(false)}}><i className={`ti ${item.icon}`}/><span>{item.label}</span></button>)}
+                    </div>
+                  </div>
+                ):(
+                  <button key={n.id} className={`p-nav-item${safeScreen===n.id?' active':''}`} onClick={()=>{ setScreen(n.id); setSideOpen(false); }}>
+                    <i className={`ti ${n.icon} p-nav-ic`}/><span>{n.label}</span>
                   </button>
                 ))}</div>
               </div>
