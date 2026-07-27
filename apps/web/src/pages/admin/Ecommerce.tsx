@@ -20,9 +20,11 @@ export default function Ecommerce({initialTab='overview',initialWorkspace='home'
     settings:['Store Settings','Review checkout, delivery, tax, currency and payment configuration.'],
     'content-home':['Homepage Builder','Arrange, configure and publish storefront homepage sections.'],
     'content-hero':['Hero Banners','Manage bilingual desktop and mobile hero banners.'],
+    'content-catalog':['Catalog Sections','Choose categories, products, brands and sliders shown on the storefront.'],
     'content-campaigns':['Campaign Content','Manage promotional and seasonal storefront campaigns.'],
     'content-pages':['Website Pages','Manage customer-service, company and legal website content.'],
     'content-footer':['Footer & Contact','Manage footer navigation, contact details and social links.'],
+    'content-general':['General & SEO','Manage store identity, search metadata and website-wide configuration.'],
   };
   const [pageTitle,pageDescription]=pageMeta[tab==='content'?`content-${initialWorkspace}`:tab]||['E-commerce Store','Manage your online sales channel.'];
   const {data:config}=useQuery({queryKey:['store-config-admin'],queryFn:()=>api.get('/storefront/config').then(r=>r.data)});
@@ -73,8 +75,7 @@ function ContentManager({initialWorkspace='home'}:{initialWorkspace?:ContentWork
   const remove=useMutation({mutationFn:(id:string)=>api.delete(`/storefront/admin/banners/${id}`),onSuccess:()=>{toast('Banner deleted','success');refreshContent()}});
   if(isLoading)return <Empty text="Loading store content…"/>;
   const workspaces=[['home','Homepage Layout','ti-layout-dashboard'],['hero','Hero Banners','ti-photo'],['catalog','Catalog Sections','ti-category'],['campaigns','Campaign Content','ti-speakerphone'],['footer','Footer & Contact','ti-layout-bottombar'],['pages','Website Pages','ti-file-text'],['general','General & SEO','ti-settings']];
-  return <div className="content-manager">
-    <div className="ecom-workspace-nav">{workspaces.map(([id,label,icon])=><button key={id} className={workspace===id?'active':''} onClick={()=>setWorkspace(id as any)}><i className={`ti ${icon}`}/><span>{label}</span><i className="ti ti-chevron-right"/></button>)}</div>
+  return <div className="content-manager single-workspace">
     <div className="ecom-workspace-body">
     {workspace==='home'&&<StoreBuilder initial={settings.homepage_sections||[]} saving={saveSettings.isPending} onSave={homepage_sections=>saveSettings.mutate({homepage_sections})}/>} 
     {workspace==='hero'&&<section className="banner-manager"><header><div><h3>Hero Banner Slider</h3><p>English, Arabic, desktop and mobile banners are managed here only.</p></div><button className="btn-nx primary sm" onClick={()=>setEditing({title:'',title_ar:'',subtitle:'',image_url:'',button_label:'Shop Now',button_link:'#collection',sort_order:banners.length,is_active:true})}><i className="ti ti-plus"/> Add Banner</button></header>{!banners.length?<div className="banner-empty"><i className="ti ti-photo-plus"/><b>No custom banners yet</b><span>The store currently uses its professional default hero.</span><button onClick={()=>setEditing({title:'',button_label:'Shop Now',button_link:'#collection',sort_order:0,is_active:true})}>Create first banner</button></div>:<div className="banner-grid">{banners.map(b=><article key={b.id}><div className="banner-preview">{b.image_url?<img src={b.image_url}/>:<i className="ti ti-photo"/>}<span className={`nx-badge ${b.is_active?'active':'inactive'}`}>{b.is_active?'Live':'Hidden'}</span></div><div><small>ORDER {b.sort_order}</small><h4>{b.title}</h4><p>{b.subtitle||'No subtitle'}</p><div><button onClick={()=>setEditing(b)}><i className="ti ti-edit"/> Edit</button><button className="danger" onClick={()=>confirm('Delete this banner?')&&remove.mutate(b.id)}><i className="ti ti-trash"/> Delete</button></div></div></article>)}</div>}</section>}

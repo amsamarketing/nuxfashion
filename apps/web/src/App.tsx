@@ -54,12 +54,14 @@ const ECOM_NAV = [
   { id:'ad-ecom',              label:'E-commerce Dashboard', icon:'ti-dashboard' },
   { id:'ad-ecom-home',         label:'Homepage Builder',     icon:'ti-layout-dashboard' },
   { id:'ad-ecom-banners',      label:'Hero Banners',         icon:'ti-photo' },
+  { id:'ad-ecom-sections',     label:'Catalog Sections',     icon:'ti-layout-grid' },
   { id:'ad-ecom-catalog',      label:'Online Catalog',       icon:'ti-category' },
   { id:'ad-ecom-orders',       label:'Online Orders',        icon:'ti-shopping-bag' },
   { id:'ad-ecom-campaigns',    label:'Campaign Content',     icon:'ti-speakerphone' },
   { id:'ad-ecom-pages',        label:'Website Pages',        icon:'ti-file-text' },
   { id:'ad-ecom-footer',       label:'Footer & Contact',     icon:'ti-layout-bottombar' },
   { id:'ad-ecom-settings',     label:'Store Settings',       icon:'ti-settings' },
+  { id:'ad-ecom-seo',          label:'General & SEO',        icon:'ti-search' },
 ];
 
 function hasPermission(user:any,required:string[]){const permissions:string[]=user?.permissions||[];if(!permissions.length)return String(user?.role||'').toLowerCase().includes('admin');if(permissions.includes('*'))return true;return required.some(need=>permissions.some(got=>got===need||(got.endsWith('.*')&&need.startsWith(got.slice(0,-1)))))}
@@ -83,12 +85,14 @@ const SCREENS: Record<string,React.ComponentType> = {
   'ad-marketing':Marketing,
   'ad-ecom-home':()=> <Ecommerce initialTab="content" initialWorkspace="home"/>,
   'ad-ecom-banners':()=> <Ecommerce initialTab="content" initialWorkspace="hero"/>,
+  'ad-ecom-sections':()=> <Ecommerce initialTab="content" initialWorkspace="catalog"/>,
   'ad-ecom-catalog':()=> <Ecommerce initialTab="catalog"/>,
   'ad-ecom-orders':()=> <Ecommerce initialTab="orders"/>,
   'ad-ecom-campaigns':()=> <Ecommerce initialTab="content" initialWorkspace="campaigns"/>,
   'ad-ecom-pages':()=> <Ecommerce initialTab="content" initialWorkspace="pages"/>,
   'ad-ecom-footer':()=> <Ecommerce initialTab="content" initialWorkspace="footer"/>,
   'ad-ecom-settings':()=> <Ecommerce initialTab="settings"/>,
+  'ad-ecom-seo':()=> <Ecommerce initialTab="content" initialWorkspace="general"/>,
 };
 
 const SECS = ['Main','Catalog','Channels','People','Finance','System'];
