@@ -84,6 +84,10 @@ export class SalesController {
   cancelOrder(@Param('id') id: string, @Req() req: Request) {
     return this.service.cancelOrder((req.user as any).companyId, (req.user as any).sub, id);
   }
+  @Patch('orders/:id/workflow')
+  updateOrderWorkflow(@Param('id') id: string, @Body() dto: any, @Req() req: Request) {
+    return this.service.updateOrderWorkflow((req.user as any).companyId, (req.user as any).sub, id, dto);
+  }
 
   @Post('payments')
   processPayment(@Body() dto: ProcessPaymentDto, @Req() req: Request) {

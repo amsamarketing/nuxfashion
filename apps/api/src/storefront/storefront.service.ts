@@ -37,6 +37,14 @@ export class StorefrontService implements OnModuleInit {
       email varchar(320) NOT NULL,is_active boolean NOT NULL DEFAULT true,source varchar(40) NOT NULL DEFAULT 'footer',
       subscribed_at timestamptz NOT NULL DEFAULT now(),unsubscribed_at timestamptz,
       UNIQUE(company_id,email))`);
+    await this.db.query(`
+      ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS channel varchar(20) NOT NULL DEFAULT 'pos';
+      ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS fulfillment_status varchar(30) NOT NULL DEFAULT 'new';
+      ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS payment_status varchar(30) NOT NULL DEFAULT 'pending';
+      ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS delivery_method varchar(30) NOT NULL DEFAULT 'shipping';
+      ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS shipping_address jsonb NOT NULL DEFAULT '{}'::jsonb;
+      UPDATE sales_orders SET channel='ecommerce' WHERE order_number LIKE 'WEB-%' AND channel='pos';
+    `);
   }
 
   private defaults(){
@@ -268,9 +276,11 @@ export class StorefrontService implements OnModuleInit {
       const address=[dto.address,dto.district,dto.city,dto.postal_code].filter(Boolean).join(', ');
       const notes=`ECOMMERCE | Payment: ${dto.payment_method} | Ship to: ${address}${dto.notes?` | Customer note: ${dto.notes}`:''}`;
       const order=await client.query(
-        `INSERT INTO sales_orders(company_id,order_number,warehouse_id,cashier_id,customer_id,status,subtotal,discount_amount,tax_amount,total,notes)
-         VALUES($1,$2,$3,$4,$5,'confirmed',$6,$7,$8,$9,$10) RETURNING *`,
-        [companyId,orderNumber,warehouse.rows[0].id,operator.rows[0].id,customer.rows[0].id,subtotal,discountAmount,tax,total,notes],
+        `INSERT INTO sales_orders(company_id,order_number,warehouse_id,cashier_id,customer_id,status,subtotal,discount_amount,tax_amount,total,notes,
+          channel,fulfillment_status,payment_status,delivery_method,shipping_address)
+         VALUES($1,$2,$3,$4,$5,'confirmed',$6,$7,$8,$9,$10,'ecommerce','new',$11,'shipping',$12::jsonb) RETURNING *`,
+        [companyId,orderNumber,warehouse.rows[0].id,operator.rows[0].id,customer.rows[0].id,subtotal,discountAmount,tax,total,notes,
+         dto.payment_method==='cash_on_delivery'?'cod_pending':'verification_pending',JSON.stringify({address:dto.address,district:dto.district||'',city:dto.city,postal_code:dto.postal_code||''})],
       );
       if(discount){
         await client.query(`INSERT INTO order_discounts(order_id,discount_id,name,type,value,amount,coupon_code) VALUES($1,$2,$3,'coupon',$4,$5,$6)`,

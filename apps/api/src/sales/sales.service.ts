@@ -12,6 +12,28 @@ import { randomUUID } from 'crypto';
 export class SalesService {
   constructor(private db: DatabaseService) {}
 
+  private async ensureOrderWorkflowSchema(){
+    await this.db.query(`
+      ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS channel varchar(20) NOT NULL DEFAULT 'pos';
+      ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS fulfillment_status varchar(30) NOT NULL DEFAULT 'new';
+      ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS payment_status varchar(30) NOT NULL DEFAULT 'pending';
+      ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS delivery_method varchar(30) NOT NULL DEFAULT 'shipping';
+      ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS shipping_address jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS courier varchar(100);
+      ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS tracking_number varchar(160);
+      ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS tracking_url text;
+      ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS promised_at timestamptz;
+      ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS shipped_at timestamptz;
+      ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS delivered_at timestamptz;
+      CREATE TABLE IF NOT EXISTS order_activity_logs(
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),company_id uuid NOT NULL,order_id uuid NOT NULL REFERENCES sales_orders(id) ON DELETE CASCADE,
+        actor_id uuid,event varchar(60) NOT NULL,from_status varchar(30),to_status varchar(30),note text,metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+        created_at timestamptz NOT NULL DEFAULT now());
+      CREATE INDEX IF NOT EXISTS idx_order_activity_order ON order_activity_logs(order_id,created_at);
+      UPDATE sales_orders SET channel='ecommerce' WHERE order_number LIKE 'WEB-%' AND channel='pos';
+    `);
+  }
+
   private async postBranchAccount(companyId:string,warehouseId:string,method:string,amount:number,direction:'credit'|'debit',referenceType:string,referenceId:string,note:string){
     const families:Record<string,string[]>={
       cash:['cash'],card:['card'],mada:['mada','card'],apple_pay:['apple_pay','card'],
@@ -450,6 +472,7 @@ export class SalesService {
   }
 
   async getOrders(companyId: string, status?: string) {
+    await this.ensureOrderWorkflowSchema();
     const conditions = ['o.company_id=$1'];
     const params: any[] = [companyId];
     if (status) { conditions.push(`o.status=$2`); params.push(status); }
@@ -470,6 +493,7 @@ export class SalesService {
   }
 
   async getOrder(companyId: string, orderId: string) {
+    await this.ensureOrderWorkflowSchema();
     const order = await this.db.query(
       `SELECT o.*, u.name as cashier_name, c.name as customer_name, c.phone as customer_phone
        FROM sales_orders o
@@ -500,13 +524,38 @@ export class SalesService {
        GROUP BY r.id`,
       [oid],
     ).catch(()=>({ rows:[] as any[] }));
-    return { ...order.rows[0], lines: lines.rows, payments: payments.rows, returns: returns.rows };
+    const activity = await this.db.query(
+      `SELECT l.*,u.name actor_name FROM order_activity_logs l LEFT JOIN users u ON u.id=l.actor_id
+       WHERE l.order_id=$1 AND l.company_id=$2 ORDER BY l.created_at`,[oid,companyId],
+    ).catch(()=>({rows:[] as any[]}));
+    return { ...order.rows[0], lines: lines.rows, payments: payments.rows, returns: returns.rows, activity:activity.rows };
+  }
+
+  async updateOrderWorkflow(companyId:string,userId:string,orderId:string,dto:any){
+    await this.ensureOrderWorkflowSchema();
+    const allowed:Record<string,string[]>={new:['confirmed','cancelled'],confirmed:['picking','cancelled'],picking:['packed','cancelled'],packed:['ready_to_ship','ready_for_pickup','cancelled'],ready_to_ship:['shipped'],ready_for_pickup:['delivered'],shipped:['delivered'],delivered:[]};
+    const current=await this.db.query(`SELECT * FROM sales_orders WHERE id=$1 AND company_id=$2 FOR UPDATE`,[orderId,companyId]);
+    const order=current.rows[0];if(!order)throw new NotFoundException('Order not found');
+    const from=order.fulfillment_status||'new';const to=String(dto.fulfillment_status||'');
+    if(!allowed[from]?.includes(to))throw new BadRequestException(`Order cannot move from ${from} to ${to}`);
+    if(to==='shipped'&&!String(dto.tracking_number||order.tracking_number||'').trim())throw new BadRequestException('Tracking number is required before shipping');
+    const updated=await this.db.query(
+      `UPDATE sales_orders SET fulfillment_status=$1,courier=COALESCE($2,courier),tracking_number=COALESCE($3,tracking_number),
+       tracking_url=COALESCE($4,tracking_url),promised_at=COALESCE($5,promised_at),
+       shipped_at=CASE WHEN $1='shipped' THEN NOW() ELSE shipped_at END,delivered_at=CASE WHEN $1='delivered' THEN NOW() ELSE delivered_at END,
+       status=CASE WHEN $1='cancelled' THEN 'cancelled' ELSE status END,updated_at=NOW() WHERE id=$6 RETURNING *`,
+      [to,dto.courier||null,dto.tracking_number||null,dto.tracking_url||null,dto.promised_at||null,orderId]);
+    await this.db.query(`INSERT INTO order_activity_logs(company_id,order_id,actor_id,event,from_status,to_status,note,metadata)
+      VALUES($1,$2,$3,'fulfillment_status_changed',$4,$5,$6,$7::jsonb)`,[companyId,orderId,userId,from,to,dto.note||null,JSON.stringify({courier:dto.courier||null,tracking_number:dto.tracking_number||null})]);
+    return updated.rows[0];
   }
 
   async cancelOrder(companyId: string, userId: string, orderId: string) {
+    await this.ensureOrderWorkflowSchema();
     const order = await this.db.query(
-      `UPDATE sales_orders SET status='cancelled',updated_at=NOW()
+      `UPDATE sales_orders SET status='cancelled',fulfillment_status='cancelled',updated_at=NOW()
        WHERE id=$1 AND company_id=$2 AND status IN ('draft','pending','confirmed')
+       AND fulfillment_status NOT IN ('shipped','delivered','cancelled')
        RETURNING *`, [orderId,companyId],
     );
     if (!order.rows[0]) throw new BadRequestException('Only an unpaid order can be cancelled');
@@ -527,6 +576,8 @@ export class SalesService {
         [order.rows[0].warehouse_id,line.variant_id,line.quantity,`Cancelled ${order.rows[0].order_number}`,userId],
       );
     }
+    await this.db.query(`INSERT INTO order_activity_logs(company_id,order_id,actor_id,event,from_status,to_status,note)
+      VALUES($1,$2,$3,'order_cancelled',$4,'cancelled','Stock restored')`,[companyId,orderId,userId,order.rows[0].fulfillment_status||'new']);
     return { ...order.rows[0],restocked_units:lines.rows.reduce((sum:any,line:any)=>sum+Number(line.quantity),0) };
   }
 
@@ -556,7 +607,7 @@ export class SalesService {
     }
 
     await this.db.query(
-      `UPDATE sales_orders SET status='paid', amount_paid=$1, change_due=$2, updated_at=NOW()
+      `UPDATE sales_orders SET status='paid',payment_status='paid', amount_paid=$1, change_due=$2, updated_at=NOW()
        WHERE id=$3`,
       [totalPaid, changeDue, dto.order_id],
     );

@@ -5,7 +5,7 @@ import { useToast } from '../../components/Toast';
 import { getErr } from '../../lib/err';
 
 const money=(v:any)=>'SAR '+Number(v||0).toLocaleString('en-SA',{minimumFractionDigits:2,maximumFractionDigits:2});
-const SC:Record<string,string>={completed:'active',paid:'active',confirmed:'blue',pending:'pending',cancelled:'danger',draft:'inactive'};
+const SC:Record<string,string>={completed:'active',paid:'active',confirmed:'blue',pending:'pending',cancelled:'danger',draft:'inactive',new:'pending',picking:'blue',packed:'blue',ready_to_ship:'pending',ready_for_pickup:'pending',shipped:'blue',delivered:'active'};
 const label=(v:any)=>String(v||'—').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
 const nav=(s:string)=>window.dispatchEvent(new CustomEvent('nav',{detail:s}));
 const orderGross=(o:any)=>Math.max(Number(o?.total||0),Number(o?.amount_paid||o?.paid_amount||0));
@@ -17,16 +17,19 @@ const orderVat=(o:any)=>{
 
 export default function Orders(){
   const qc=useQueryClient();const {toast}=useToast();
-  const [q,setQ]=useState('');const [status,setStatus]=useState('all');const [payment,setPayment]=useState('all');const [period,setPeriod]=useState('30');const [selectedId,setSelectedId]=useState('');
+  const [q,setQ]=useState('');const [status,setStatus]=useState('all');const [payment,setPayment]=useState('all');const [channel,setChannel]=useState('all');const [period,setPeriod]=useState('30');const [selectedId,setSelectedId]=useState('');
   const {data=[],isLoading,isFetching,refetch}=useQuery<any[]>({queryKey:['orders-admin'],queryFn:()=>api.get('/sales/orders').then(r=>Array.isArray(r.data)?r.data:[])});
   const {data:detail,isLoading:detailLoading}=useQuery<any>({queryKey:['order-detail',selectedId],queryFn:()=>api.get('/sales/orders/'+selectedId).then(r=>r.data),enabled:!!selectedId});
   const cancel=useMutation({mutationFn:(id:string)=>api.patch(`/sales/orders/${id}/cancel`,{}),onSuccess:r=>{toast(`Order cancelled; ${r.data.restocked_units||0} units restored`,'success');setSelectedId('');qc.invalidateQueries({queryKey:['orders-admin']});},onError:(e:any)=>toast(getErr(e),'error')});
+  const workflow=useMutation({mutationFn:({id,body}:{id:string;body:any})=>api.patch(`/sales/orders/${id}/workflow`,body),onSuccess:()=>{toast('Order workflow updated','success');qc.invalidateQueries({queryKey:['orders-admin']});qc.invalidateQueries({queryKey:['order-detail',selectedId]})},onError:(e:any)=>toast(getErr(e),'error')});
   const payments=useMemo(()=>[...new Set(data.flatMap(o=>String(o.payment_method||'').split(', ')).filter(Boolean))],[data]);
   const orders=useMemo(()=>data.filter(o=>{
     const query=q.trim().toLowerCase();const age=(Date.now()-new Date(o.created_at).getTime())/86400000;
     return (!query||[o.order_number,o.customer_name,o.customer_phone,o.cashier_name].some(v=>String(v||'').toLowerCase().includes(query)))
-      &&(status==='all'||o.status===status)&&(payment==='all'||String(o.payment_method||'').includes(payment))&&(period==='all'||age<=Number(period));
-  }),[data,q,status,payment,period]);
+      &&(status==='all'||o.status===status)&&(payment==='all'||String(o.payment_method||'').includes(payment))
+      &&(channel==='all'||(channel==='ecommerce'?o.channel==='ecommerce'||String(o.order_number).startsWith('WEB-'):o.channel!=='ecommerce'&&!String(o.order_number).startsWith('WEB-')))
+      &&(period==='all'||age<=Number(period));
+  }),[data,q,status,payment,channel,period]);
   const paid=data.filter(o=>o.status==='paid');const revenue=paid.reduce((s,o)=>s+orderGross(o),0);const refunds=data.reduce((s,o)=>s+Number(o.returned_amount||0),0);const units=data.reduce((s,o)=>s+Number(o.item_count||0),0);
 
   const exportCsv=()=>{
@@ -45,6 +48,7 @@ export default function Orders(){
       <div className="orders-search"><i className="ti ti-search"/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Invoice, customer, phone or cashier…"/>{q&&<button onClick={()=>setQ('')}>×</button>}</div>
       <select value={status} onChange={e=>setStatus(e.target.value)}><option value="all">All statuses</option>{['paid','confirmed','pending','draft','cancelled'].map(x=><option key={x} value={x}>{label(x)}</option>)}</select>
       <select value={payment} onChange={e=>setPayment(e.target.value)}><option value="all">All payments</option>{payments.map(x=><option key={x} value={x}>{label(x)}</option>)}</select>
+      <select value={channel} onChange={e=>setChannel(e.target.value)}><option value="all">All channels</option><option value="ecommerce">E-commerce</option><option value="pos">POS / Retail</option></select>
       <select value={period} onChange={e=>setPeriod(e.target.value)}><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="all">All dates</option></select>
       <span className="orders-result-count">{orders.length} results</span>
     </div>
@@ -55,17 +59,23 @@ export default function Orders(){
     {selectedId&&<div className="order-drawer-overlay" onClick={()=>setSelectedId('')}><aside className="order-drawer" onClick={e=>e.stopPropagation()}>
       <header><div><span>ORDER DETAILS</span><h2>#{detail?.order_number||'Loading…'}</h2></div><button onClick={()=>setSelectedId('')}><i className="ti ti-x"/></button></header>
       {detailLoading||!detail?<Empty icon="ti-loader-2 login-spin" text="Loading complete order…"/>:<div className="order-drawer-content">
-        <div className="order-status-line"><span className={`nx-badge ${SC[detail.status]||'inactive'}`}>{label(detail.status)}</span><span>{new Date(detail.created_at).toLocaleString('en-SA')}</span></div>
+        <div className="order-status-line"><span><b className={`nx-badge ${SC[detail.status]||'inactive'}`}>{label(detail.status)}</b> <b className={`nx-badge ${SC[detail.fulfillment_status]||'inactive'}`}>{label(detail.fulfillment_status||'new')}</b></span><span>{new Date(detail.created_at).toLocaleString('en-SA')}</span></div>
+        {(detail.channel==='ecommerce'||String(detail.order_number).startsWith('WEB-'))&&<><section className="drawer-section ecommerce-fulfilment"><h3>Order fulfilment <span>{label(detail.payment_status||'pending')}</span></h3><div className="fulfilment-steps">{['new','confirmed','picking','packed',detail.delivery_method==='pickup'?'ready_for_pickup':'ready_to_ship','shipped','delivered'].map((x,i)=>{const current=String(detail.fulfillment_status||'new'),steps=['new','confirmed','picking','packed',detail.delivery_method==='pickup'?'ready_for_pickup':'ready_to_ship','shipped','delivered'];const active=steps.indexOf(current)>=i;return <span className={active?'done':''} key={x}><i className={`ti ${active?'ti-circle-check-filled':'ti-circle'}`}/>{label(x)}</span>})}</div><div className="fulfilment-actions"><button disabled={workflow.isPending||!nextStatus(detail)} onClick={()=>advance(detail)}>{workflow.isPending?'Updating…':nextStatus(detail)?`Move to ${label(nextStatus(detail))}`:'Workflow complete'}</button></div></section>
+        <section className="drawer-section"><h3>Delivery information</h3><div className="delivery-grid"><span><small>METHOD</small><b>{label(detail.delivery_method||'shipping')}</b></span><span><small>COURIER</small><b>{detail.courier||'Not assigned'}</b></span><span><small>TRACKING</small><b>{detail.tracking_number||'Not available'}</b></span><span><small>SHIP TO</small><b>{Object.values(detail.shipping_address||{}).filter(Boolean).join(', ')||'Address in order notes'}</b></span></div></section></>}
         <section className="order-customer"><i className="ti ti-user"/><div><small>CUSTOMER</small><b>{detail.customer_name||'Walk-in Customer'}</b><span>{detail.customer_phone||'No phone number'}</span></div><div><small>CASHIER</small><b>{detail.cashier_name||'—'}</b></div></section>
         <section className="drawer-section"><h3>Items <span>{(detail.lines||[]).reduce((s:number,x:any)=>s+Number(x.quantity||0),0)} units</span></h3><div className="drawer-items">{(detail.lines||[]).map((x:any)=><div key={x.id}><div><b>{x.product_name||x.variant_name||'Product'}</b><span>{x.sku||'No SKU'}{x.variant_name?' · '+x.variant_name:''}</span><small>{x.quantity} × {money(x.unit_price)}</small></div><strong>{money(x.line_total)}</strong></div>)}</div></section>
         <section className="drawer-section"><h3>Payment breakdown</h3>{(detail.payments||[]).length?(detail.payments||[]).map((p:any)=><div className="drawer-payment" key={p.id}><span><i className="ti ti-credit-card"/>{label(p.method)}<small>{p.reference||'Completed'}</small></span><b>{money(p.amount)}</b></div>):<div className="drawer-unpaid"><i className="ti ti-alert-circle"/> No payment recorded</div>}</section>
         {(detail.returns||[]).length>0&&<section className="drawer-section"><h3>Returns</h3>{detail.returns.map((r:any)=><div className="drawer-payment return" key={r.id}><span><i className="ti ti-arrow-back-up"/>{r.return_number}<small>{r.reason||'Return processed'}</small></span><b>− {money(r.refund_amount)}</b></div>)}</section>}
         <section className="order-totals"><div><span>Subtotal</span><b>{money(detail.subtotal)}</b></div><div><span>Discount</span><b className="discount">− {money(detail.discount_amount)}</b></div><div><span>VAT 15% / الضريبة</span><b>{money(orderVat(detail))}</b></div><div><span>Amount paid</span><b>{money(detail.amount_paid)}</b></div><div className="grand"><span>Total incl. VAT</span><strong>{money(orderGross(detail))}</strong></div></section>
         {detail.notes&&<div className="order-note"><i className="ti ti-note"/><div><small>ORDER NOTE</small><p>{detail.notes}</p></div></div>}
+        {(detail.activity||[]).length>0&&<section className="drawer-section"><h3>Activity timeline</h3><div className="order-activity">{detail.activity.map((a:any)=><div key={a.id}><i className="ti ti-history"/><span><b>{label(a.to_status||a.event)}</b><small>{a.actor_name||'System'} · {new Date(a.created_at).toLocaleString('en-SA')}{a.note?` · ${a.note}`:''}</small></span></div>)}</div></section>}
       </div>}
       {detail&&<footer><button className="btn-nx ghost" onClick={printSummary}><i className="ti ti-printer"/> Print Copy</button>{detail.status==='paid'&&<button className="btn-nx ghost" onClick={()=>nav('pos-return')}><i className="ti ti-arrow-back-up"/> Process Return</button>}{['draft','pending','confirmed'].includes(detail.status)&&<button className="btn-nx danger" disabled={cancel.isPending} onClick={()=>confirm(`Cancel ${detail.order_number} and restore its stock?`)&&cancel.mutate(detail.id)}><i className="ti ti-ban"/> {cancel.isPending?'Cancelling…':'Cancel Order'}</button>}</footer>}
     </aside></div>}
   </div>;
+
+  function nextStatus(o:any){const current=o.fulfillment_status||'new';const map:Record<string,string>={new:'confirmed',confirmed:'picking',picking:'packed',packed:o.delivery_method==='pickup'?'ready_for_pickup':'ready_to_ship',ready_to_ship:'shipped',ready_for_pickup:'delivered',shipped:'delivered'};return map[current]||''}
+  function advance(o:any){const to=nextStatus(o);if(!to)return;const body:any={fulfillment_status:to};if(to==='shipped'){const courier=prompt('Courier name',o.courier||'');if(!courier)return;const tracking_number=prompt('Tracking number',o.tracking_number||'');if(!tracking_number)return;body.courier=courier;body.tracking_number=tracking_number;body.tracking_url=prompt('Tracking URL (optional)',o.tracking_url||'')||undefined}workflow.mutate({id:o.id,body})}
 }
 function Kpi({icon,label,value,note}:{icon:string;label:string;value:string;note:string}){return <div className="orders-kpi"><i className={`ti ${icon}`}/><div><span>{label}</span><b>{value}</b><small>{note}</small></div></div>}
 function Empty({icon,text}:{icon:string;text:string}){return <div className="orders-empty"><i className={`ti ${icon}`}/><span>{text}</span></div>}
