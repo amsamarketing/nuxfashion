@@ -26,6 +26,7 @@ import Branches from './pages/admin/Branches';
 import BarcodeLabels from './pages/admin/BarcodeLabels';
 import B2BSales from './pages/admin/B2BSales';
 import Marketing from './pages/admin/Marketing';
+import Expenses from './pages/admin/Expenses';
 
 const qc = new QueryClient({ defaultOptions:{ queries:{ retry:1, staleTime:30000 }}});
 
@@ -45,6 +46,7 @@ const NAV = [
   { id:'ad-marketing',label:'Marketing',    icon:'ti-speakerphone',       sec:'Channels',perms:['marketing.view','marketing.*'] },
   { id:'ad-hr',     label:'HR & Payroll',  icon:'ti-id',                 sec:'People',perms:['hr.view','hr.self.view','payroll.view','hr.payroll.view'] },
   { id:'ad-acct',   label:'Accounting',    icon:'ti-report-money',       sec:'Finance',perms:['finance.view','invoices.view'] },
+  { id:'ad-expenses',label:'Expenses',      icon:'ti-receipt-2',          sec:'Finance',perms:['expenses.view','finance.view'] },
   { id:'ad-zatca',  label:'ZATCA',         icon:'ti-file-check',         sec:'Finance',perms:['vat.view'] },
   { id:'ad-rep',    label:'Reports',       icon:'ti-chart-bar',          sec:'Finance',perms:['reports.view','reports.finance','reports.branch','reports.marketing'] },
   { id:'ad-set',    label:'Settings',      icon:'ti-settings',           sec:'System',perms:['settings.view','users.view'] },
@@ -63,6 +65,15 @@ const ECOM_NAV = [
   { id:'ad-ecom-settings',     label:'Store Settings',       icon:'ti-settings' },
   { id:'ad-ecom-seo',          label:'General & SEO',        icon:'ti-search' },
 ];
+
+const EXPENSE_NAV = [
+  ['ad-expenses','Expense Dashboard','ti-dashboard'],['ad-expenses-all','All Expenses','ti-list-details'],
+  ['ad-expenses-new','Create Expense','ti-circle-plus'],['ad-expenses-suppliers','Supplier Payments','ti-building-bank'],
+  ['ad-expenses-recurring','Recurring Expenses','ti-repeat'],['ad-expenses-reimbursements','Employee Reimbursements','ti-users'],
+  ['ad-expenses-petty','Petty Cash','ti-cash'],['ad-expenses-categories','Expense Categories','ti-category'],
+  ['ad-expenses-approvals','Approval Queue','ti-checklist'],['ad-expenses-schedule','Payment Schedule','ti-calendar-dollar'],
+  ['ad-expenses-reports','Expense Reports','ti-chart-bar'],
+].map(([id,label,icon])=>({id,label,icon}));
 
 function hasPermission(user:any,required:string[]){const permissions:string[]=user?.permissions||[];if(!permissions.length)return String(user?.role||'').toLowerCase().includes('admin');if(permissions.includes('*'))return true;return required.some(need=>permissions.some(got=>got===need||(got.endsWith('.*')&&need.startsWith(got.slice(0,-1)))))}
 
@@ -83,6 +94,17 @@ const SCREENS: Record<string,React.ComponentType> = {
   'ad-labels':BarcodeLabels,
   'ad-b2b':B2BSales,
   'ad-marketing':Marketing,
+  'ad-expenses':Expenses,
+  'ad-expenses-all':()=> <Expenses initialTab="all"/>,
+  'ad-expenses-new':()=> <Expenses initialTab="new"/>,
+  'ad-expenses-suppliers':()=> <Expenses initialTab="suppliers"/>,
+  'ad-expenses-recurring':()=> <Expenses initialTab="recurring"/>,
+  'ad-expenses-reimbursements':()=> <Expenses initialTab="reimbursements"/>,
+  'ad-expenses-petty':()=> <Expenses initialTab="petty"/>,
+  'ad-expenses-categories':()=> <Expenses initialTab="categories"/>,
+  'ad-expenses-approvals':()=> <Expenses initialTab="approvals"/>,
+  'ad-expenses-schedule':()=> <Expenses initialTab="schedule"/>,
+  'ad-expenses-reports':()=> <Expenses initialTab="reports"/>,
   'ad-ecom-home':()=> <Ecommerce initialTab="content" initialWorkspace="home"/>,
   'ad-ecom-banners':()=> <Ecommerce initialTab="content" initialWorkspace="hero"/>,
   'ad-ecom-sections':()=> <Ecommerce initialTab="content" initialWorkspace="catalog"/>,
@@ -119,12 +141,13 @@ function App() {
   if(!user) return <Login portal={posLogin?'pos':'admin'} onLogin={portal=>{setMode(portal);setScreen(portal==='pos'?'pos-sale':'ad-dash')}}/>;
 
   const ecommerceAllowed=visibleNav.some(n=>n.id==='ad-ecom')&&ECOM_NAV.some(n=>n.id===screen);
-  const safeScreen=mode==='admin'&&!visibleNav.some(n=>n.id===screen)&&!ecommerceAllowed?(visibleNav[0]?.id||'ad-dash'):screen;
+  const expensesAllowed=visibleNav.some(n=>n.id==='ad-expenses')&&EXPENSE_NAV.some(n=>n.id===screen);
+  const safeScreen=mode==='admin'&&!visibleNav.some(n=>n.id===screen)&&!ecommerceAllowed&&!expensesAllowed?(visibleNav[0]?.id||'ad-dash'):screen;
   const Screen = SCREENS[safeScreen] || Dashboard;
   const initials=(user.name||user.email||'A').slice(0,2).toUpperCase();
   const firstName=user.name?.split(' ')[0]||'Admin';
   const today=new Date().toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
-  const curLabel=NAV.find(n=>n.id===safeScreen)?.label||ECOM_NAV.find(n=>n.id===safeScreen)?.label||'Dashboard';
+  const curLabel=NAV.find(n=>n.id===safeScreen)?.label||ECOM_NAV.find(n=>n.id===safeScreen)?.label||EXPENSE_NAV.find(n=>n.id===safeScreen)?.label||'Dashboard';
 
   if(mode==='pos') return (
     <div className="p-pos-shell">
@@ -175,6 +198,15 @@ function App() {
                     </button>
                     <div className={`p-subnav-menu${openGroups.includes('E-commerce')?' open':''}`}>
                       {ECOM_NAV.map(item=><button key={item.id} className={safeScreen===item.id?'active':''} onClick={()=>{setScreen(item.id);setSideOpen(false)}}><i className={`ti ${item.icon}`}/><span>{item.label}</span></button>)}
+                    </div>
+                  </div>
+                ):n.id==='ad-expenses'?(
+                  <div className={`p-subnav${safeScreen.startsWith('ad-expenses')?' active':''}`} key={n.id}>
+                    <button className="p-nav-item p-subnav-trigger" onClick={()=>setOpenGroups(g=>g.includes('Expenses')?g.filter(x=>x!=='Expenses'):[...g,'Expenses'])}>
+                      <i className={`ti ${n.icon} p-nav-ic`}/><span>{n.label}</span><i className={`ti ti-chevron-${openGroups.includes('Expenses')?'up':'down'} p-subnav-chevron`}/>
+                    </button>
+                    <div className={`p-subnav-menu${openGroups.includes('Expenses')?' open':''}`}>
+                      {EXPENSE_NAV.map(item=><button key={item.id} className={safeScreen===item.id?'active':''} onClick={()=>{setScreen(item.id);setSideOpen(false)}}><i className={`ti ${item.icon}`}/><span>{item.label}</span></button>)}
                     </div>
                   </div>
                 ):(
