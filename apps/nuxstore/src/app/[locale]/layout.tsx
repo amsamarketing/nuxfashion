@@ -36,9 +36,10 @@ export default async function LocaleLayout({
   const messages = await getMessages();
   const isRtl = locale === 'ar';
   let storeConfig:any={};try{storeConfig=await storefrontApi.getConfig()}catch{}
+  const theme = storeConfig?.storefront_theme || 'luxury';
 
   return (
-    <html lang={locale} dir={isRtl ? 'rtl' : 'ltr'} className={inter.variable}>
+    <html lang={locale} dir={isRtl ? 'rtl' : 'ltr'} className={inter.variable} data-theme={theme}>
       <head>
         {isRtl && (
           <link

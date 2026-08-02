@@ -2,6 +2,124 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── THEME SYSTEM ──────────────────────────────────────────────────────────── */
+/* Each theme overrides CSS variables used throughout the store.               */
+/* Applied via data-theme attribute on <html> from storefront config.          */
+
+:root,
+[data-theme='luxury'] {
+  --brand-900: #1a1a2e;
+  --brand-800: #1e1e3e;
+  --brand-700: #2a2a56;
+  --brand-600: #3a3a70;
+  --brand-500: #4d4d8a;
+  --brand-100: #e8e8f0;
+  --brand-50:  #f5f5fa;
+  --accent-500: #f59e0b;
+  --accent-400: #fbbf24;
+  --accent-300: #fcd34d;
+  --promo-strip-bg: #1a1a2e;
+  --promo-strip-text: #ffffff;
+  --header-bg: #ffffff;
+  --header-border: #f1f5f9;
+  --btn-primary-bg: #1a1a2e;
+  --btn-primary-hover: #2a2a56;
+  --badge-new-bg: #1a1a2e;
+  --hero-overlay: rgba(26,26,46,0.55);
+  --section-alt-bg: #f8fafc;
+  --flash-bg: #1a1a2e;
+}
+
+[data-theme='minimal'] {
+  --brand-900: #111111;
+  --brand-800: #1c1c1c;
+  --brand-700: #2d2d2d;
+  --brand-600: #3f3f3f;
+  --brand-500: #525252;
+  --brand-100: #e5e5e5;
+  --brand-50:  #f5f5f5;
+  --accent-500: #111111;
+  --accent-400: #333333;
+  --accent-300: #555555;
+  --promo-strip-bg: #111111;
+  --promo-strip-text: #ffffff;
+  --header-bg: #ffffff;
+  --header-border: #e5e5e5;
+  --btn-primary-bg: #111111;
+  --btn-primary-hover: #333333;
+  --badge-new-bg: #111111;
+  --hero-overlay: rgba(0,0,0,0.45);
+  --section-alt-bg: #f9f9f9;
+  --flash-bg: #111111;
+}
+
+[data-theme='emerald'] {
+  --brand-900: #064e3b;
+  --brand-800: #065f46;
+  --brand-700: #047857;
+  --brand-600: #059669;
+  --brand-500: #10b981;
+  --brand-100: #d1fae5;
+  --brand-50:  #ecfdf5;
+  --accent-500: #ca8a04;
+  --accent-400: #eab308;
+  --accent-300: #fde047;
+  --promo-strip-bg: #064e3b;
+  --promo-strip-text: #ffffff;
+  --header-bg: #ffffff;
+  --header-border: #d1fae5;
+  --btn-primary-bg: #064e3b;
+  --btn-primary-hover: #047857;
+  --badge-new-bg: #064e3b;
+  --hero-overlay: rgba(6,78,59,0.55);
+  --section-alt-bg: #f0fdf4;
+  --flash-bg: #064e3b;
+}
+
+[data-theme='rose'] {
+  --brand-900: #881337;
+  --brand-800: #9f1239;
+  --brand-700: #be123c;
+  --brand-600: #e11d48;
+  --brand-500: #f43f5e;
+  --brand-100: #ffe4e6;
+  --brand-50:  #fff1f2;
+  --accent-500: #db2777;
+  --accent-400: #ec4899;
+  --accent-300: #f9a8d4;
+  --promo-strip-bg: #881337;
+  --promo-strip-text: #ffffff;
+  --header-bg: #ffffff;
+  --header-border: #ffe4e6;
+  --btn-primary-bg: #881337;
+  --btn-primary-hover: #be123c;
+  --badge-new-bg: #881337;
+  --hero-overlay: rgba(136,19,55,0.50);
+  --section-alt-bg: #fff1f2;
+  --flash-bg: #881337;
+}
+
+/* Apply CSS variables to Tailwind-generated components via overrides */
+[data-theme] .btn-primary,
+[data-theme='luxury'] .btn-primary { background-color: var(--btn-primary-bg) !important; }
+[data-theme] .btn-primary:hover { background-color: var(--btn-primary-hover) !important; }
+[data-theme] .btn-gold { background-color: var(--accent-500) !important; }
+[data-theme] .section-title { color: var(--brand-900) !important; }
+[data-theme] .badge-new { background-color: var(--badge-new-bg) !important; }
+[data-theme] .countdown-block { background-color: var(--brand-900) !important; }
+[data-theme] .bg-luxury-900 { background-color: var(--brand-900) !important; }
+[data-theme] .bg-luxury-50 { background-color: var(--brand-50) !important; }
+[data-theme] .text-luxury-900 { color: var(--brand-900) !important; }
+[data-theme] .text-luxury-700 { color: var(--brand-700) !important; }
+[data-theme] .border-luxury-900 { border-color: var(--brand-900) !important; }
+[data-theme] .hover\:text-luxury-900:hover { color: var(--brand-900) !important; }
+[data-theme] .hover\:bg-luxury-900:hover { background-color: var(--brand-900) !important; }
+[data-theme] .hover\:border-luxury-900:hover { border-color: var(--brand-900) !important; }
+[data-theme] .text-gold-600 { color: var(--accent-500) !important; }
+[data-theme] .bg-gold-500 { background-color: var(--accent-500) !important; }
+[data-theme] .bg-gray-50,[data-theme] section.bg-gray-50 { background-color: var(--section-alt-bg) !important; }
+[data-theme] .swiper-pagination-bullet-active { background-color: var(--brand-900) !important; }
+
 @layer base {
   :root {
     --font-inter: 'Inter', system-ui, sans-serif;
