@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api-production-a2d2.up.railway.app/api/v1';
+// Uses /api/proxy route to avoid HTTP→HTTPS mixed-content issues with the Hetzner server
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api/proxy';
 
 export const api = axios.create({
   baseURL: API_URL,
